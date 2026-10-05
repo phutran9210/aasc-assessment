@@ -1,0 +1,21 @@
+# Run the app with Docker:  make docker-up   (or: docker compose up -d --build)
+# Settings come from .env (create it with `cp .env.example .env`).
+services:
+  app:
+    build: .
+    image: aasc-assessment:latest
+    container_name: aasc-app
+    env_file: .env
+    environment:
+      # Inside the container the app always listens on 3000 and stores SQLite in the volume;
+      # PORT in .env only chooses the port published on the host.
+      PORT: 3000
+      DATABASE_PATH: data/app.sqlite
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      - aasc-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  aasc-data:

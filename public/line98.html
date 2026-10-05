@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Line 98 — AASC Game</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>Line 98</h1>
+      <a href="/">Trang chủ</a>
+      <a href="/caro.html">Cờ Caro</a>
+    </header>
+
+    <main class="game">
+      <canvas
+        id="board"
+        width="504"
+        height="504"
+        tabindex="0"
+        aria-label="Bàn chơi Line 98, 9 nhân 9 ô"
+      ></canvas>
+
+      <aside class="card">
+        <p class="status" id="status">Đang kết nối...</p>
+        <div class="stat"><span>Điểm</span><strong id="score">0</strong></div>
+        <div class="stat"><span>Số lượt</span><strong id="moves">0</strong></div>
+        <div class="stat">
+          <span>Bóng sắp xuất hiện</span>
+          <span class="next" id="next"></span>
+        </div>
+        <div class="row">
+          <button id="new-game">Ván mới</button>
+          <button id="hint" class="secondary">Trợ giúp</button>
+        </div>
+        <p class="message" id="message" role="status"></p>
+        <p class="message">
+          Chọn một bóng rồi chọn ô trống để di chuyển (bóng chỉ đi qua các ô trống kề nhau). Xếp từ
+          5 bóng cùng màu thành hàng ngang, dọc hoặc chéo để xóa và ghi điểm.
+        </p>
+      </aside>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/line98.js"></script>
+  </body>
+</html>

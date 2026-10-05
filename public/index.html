@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AASC Game</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>AASC Game</h1>
+      <a href="/docs">Swagger</a>
+      <a href="#" id="logout" class="hidden">Đăng xuất</a>
+    </header>
+
+    <main>
+      <!-- Shown to visitors -->
+      <section class="card" id="auth">
+        <h2>Đăng nhập hoặc đăng ký</h2>
+        <form id="auth-form">
+          <label for="username">Tên đăng nhập (3-30 ký tự: chữ, số, gạch dưới)</label>
+          <input id="username" name="username" autocomplete="username" required />
+          <label for="password">Mật khẩu (ít nhất 8 ký tự)</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+          />
+          <div class="row">
+            <button type="submit" id="login">Đăng nhập</button>
+            <button type="button" id="register" class="secondary">Đăng ký</button>
+          </div>
+          <p class="message" id="auth-message" role="status"></p>
+        </form>
+      </section>
+
+      <!-- Shown to logged-in players -->
+      <section class="hidden" id="lobby">
+        <div class="games">
+          <a href="/line98.html">
+            <strong>Line 98</strong>
+            <span>Xếp 5 bóng cùng màu thành hàng để ghi điểm.</span>
+          </a>
+          <a href="/caro.html">
+            <strong>Cờ Caro X O</strong>
+            <span>Đấu trực tuyến, ghép cặp ngẫu nhiên, thắng khi đủ 5 liên tiếp.</span>
+          </a>
+        </div>
+      </section>
+
+      <section class="card hidden" id="profile">
+        <h2>Tài khoản: <span id="profile-username"></span></h2>
+        <form id="profile-form">
+          <label for="nickname">Nickname (tên hiển thị trong game, 2-30 ký tự)</label>
+          <input id="nickname" name="nickname" maxlength="30" />
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email" />
+          <div class="row">
+            <button type="submit">Lưu thông tin</button>
+          </div>
+          <p class="message" id="profile-message" role="status"></p>
+        </form>
+      </section>
+    </main>
+
+    <script type="module" src="/js/home.js"></script>
+  </body>
+</html>

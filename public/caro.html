@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cờ Caro — AASC Game</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <h1>Cờ Caro X O</h1>
+      <a href="/">Trang chủ</a>
+      <a href="/line98.html">Line 98</a>
+    </header>
+
+    <main class="game">
+      <canvas
+        id="board"
+        width="510"
+        height="510"
+        tabindex="0"
+        aria-label="Bàn cờ Caro, 15 nhân 15 ô"
+      ></canvas>
+
+      <aside class="card">
+        <p class="status" id="status">Đang kết nối...</p>
+        <div class="stat"><span>Bạn</span><strong id="you">—</strong></div>
+        <div class="stat"><span>Đối thủ</span><strong id="opponent">—</strong></div>
+        <div class="row">
+          <button id="find">Tìm trận</button>
+          <button id="cancel" class="secondary hidden">Hủy tìm</button>
+          <button id="leave" class="secondary hidden">Rời trận</button>
+        </div>
+        <p class="message" id="message" role="status"></p>
+
+        <h2>Lịch sử trận đấu</h2>
+        <ul class="history" id="history"></ul>
+      </aside>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="/js/caro.js"></script>
+  </body>
+</html>

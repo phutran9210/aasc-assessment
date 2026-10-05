@@ -1,0 +1,5 @@
+export const TASK_CONSTRAINTS = {
+  TITLE: { MAX_LENGTH: 255 },
+  DESCRIPTION: { MAX_LENGTH: 2000 },
+  STATUS: { MAX_LENGTH: 20 },
+} as const;

@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+docs/
+
+# build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# environment & local data (tokens, SQLite files) — never commit
+.env
+.env.*
+!.env.example
+data/
+
+# logs
+logs/
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# AI assistant tooling (local commands, plan workspaces)
+.claude/
+.superpowers/

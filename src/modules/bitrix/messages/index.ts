@@ -1,0 +1,23 @@
+export const BITRIX_MESSAGES = {
+  ERROR: {
+    CONFIG: 'Cấu hình Bitrix24 chưa đầy đủ',
+    EVENT_UNSUPPORTED: 'Sự kiện Bitrix24 không được hỗ trợ',
+    EVENT_INVALID: 'Dữ liệu cài đặt Bitrix24 không hợp lệ',
+    INSTALL_PAYLOAD_INVALID: 'Bitrix24 install payload không hợp lệ',
+    APP_INVALID: 'Không xác thực được ứng dụng Bitrix24',
+    STATE_INVALID: 'OAuth state không hợp lệ hoặc đã hết hạn',
+    CODE_REQUIRED: 'Authorization code là bắt buộc',
+    CODE_AND_STATE_REQUIRED: 'Authorization code và state là bắt buộc',
+    INSTALLATION_REQUIRED: 'Chưa có kết nối Bitrix24',
+    INSTALLATION_MISMATCH: 'Bitrix24 installation không khớp',
+    NOT_INSTALLED: 'Bitrix24 chưa được cài đặt',
+    REFRESH_FAILED: 'Không thể làm mới quyền truy cập Bitrix24; cần cài đặt lại ứng dụng',
+    NOT_FOUND: 'Bitrix24 không tìm thấy dữ liệu',
+    RATE_LIMITED: 'Bitrix24 đang giới hạn tốc độ, vui lòng thử lại sau',
+    REQUEST_FAILED: 'Bitrix24 request thất bại',
+    TIMEOUT: 'Bitrix24 request timeout',
+    UNREACHABLE: 'Không thể kết nối Bitrix24',
+    RESPONSE_INVALID: 'Bitrix24 trả về dữ liệu không hợp lệ',
+    RESULT_MISSING: 'Bitrix24 response thiếu result',
+  },
+} as const;
