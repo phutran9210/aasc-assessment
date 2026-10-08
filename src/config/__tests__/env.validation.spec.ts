@@ -21,6 +21,14 @@ describe('validateEnv', () => {
       JOTFORM_FORM_ID: undefined,
       JOTFORM_WEBHOOK_SECRET: undefined,
       JOTFORM_API_BASE_URL: 'https://api.jotform.com',
+      GOOGLE_AUTH_MODE: 'service_account',
+      GOOGLE_SHEET_NAME: 'Leads',
+      LEAD_SYNC_MAPPING_PATH: 'config/mapping.json',
+      LEAD_SYNC_TIMEZONE: 'Asia/Ho_Chi_Minh',
+      LEAD_SYNC_DIRECTION: 'sheet-to-bitrix',
+      LEAD_SYNC_DEFAULT_COUNTRY: 'VN',
+      LEAD_SYNC_MAX_RETRIES: 4,
+      LEAD_SYNC_LOG_RETENTION_DAYS: 30,
     });
   });
 
@@ -58,6 +66,14 @@ describe('validateEnv', () => {
       BITRIX24_DOMAIN: 'portal.bitrix24.com',
       BITRIX24_REQUISITE_PRESET_ID: 1,
       JOTFORM_API_BASE_URL: 'https://api.jotform.com',
+      GOOGLE_AUTH_MODE: 'service_account',
+      GOOGLE_SHEET_NAME: 'Leads',
+      LEAD_SYNC_MAPPING_PATH: 'config/mapping.json',
+      LEAD_SYNC_TIMEZONE: 'Asia/Ho_Chi_Minh',
+      LEAD_SYNC_DIRECTION: 'sheet-to-bitrix',
+      LEAD_SYNC_DEFAULT_COUNTRY: 'VN',
+      LEAD_SYNC_MAX_RETRIES: 4,
+      LEAD_SYNC_LOG_RETENTION_DAYS: 30,
     });
   });
 
@@ -81,6 +97,17 @@ describe('validateEnv', () => {
     ['BCRYPT_ROUNDS', { BCRYPT_ROUNDS: '16' }],
     ['BITRIX24_DOMAIN', { BITRIX24_DOMAIN: 'https://portal.bitrix24.com/rest/' }],
     ['BITRIX24_REQUISITE_PRESET_ID', { BITRIX24_REQUISITE_PRESET_ID: '0' }],
+    ['GOOGLE_AUTH_MODE', { GOOGLE_AUTH_MODE: 'api_key' }],
+    ['GOOGLE_SERVICE_ACCOUNT_KEY_BASE64', { GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: 'not-base64-json' }],
+    ['GOOGLE_SHEET_ID', { GOOGLE_SHEET_ID: 'https://docs.google.com/spreadsheets/d/abc/edit' }],
+    ['BITRIX24_WEBHOOK_URL', { BITRIX24_WEBHOOK_URL: 'http://portal.bitrix24.com/rest/1/abc/' }],
+    ['BITRIX24_WEBHOOK_URL', { BITRIX24_WEBHOOK_URL: 'https://portal.bitrix24.com/' }],
+    ['LEAD_SYNC_CRON', { LEAD_SYNC_CRON: 'every 15 minutes' }],
+    ['LEAD_SYNC_TIMEZONE', { LEAD_SYNC_TIMEZONE: 'Mars/Olympus' }],
+    ['LEAD_SYNC_DIRECTION', { LEAD_SYNC_DIRECTION: 'both' }],
+    ['LEAD_SYNC_DEFAULT_COUNTRY', { LEAD_SYNC_DEFAULT_COUNTRY: 'XX' }],
+    ['LEAD_SYNC_MAX_RETRIES', { LEAD_SYNC_MAX_RETRIES: '11' }],
+    ['LEAD_SYNC_LOG_RETENTION_DAYS', { LEAD_SYNC_LOG_RETENTION_DAYS: '0' }],
   ])('should name %s in the error when env is %o', (variable, raw) => {
     expect(() => validateEnv(raw)).toThrow(/Biến môi trường không hợp lệ/);
     expect(() => validateEnv(raw)).toThrow(new RegExp(variable));
@@ -138,5 +165,47 @@ describe('validateEnv', () => {
     expect(() => validateEnv({ JOTFORM_WEBHOOK_SECRET: 'short' })).toThrow(
       'JOTFORM_WEBHOOK_SECRET',
     );
+  });
+
+  it('should accept a full Google Sheets and lead sync configuration', () => {
+    const key = Buffer.from(
+      JSON.stringify({ client_email: 'sa@project.iam.gserviceaccount.com', private_key: 'KEY' }),
+    ).toString('base64');
+
+    expect(
+      validateEnv({
+        GOOGLE_SERVICE_ACCOUNT_KEY_FILE: ' secrets/google-sa.json ',
+        GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: key,
+        GOOGLE_SHEET_ID: '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcd',
+        GOOGLE_SHEET_NAME: 'Khách hàng',
+        BITRIX24_WEBHOOK_URL: 'https://portal.bitrix24.com/rest/1/abcdef0123456789/',
+        LEAD_SYNC_CRON: '*/15 * * * *',
+        LEAD_SYNC_TIMEZONE: 'UTC',
+        LEAD_SYNC_DEFAULT_COUNTRY: 'US',
+        LEAD_SYNC_MAX_RETRIES: '0',
+        LEAD_SYNC_LOG_RETENTION_DAYS: '7',
+      }),
+    ).toMatchObject({
+      GOOGLE_SERVICE_ACCOUNT_KEY_FILE: 'secrets/google-sa.json',
+      GOOGLE_SERVICE_ACCOUNT_KEY_BASE64: key,
+      GOOGLE_SHEET_ID: '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_abcd',
+      GOOGLE_SHEET_NAME: 'Khách hàng',
+      BITRIX24_WEBHOOK_URL: 'https://portal.bitrix24.com/rest/1/abcdef0123456789/',
+      LEAD_SYNC_CRON: '*/15 * * * *',
+      LEAD_SYNC_TIMEZONE: 'UTC',
+      LEAD_SYNC_DEFAULT_COUNTRY: 'US',
+      LEAD_SYNC_MAX_RETRIES: 0,
+      LEAD_SYNC_LOG_RETENTION_DAYS: 7,
+    });
+  });
+
+  it('should treat blank lead sync variables as unset', () => {
+    expect(
+      validateEnv({ LEAD_SYNC_CRON: ' ', BITRIX24_WEBHOOK_URL: '', GOOGLE_SHEET_NAME: '' }),
+    ).toMatchObject({
+      LEAD_SYNC_CRON: undefined,
+      BITRIX24_WEBHOOK_URL: undefined,
+      GOOGLE_SHEET_NAME: 'Leads',
+    });
   });
 });

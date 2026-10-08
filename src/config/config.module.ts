@@ -5,7 +5,9 @@ import { appConfig } from './app.config.js';
 import { authConfig } from './auth.config.js';
 import { bitrixConfig } from './bitrix.config.js';
 import { databaseConfig } from './database.config.js';
+import { googleConfig } from './google.config.js';
 import { jotformConfig } from './jotform.config.js';
+import { leadSyncConfig } from './lead-sync.config.js';
 import { validateEnv } from './env.validation.js';
 
 /** Loads `.env`, validates it with Zod and exposes the namespaced configs app-wide. */
@@ -15,7 +17,15 @@ import { validateEnv } from './env.validation.js';
       isGlobal: true,
       cache: true,
       validate: validateEnv,
-      load: [appConfig, authConfig, databaseConfig, bitrixConfig, jotformConfig],
+      load: [
+        appConfig,
+        authConfig,
+        databaseConfig,
+        bitrixConfig,
+        jotformConfig,
+        googleConfig,
+        leadSyncConfig,
+      ],
     }),
   ],
 })

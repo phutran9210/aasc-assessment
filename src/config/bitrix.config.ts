@@ -11,6 +11,7 @@ export const bitrixConfig = registerAs('bitrix', () => {
     clientSecret: env.BITRIX24_CLIENT_SECRET,
     portalDomain: env.BITRIX24_DOMAIN,
     requisitePresetId: env.BITRIX24_REQUISITE_PRESET_ID,
+    webhookUrl: env.BITRIX24_WEBHOOK_URL,
     timeoutMs: 10_000,
     stateTtlSeconds: 600,
     refreshSkewSeconds: 60,
