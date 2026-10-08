@@ -30,6 +30,8 @@ export const LEAD_SYNC_MESSAGES = {
     DUPLICATE_FIELD: (field: string): string => `trường "${field}" được khai báo hai lần`,
     TECHNICAL_COLUMN: (column: string): string =>
       `cột "${column}" do ứng dụng quản lý, không được đưa vào mapping`,
+    PULL_UNSUPPORTED: (column: string, type: string): string =>
+      `cột "${column}" kiểu ${type} không dùng được "pull": chỉ áp dụng cho string, number, enum, user`,
     ENUM_VALUES: (column: string): string => `cột "${column}" kiểu enum phải có bảng values`,
     DEDUPE_KEY_UNMAPPED: (key: string): string =>
       `dedupe.keys có "${key}" nhưng không cột nào ánh xạ vào trường "${key}"`,

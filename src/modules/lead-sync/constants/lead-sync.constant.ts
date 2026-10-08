@@ -44,6 +44,11 @@ export const FIELD_TYPES = [
 ] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
+/** Column types a Bitrix24 value can be written back to (two-way sync). */
+export const PULLABLE_TYPES: readonly string[] = ['string', 'number', 'enum', 'user'];
+/** Of those, the ones pulled unless the mapping says otherwise. */
+export const PULLED_BY_DEFAULT: readonly string[] = ['enum', 'user'];
+
 export const DEDUPE_KEYS = ['email', 'phone'] as const;
 export type DedupeKey = (typeof DEDUPE_KEYS)[number];
 

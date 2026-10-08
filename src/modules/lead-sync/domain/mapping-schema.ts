@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-import { DEDUPE_KEYS, FIELD_TYPES, SPECIAL_FIELDS, TECHNICAL_COLUMNS } from '../constants/index.js';
+import {
+  DEDUPE_KEYS,
+  FIELD_TYPES,
+  PULLABLE_TYPES,
+  SPECIAL_FIELDS,
+  TECHNICAL_COLUMNS,
+} from '../constants/index.js';
 import { LeadSyncMappingError } from '../errors/index.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
 import type { LeadMapping } from '../types/index.js';
@@ -17,6 +23,7 @@ const fieldSchema = z.strictObject({
   values: z.record(z.string(), scalar).optional(),
   default: scalar.optional(),
   onUnknown: z.enum(['error', 'default']).default('error'),
+  pull: z.boolean().optional(),
 });
 
 const mappingSchema = z
@@ -47,6 +54,9 @@ const mappingSchema = z
       columns.add(field.column);
       fields.add(field.field);
       if (field.type === 'enum' && !field.values) problem(MAPPING.ENUM_VALUES(field.column));
+      if (field.pull && !PULLABLE_TYPES.includes(field.type)) {
+        problem(MAPPING.PULL_UNSUPPORTED(field.column, field.type));
+      }
       if ((TECHNICAL_COLUMNS as readonly string[]).includes(field.column)) {
         problem(MAPPING.TECHNICAL_COLUMN(field.column));
       }

@@ -1,4 +1,4 @@
-import { HASH_KIND } from '../constants/index.js';
+import { HASH_KIND, PULLABLE_TYPES, PULLED_BY_DEFAULT } from '../constants/index.js';
 import type { BitrixLeadItem, MappingField, SheetRow } from '../types/index.js';
 import { transformRow } from './row-transformer.js';
 import type { TransformContext } from './row-transformer.js';
@@ -14,12 +14,10 @@ export type PullbackPlan = {
   unchanged: number[];
 };
 
-/** Column types whose value is picked in Bitrix24 and has a label in the mapping. */
-const PULLED_TYPES: readonly string[] = ['enum', 'user'];
-
 /**
- * Bitrix24 → Sheet, for rows already linked to a lead. Only columns with a value table flow
- * back (stage, assignee): their Bitrix24 code is turned into the label the Sheet uses.
+ * Bitrix24 → Sheet, for rows already linked to a lead. Columns with a value table flow back by
+ * default (stage, assignee): their Bitrix24 code is turned into the label the Sheet uses. Text
+ * and number columns flow back when the mapping marks them `"pull": true`.
  *
  * Conflict rule: a row whose content no longer matches its `Sync Hash` has an edit the next
  * Sheet → Bitrix24 run will send, so the Sheet wins and the row is left alone. Otherwise the
@@ -32,7 +30,10 @@ export function planPullback(
   context: TransformContext,
 ): PullbackPlan {
   const plan: PullbackPlan = { writes: [], conflicts: [], unchanged: [] };
-  const pulled = context.mapping.fields.filter((field) => PULLED_TYPES.includes(field.type));
+  const pulled = context.mapping.fields.filter(
+    (field) =>
+      PULLABLE_TYPES.includes(field.type) && (field.pull ?? PULLED_BY_DEFAULT.includes(field.type)),
+  );
 
   for (const row of rows) {
     const lead = /^\d+$/.test(row.state.leadId) ? leads.get(Number(row.state.leadId)) : undefined;
@@ -41,12 +42,9 @@ export function planPullback(
     const before = transformRow(row, context);
     const cells: Record<string, string> = {};
     for (const field of pulled) {
-      const code = lead[field.field];
-      if (typeof code !== 'string' && typeof code !== 'number') continue;
       const sent = before.kind === 'valid' ? before.fields[field.field] : undefined;
-      if (String(sent) === String(code)) continue;
-      const label = labelOf(field, code);
-      if (label !== undefined) cells[field.column] = label;
+      const cell = cellFor(field, sent, lead[field.field]);
+      if (cell !== undefined) cells[field.column] = cell;
     }
 
     if (!Object.keys(cells).length) {
@@ -69,6 +67,23 @@ export function planPullback(
     });
   }
   return plan;
+}
+
+/** What to write into the cell of `field`, or undefined when the Sheet already agrees. */
+function cellFor(field: MappingField, sent: unknown, held: unknown): string | undefined {
+  if (field.type === 'enum' || field.type === 'user') {
+    if (typeof held !== 'string' && typeof held !== 'number') return undefined;
+    return String(sent) === String(held) ? undefined : labelOf(field, held);
+  }
+  if (field.type === 'number') {
+    const now = Number(held ?? 0);
+    if (!Number.isFinite(now) || now === Number(sent ?? 0)) return undefined;
+    return String(now);
+  }
+  // Text: a blank cell and an empty Bitrix24 value are the same thing.
+  const now = typeof held === 'string' || typeof held === 'number' ? String(held).trim() : '';
+  const was = typeof sent === 'string' || typeof sent === 'number' ? String(sent) : '';
+  return now === was ? undefined : now;
 }
 
 function labelOf(field: MappingField, code: string | number): string | undefined {

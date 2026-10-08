@@ -246,7 +246,13 @@ docker compose run --rm app node dist/cli/lead-sync.js --dry-run
 
 ## 8. Đồng bộ hai chiều
 
-Bật bằng `LEAD_SYNC_DIRECTION=two-way`. Chiều về chỉ gồm các cột có bảng `values` trong mapping (kiểu `enum` và `user`), tức `Trạng thái` và `Người phụ trách`: mã của Bitrix24 được đổi thành nhãn trong Sheet. Mã không có nhãn trong mapping (ví dụ giai đoạn `CONVERTED`) được bỏ qua.
+Bật bằng `LEAD_SYNC_DIRECTION=two-way`. Chiều về mặc định gồm các cột có bảng `values` trong mapping (kiểu `enum` và `user`), tức `Trạng thái` và `Người phụ trách`: mã của Bitrix24 được đổi thành nhãn trong Sheet. Mã không có nhãn trong mapping (ví dụ giai đoạn `CONVERTED`) được bỏ qua.
+
+Cột kiểu `string` hoặc `number` chảy về khi mapping khai báo thêm `"pull": true`; đặt `"pull": false` để một cột `enum` hoặc `user` không chảy về. Email, số điện thoại và ngày tháng chỉ đi một chiều.
+
+```json
+{ "column": "Công ty", "field": "companyTitle", "type": "string", "pull": true }
+```
 
 ### 8.1. Xung đột
 
@@ -359,7 +365,7 @@ Câu hỏi còn mở: `crm.duplicate.findbycomm` có trả lead đã chuyển đ
 
 ## 13. Giới hạn của phiên bản này
 
-- Chiều về chỉ gồm giai đoạn và người phụ trách; các trường khác chỉ đi một chiều từ Sheet sang Bitrix24.
+- Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead; các cột này chỉ đi từ Sheet sang Bitrix24.
 - Lead tạo mới trong Bitrix24 không được thêm thành hàng mới trong Sheet.
 - Người phụ trách tra bằng bảng tĩnh trong mapping, chưa tra qua `user.get`.
 - Khóa "mỗi lúc một lần chạy" nằm trong SQLite, nên chỉ có tác dụng khi server và CLI dùng chung file dữ liệu. Chạy nhiều container với volume riêng không được hỗ trợ.

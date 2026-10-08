@@ -16,6 +16,11 @@ export type MappingField = {
   values?: Record<string, string | number>;
   default?: string | number;
   onUnknown: 'error' | 'default';
+  /**
+   * Two-way sync: whether a change made in Bitrix24 is written back to this column. Defaults to
+   * true for enum and user columns and to false for the others.
+   */
+  pull?: boolean;
 };
 
 export type LeadMapping = {

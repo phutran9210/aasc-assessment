@@ -159,4 +159,20 @@ describe('checkMapping', () => {
       'Bitrix24 không có trường lead "currencyId"',
     ]);
   });
+
+  it('should accept "pull" on text, number, enum and user columns only', () => {
+    const fields = (extra: object) => ({
+      version: 1,
+      fields: [
+        { column: 'Tên', field: 'name', type: 'string', pull: true },
+        { column: 'Email', field: 'email', type: 'email', ...extra },
+      ],
+      dedupe: { keys: ['email'], requireAtLeastOne: true },
+    });
+
+    expect(parseMapping(fields({})).fields[0].pull).toBe(true);
+    expect(() => parseMapping(fields({ pull: true }))).toThrow(
+      'cột "Email" kiểu email không dùng được "pull": chỉ áp dụng cho string, number, enum, user',
+    );
+  });
 });

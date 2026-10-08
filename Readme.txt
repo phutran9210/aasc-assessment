@@ -937,8 +937,11 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
         nên lead đã được tạo ở lần gọi trước không bị tạo lần hai.
 
       Đồng bộ hai chiều (LEAD_SYNC_DIRECTION=two-way):
-          Chiều về chỉ gồm các cột có bảng "values" trong mapping (kiểu enum và user), tức
-          Trạng thái và Người phụ trách: mã của Bitrix24 được đổi thành nhãn trong Sheet.
+          Chiều về mặc định gồm các cột có bảng "values" trong mapping (kiểu enum và user),
+          tức Trạng thái và Người phụ trách: mã của Bitrix24 được đổi thành nhãn trong Sheet.
+          Cột kiểu string hoặc number chảy về khi khai báo thêm "pull": true, ví dụ
+          { "column": "Công ty", "field": "companyTitle", "type": "string", "pull": true }.
+          Đặt "pull": false để một cột enum hoặc user không chảy về.
           Real-time    Đặt APP_PUBLIC_URL, chạy ứng dụng, gọi một lần
                        POST /lead-sync/bitrix-events/register (kèm JWT). Bitrix24 sẽ gọi
                        POST <APP_PUBLIC_URL>/lead-sync/bitrix-events mỗi khi lead đổi; các

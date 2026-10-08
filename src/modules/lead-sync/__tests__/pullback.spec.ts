@@ -119,4 +119,95 @@ describe('planPullback', () => {
 
     expect(plan).toEqual({ writes: [], conflicts: [], unchanged: [] });
   });
+
+  describe('columns marked "pull": true', () => {
+    const withPull: TransformContext = {
+      ...context,
+      mapping: {
+        ...mapping,
+        fields: [
+          ...mapping.fields,
+          {
+            column: 'Công ty',
+            field: 'companyTitle',
+            type: 'string',
+            required: false,
+            onUnknown: 'error',
+            pull: true,
+          },
+          {
+            column: 'Ngân sách',
+            field: 'opportunity',
+            type: 'number',
+            required: false,
+            onUnknown: 'error',
+            pull: true,
+          },
+          {
+            column: 'Ghi chú',
+            field: 'comments',
+            type: 'string',
+            required: false,
+            onUnknown: 'error',
+          },
+        ],
+      },
+      mappingHash: 'pull-mapping',
+    };
+    const synced = (cells: Record<string, string>): SheetRow => {
+      const row = syncedRow(cells, '10');
+      row.state.hash = formatHashCell('v1', (transformRow(row, withPull) as ValidRow).hash);
+      return row;
+    };
+    const FULL = { ...BASE, 'Công ty': 'ACME', 'Ngân sách': '1.500.000 ₫', 'Ghi chú': 'cũ' };
+
+    it('should write a changed text and a changed number, as plain values', () => {
+      const plan = planPullback(
+        [synced(FULL)],
+        leads(
+          lead({
+            stageId: 'NEW',
+            companyTitle: 'ACME Việt Nam',
+            opportunity: 2000000,
+            comments: 'cũ',
+          }),
+        ),
+        withPull,
+      );
+
+      expect(plan.writes[0].cells).toEqual({ 'Công ty': 'ACME Việt Nam', 'Ngân sách': '2000000' });
+    });
+
+    it('should not touch a column that is not marked, whatever Bitrix24 holds', () => {
+      const plan = planPullback(
+        [synced(FULL)],
+        leads(
+          lead({ stageId: 'NEW', companyTitle: 'ACME', opportunity: 1500000, comments: 'mới' }),
+        ),
+        withPull,
+      );
+
+      expect(plan.unchanged).toEqual([2]);
+    });
+
+    it('should treat a blank cell and an empty or zero Bitrix24 value as the same', () => {
+      const plan = planPullback(
+        [synced(BASE)],
+        leads(lead({ stageId: 'NEW', companyTitle: null, opportunity: 0 })),
+        withPull,
+      );
+
+      expect(plan.unchanged).toEqual([2]);
+    });
+
+    it('should clear the cell when the value was removed in Bitrix24', () => {
+      const plan = planPullback(
+        [synced(FULL)],
+        leads(lead({ stageId: 'NEW', companyTitle: '', opportunity: 1500000 })),
+        withPull,
+      );
+
+      expect(plan.writes[0].cells).toEqual({ 'Công ty': '' });
+    });
+  });
 });
