@@ -1,0 +1,9 @@
+process.env.TIKTOK_DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/tiktok_test';
+process.env.TIKTOK_REDIS_URL ??= 'redis://127.0.0.1:6379';
+process.env.TIKTOK_JWT_SECRET ??= 'test-only-jwt-secret-with-32-bytes';
+process.env.TIKTOK_JWT_ISSUER ??= 'aasc-tiktok-test';
+process.env.TIKTOK_JWT_AUDIENCE ??= 'aasc-tiktok-test-client';
+process.env.TIKTOK_MODE ??= 'mock';
+process.env.BITRIX_INTEGRATION_MODE ??= 'mock';
+process.env.TIKTOK_ADVERTISER_ID ??= 'advertiser-test';
+process.env.TIKTOK_WEBHOOK_SECRET ??= 'test-only-webhook-secret';

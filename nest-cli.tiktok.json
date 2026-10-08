@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "src",
+  "entryFile": "apps/tiktok/main",
+  "compilerOptions": {
+    "tsConfigPath": "tsconfig.tiktok.build.json",
+    "deleteOutDir": true
+  }
+}

@@ -4,13 +4,17 @@ docs/
 
 # build output
 dist/
+dist-tiktok/
 coverage/
+coverage-tiktok/
+data/tiktok-artifacts/
 *.tsbuildinfo
 
 # environment & local data (tokens, SQLite files) — never commit
 .env
 .env.*
 !.env.example
+!.env.tiktok.example
 data/
 # The folder itself is tracked (.gitkeep) so that Docker does not create it owned by root.
 secrets/*

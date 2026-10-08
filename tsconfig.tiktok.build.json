@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist-tiktok",
+    "types": ["node"],
+    "incremental": false
+  },
+  "include": ["src/apps/tiktok/**/*.ts", "src/config/tiktok-app/**/*.ts", "src/core/queue/**/*.ts", "src/modules/integration-auth/**/*.ts", "src/modules/crm-integration/**/*.ts", "src/modules/tiktok/**/*.ts", "src/modules/integration-analytics/**/*.ts", "src/modules/integration-reports/**/*.ts", "src/modules/bitrix/**/*.ts", "src/common/**/*.ts"],
+  "exclude": ["**/__tests__/**", "**/*.spec.ts", "test"]
+}
