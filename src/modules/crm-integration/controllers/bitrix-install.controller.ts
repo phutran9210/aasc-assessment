@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { BITRIX_CONFIG } from '../../../modules/bitrix/ports/bitrix-config.port.js';
 import { BitrixOAuthService } from '../../../modules/bitrix/services/bitrix-oauth.service.js';
 import {
   normalizeInstallPayload,
@@ -20,17 +19,21 @@ import {
 } from '../../../modules/bitrix/utils/normalize-install-payload.js';
 import { Inject } from '@nestjs/common';
 import type { BitrixConfig } from '../../../config/index.js';
-import { BitrixInstallAdminGuard } from './bitrix-install-admin.guard.js';
+import { Roles } from '../../integration-auth/decorators/roles.decorator.js';
+import { IntegrationJwtGuard } from '../../integration-auth/guards/integration-jwt.guard.js';
+import { IntegrationRolesGuard } from '../../integration-auth/guards/roles.guard.js';
+import { BITRIX_ADAPTER_CONFIG } from '../tokens.js';
 
 @Controller('install')
 export class TiktokBitrixInstallController {
   constructor(
     private readonly oauthService: BitrixOAuthService,
-    @Inject(BITRIX_CONFIG) private readonly config: BitrixConfig,
+    @Inject(BITRIX_ADAPTER_CONFIG) private readonly config: BitrixConfig,
   ) {}
 
   @Get('authorize')
-  @UseGuards(BitrixInstallAdminGuard)
+  @UseGuards(IntegrationJwtGuard, IntegrationRolesGuard)
+  @Roles('integration_admin')
   async authorize(@Res() response: Response): Promise<void> {
     response.redirect(await this.oauthService.createAuthorizationUrl());
   }

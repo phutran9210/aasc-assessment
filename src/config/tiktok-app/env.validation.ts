@@ -11,6 +11,7 @@ const schema = z.object({
   TIKTOK_JWT_SECRET: z.string().min(32),
   TIKTOK_JWT_ISSUER: z.string().trim().min(1),
   TIKTOK_JWT_AUDIENCE: z.string().trim().min(1),
+  TIKTOK_JWT_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
   TIKTOK_MODE: z.enum(['mock', 'business-api']).default('mock'),
   BITRIX_INTEGRATION_MODE: z.enum(['mock', 'real']).default('mock'),
   TIKTOK_ADVERTISER_ID: z.string().trim().min(1),
@@ -41,6 +42,7 @@ export type TiktokAppConfig = {
   jwtSecret: string;
   jwtIssuer: string;
   jwtAudience: string;
+  jwtTtlSeconds: number;
   tiktokMode: 'mock' | 'business-api';
   bitrixMode: 'mock' | 'real';
   advertiserId: string;
@@ -72,6 +74,7 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     jwtSecret: env.TIKTOK_JWT_SECRET,
     jwtIssuer: env.TIKTOK_JWT_ISSUER,
     jwtAudience: env.TIKTOK_JWT_AUDIENCE,
+    jwtTtlSeconds: env.TIKTOK_JWT_TTL_SECONDS,
     tiktokMode: env.TIKTOK_MODE,
     bitrixMode: env.BITRIX_INTEGRATION_MODE,
     advertiserId: env.TIKTOK_ADVERTISER_ID,

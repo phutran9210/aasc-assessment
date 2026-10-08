@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import type { Redis } from 'ioredis';
 
+import { ensureRedisConnected } from '../../../core/queue/ensure-redis-connected.js';
 import type { OAuthStateStore } from '../../../modules/bitrix/ports/bitrix-oauth-state-store.port.js';
 
 const CONSUME_STATE_SCRIPT = `
@@ -20,6 +21,7 @@ export class RedisOAuthStateStore implements OAuthStateStore {
 
   async issue(ttlMs: number): Promise<string> {
     if (!Number.isSafeInteger(ttlMs) || ttlMs < 1) throw new RangeError('ttlMs must be positive');
+    await ensureRedisConnected(this.redis);
     const state = randomUUID();
     const result = await this.redis.set(this.key(state), '1', 'PX', ttlMs, 'NX');
     if (result !== 'OK') throw new Error('Could not reserve OAuth state');
@@ -27,6 +29,7 @@ export class RedisOAuthStateStore implements OAuthStateStore {
   }
 
   async consume(state: string): Promise<boolean> {
+    await ensureRedisConnected(this.redis);
     return (await this.redis.eval(CONSUME_STATE_SCRIPT, 1, this.key(state))) === 1;
   }
 

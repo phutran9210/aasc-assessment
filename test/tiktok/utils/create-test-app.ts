@@ -1,4 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
+import type { Type } from '@nestjs/common';
 
 import { createTiktokApp } from '../../../src/apps/tiktok/bootstrap.js';
 
@@ -7,7 +8,10 @@ export type TestApp = {
   close(): Promise<void>;
 };
 
-export async function createTestApp(envOverrides: Record<string, string>): Promise<TestApp> {
+export async function createTestApp(
+  envOverrides: Record<string, string>,
+  rootModule?: Type<unknown>,
+): Promise<TestApp> {
   const previousValues = new Map<string, string | undefined>();
   for (const [key, value] of Object.entries(envOverrides)) {
     previousValues.set(key, process.env[key]);
@@ -15,7 +19,7 @@ export async function createTestApp(envOverrides: Record<string, string>): Promi
   }
 
   try {
-    const app = await createTiktokApp();
+    const app = await createTiktokApp(rootModule);
     await app.init();
     return {
       app,

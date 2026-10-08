@@ -1,4 +1,5 @@
 import { sleep } from '../../../common/utils/index.js';
+import { ensureRedisConnected } from '../../../core/queue/ensure-redis-connected.js';
 import type { Redis } from 'ioredis';
 
 import { HttpException, HttpStatus } from '@nestjs/common';
@@ -57,6 +58,7 @@ export class RedisBitrixLimiter implements BitrixRequestLimiter {
   private readonly cooldownKey: string;
 
   async acquire(): Promise<void> {
+    await ensureRedisConnected(this.redis);
     const delayMs = Number(
       await this.redis.eval(
         RESERVE_SLOT_SCRIPT,
@@ -75,6 +77,7 @@ export class RedisBitrixLimiter implements BitrixRequestLimiter {
   }
 
   async saturate(): Promise<void> {
+    await ensureRedisConnected(this.redis);
     await this.redis.eval(SATURATE_SCRIPT, 1, this.cooldownKey, Date.now(), this.cooldownMs);
   }
 }

@@ -14,7 +14,6 @@ import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-s
 import { BITRIX_OAUTH_STATE_STORE } from '../bitrix/ports/bitrix-oauth-state-store.port.js';
 import { BITRIX_REQUEST_LIMITER } from '../bitrix/ports/bitrix-request-limiter.port.js';
 import { BitrixInstallationEntity } from './entities/bitrix-installation.entity.js';
-import { BitrixInstallAdminGuard } from './controllers/bitrix-install-admin.guard.js';
 import { TiktokBitrixInstallController } from './controllers/bitrix-install.controller.js';
 import {
   RedisBitrixLimiter,
@@ -22,8 +21,8 @@ import {
 } from './gateways/redis-bitrix-limiter.js';
 import { RedisOAuthStateStore } from './gateways/redis-oauth-state-store.js';
 import { PostgresBitrixInstallationRepository } from './repositories/postgres-bitrix-installation.repository.js';
-
-export const BITRIX_REDIS_CLIENT = Symbol('BITRIX_REDIS_CLIENT');
+import { IntegrationAuthModule } from '../integration-auth/integration-auth.module.js';
+import { BITRIX_ADAPTER_CONFIG, BITRIX_REDIS_CLIENT } from './tokens.js';
 
 export type BitrixAdapterConfig = {
   portalKey: string;
@@ -72,13 +71,14 @@ export class BitrixAdapterModule {
     return {
       module: BitrixAdapterModule,
       imports: [
+        IntegrationAuthModule,
         BitrixCoreModule.register({
           imports: [TiktokRedisModule],
           providers: createBitrixAdapterProviders(config),
         }),
       ],
       controllers: [TiktokBitrixInstallController],
-      providers: [BitrixInstallAdminGuard],
+      providers: [{ provide: BITRIX_ADAPTER_CONFIG, useValue: config.bitrix }],
       exports: [BitrixCoreModule],
     };
   }
