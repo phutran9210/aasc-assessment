@@ -6,7 +6,7 @@ requireLogin();
 
 const PAGE_SIZE = 10;
 const POLL_MS = 2000;
-const FIELD_TYPES = ['string', 'email', 'phone', 'number', 'date', 'enum', 'user'];
+const FIELD_TYPES = ['string', 'email', 'phone', 'number', 'date', 'datetime', 'enum', 'user'];
 const TYPES_WITH_VALUES = ['enum', 'user'];
 
 const STATUS = {

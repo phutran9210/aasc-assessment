@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { parseMapping } from '../domain/mapping-schema.js';
 import { transformRow } from '../domain/row-transformer.js';
 import { hashMapping } from '../domain/sync-hash.js';
-import { buildLeadRows, isSeededEmail } from '../seeders/lead-row.seeder.js';
+import { buildLeadRows } from '../seeders/lead-row.seeder.js';
+import { isSeededEmail } from '../seeders/seed-marker.js';
 import type { SheetRow, ValidRow } from '../types/index.js';
 
 const mapping = parseMapping(JSON.parse(readFileSync('config/mapping.json', 'utf8')));

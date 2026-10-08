@@ -8,7 +8,7 @@ import { columnLetter, quoteSheetName } from '../domain/a1.js';
 import { LeadSyncConfigError } from '../errors/index.js';
 import { BitrixLeadGateway } from '../gateways/bitrix-lead.gateway.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
-import { buildLeadRows, isSeededEmail } from '../seeders/lead-row.seeder.js';
+import { isSeededEmail } from '../seeders/seed-marker.js';
 import { MappingLoader } from './mapping-loader.service.js';
 import { SheetTable } from './sheet-table.service.js';
 import type { SheetSnapshot } from './sheet-table.service.js';
@@ -55,6 +55,9 @@ export class LeadSheetSeeder {
       ]);
     }
 
+    // Loaded only here: the generator needs faker, a dev dependency that a production image
+    // does not have. Importing it at the top would stop the whole app from starting there.
+    const { buildLeadRows } = await import('../seeders/lead-row.seeder.js');
     const rows = buildLeadRows(mapping, {
       count,
       seed,
