@@ -158,3 +158,5 @@ export type LeadSyncStatusResponse = {
   lastRun: RunResponse | null;
   connections: { google: ConnectionCheck; bitrix: ConnectionCheck };
 };
+
+export type MappingResponse = { path: string; mapping: LeadMapping };

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -85,5 +85,50 @@ describe('MappingLoader', () => {
     await expect(new MappingLoader(config(path)).load()).rejects.toBeInstanceOf(
       LeadSyncMappingError,
     );
+  });
+
+  describe('save', () => {
+    const VALID = {
+      version: 1,
+      fields: [
+        { column: 'Tên khách hàng', field: 'name', type: 'string', required: true },
+        { column: 'Email', field: 'email', type: 'email' },
+      ],
+      dedupe: { keys: ['email'], requireAtLeastOne: true },
+    };
+
+    it('should write a valid mapping so that the next run loads it', async () => {
+      const path = write('{"version":1,"fields":[]}');
+      const loader = new MappingLoader(config(path));
+
+      const saved = await loader.save(VALID);
+
+      const loaded = await loader.load();
+      expect(loaded.mapping.fields.map((field) => field.column)).toEqual([
+        'Tên khách hàng',
+        'Email',
+      ]);
+      expect(saved.hash).toBe(loaded.hash);
+      expect(readFileSync(path, 'utf8')).toMatch(/\n$/);
+      expect(readdirSync(directory)).toEqual(['mapping.json']);
+    });
+
+    it('should refuse an invalid mapping and leave the file as it was', async () => {
+      const before = JSON.stringify(VALID);
+      const path = write(before);
+
+      await expect(
+        new MappingLoader(config(path)).save({ version: 1, fields: [{ column: 'Email' }] }),
+      ).rejects.toBeInstanceOf(LeadSyncMappingError);
+      expect(readFileSync(path, 'utf8')).toBe(before);
+    });
+
+    it('should say that the file cannot be written when its folder is read-only or missing', async () => {
+      const path = join(directory, 'missing-folder', 'mapping.json');
+
+      await expect(new MappingLoader(config(path)).save(VALID)).rejects.toThrow(
+        `Không ghi được file mapping ${path}`,
+      );
+    });
   });
 });

@@ -239,6 +239,40 @@ describe('Lead sync (e2e)', () => {
     ]);
   });
 
+  it('should return the mapping in use and refuse to read it without a token', async () => {
+    await http().get('/lead-sync/mapping').expect(401);
+
+    const response = await get('/lead-sync/mapping').expect(200);
+
+    expect(response.body.path).toBe('config/mapping.json');
+    expect(response.body.mapping.fields).toHaveLength(9);
+    expect(response.body.mapping.fields[0]).toMatchObject({
+      column: 'Tên khách hàng',
+      field: 'name',
+      type: 'string',
+    });
+  });
+
+  it('should answer 400 listing what is wrong with a mapping, without saving it', async () => {
+    const response = await http()
+      .put('/lead-sync/mapping')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        version: 1,
+        fields: [
+          { column: 'Email', field: 'email', type: 'email' },
+          { column: 'Email', field: 'phone', type: 'phone' },
+        ],
+      })
+      .expect(400);
+
+    expect(response.body.message).toMatch(
+      /^Mapping không hợp lệ: .*cột "Email" được khai báo hai lần/,
+    );
+    const after = await get('/lead-sync/mapping').expect(200);
+    expect(after.body.mapping.fields).toHaveLength(9);
+  });
+
   it('should answer 404 for an unknown run and 400 for a malformed id', async () => {
     const missing = await get(`/lead-sync/runs/${UNKNOWN_ID}`).expect(404);
     expect(missing.body.message).toBe('Không tìm thấy lần chạy');

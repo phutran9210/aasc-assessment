@@ -10,6 +10,8 @@ export const LEAD_SYNC_MESSAGES = {
       `Đang có một lần đồng bộ khác chạy${runId ? `: ${runId}` : ''}`,
     RUN_NOT_FOUND: 'Không tìm thấy lần chạy',
     MAPPING_FILE: (path: string): string => `Không đọc được file mapping ${path}`,
+    MAPPING_WRITE: (path: string): string =>
+      `Không ghi được file mapping ${path}; kiểm tra quyền ghi (trong Docker thư mục config được mount chỉ đọc)`,
     MAPPING_JSON: (path: string): string => `File mapping ${path} không phải JSON hợp lệ`,
     MAPPING_INVALID: (problems: string[]): string => `Mapping không hợp lệ: ${problems.join('; ')}`,
     HEADER_ROW_EMPTY: (row: number): string =>
