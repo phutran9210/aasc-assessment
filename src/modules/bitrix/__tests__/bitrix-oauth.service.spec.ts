@@ -4,6 +4,7 @@ import { Test } from '@nestjs/testing';
 import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
 import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
 import { BITRIX_OAUTH_STATE_STORE } from '../ports/bitrix-oauth-state-store.port.js';
+import type { BitrixConfig } from '@config/index.js';
 import { BitrixHttpTransport } from '../services/bitrix-http-transport.service.js';
 import { MemoryOAuthStateStore } from '../services/memory-oauth-state-store.js';
 import { BitrixOAuthService } from '../services/bitrix-oauth.service.js';
@@ -43,6 +44,7 @@ describe('BitrixOAuthService', () => {
   };
   let service: BitrixOAuthService;
   let stateStore: MemoryOAuthStateStore;
+  let config: BitrixConfig;
   const lease = {
     installationId: 'id-1',
     ownerToken: 'lease-1',
@@ -55,30 +57,78 @@ describe('BitrixOAuthService', () => {
     repository.replaceTokens.mockResolvedValue(true);
     stateStore = new MemoryOAuthStateStore();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    config = {
+      clientId: 'client-id',
+      clientSecret: 'client-secret',
+      portalDomain: 'portal.bitrix24.com',
+      requisitePresetId: 1,
+      webhookUrl: undefined,
+      timeoutMs: 10_000,
+      stateTtlSeconds: 600,
+      refreshSkewSeconds: 60,
+    };
     const moduleRef = await Test.createTestingModule({
       providers: [
         BitrixOAuthService,
         { provide: BitrixHttpTransport, useValue: transport },
         { provide: BITRIX_INSTALLATION_STORE, useValue: repository },
         { provide: BITRIX_OAUTH_STATE_STORE, useValue: stateStore },
-        {
-          provide: BITRIX_CONFIG,
-          useValue: {
-            clientId: 'client-id',
-            clientSecret: 'client-secret',
-            portalDomain: 'portal.bitrix24.com',
-            requisitePresetId: 1,
-            timeoutMs: 10_000,
-            stateTtlSeconds: 600,
-            refreshSkewSeconds: 60,
-          },
-        },
+        { provide: BITRIX_CONFIG, useValue: config },
       ],
     }).compile();
     service = moduleRef.get(BitrixOAuthService);
   });
 
   afterEach(() => jest.restoreAllMocks());
+
+  it('rejects an incomplete install payload before contacting Bitrix', async () => {
+    await expect(
+      service.install({ event: 'ONAPPINSTALL', auth: { domain: AUTH.domain } }),
+    ).rejects.toThrow();
+
+    expect(transport.postRest).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when no Bitrix portal is configured', async () => {
+    config.portalDomain = '';
+
+    await expect(service.install(EVENT)).rejects.toThrow(ServiceUnavailableException);
+
+    expect(transport.postRest).not.toHaveBeenCalled();
+  });
+
+  it('rejects attacker-controlled client endpoints before sending the access token', async () => {
+    await expect(
+      service.install({
+        ...EVENT,
+        auth: { ...AUTH, client_endpoint: 'https://attacker.example/rest/' },
+      }),
+    ).rejects.toThrow();
+
+    expect(transport.postRest).not.toHaveBeenCalled();
+  });
+
+  it('rejects install payloads for a portal outside the configured domain', async () => {
+    await expect(
+      service.install({
+        ...EVENT,
+        auth: {
+          ...AUTH,
+          domain: 'stranger.bitrix24.com',
+          client_endpoint: 'https://stranger.bitrix24.com/rest/',
+        },
+      }),
+    ).rejects.toThrow();
+
+    expect(transport.postRest).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing OAuth code or state before exchanging tokens', async () => {
+    await expect(service.completeAuthorization(undefined, 'state')).rejects.toThrow();
+    await expect(service.completeAuthorization('code', undefined)).rejects.toThrow();
+
+    expect(transport.getJson).not.toHaveBeenCalled();
+  });
 
   it('should save a valid ONAPPINSTALL auth object after app.info succeeds', async () => {
     transport.postRest.mockResolvedValue({ result: { CODE: 'client-id' } });

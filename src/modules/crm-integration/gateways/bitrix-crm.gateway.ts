@@ -7,8 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
-import { BitrixHttpError } from '@modules/bitrix/services/bitrix-http-transport.service.js';
+import { BitrixApiService, BitrixHttpError } from '@modules/bitrix/index.js';
 import type {
   CrmCandidateQuery,
   DealPageQuery,

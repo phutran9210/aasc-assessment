@@ -8,11 +8,13 @@ import { TiktokRedisModule } from '@core/queue/redis.module.js';
 import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
 import type { RedisConnectionFactory } from '@core/queue/redis-connection.js';
 import type { BitrixConfig } from '@config/index.js';
-import { BitrixCoreModule } from '../bitrix/bitrix-core.module.js';
-import { BITRIX_CONFIG } from '../bitrix/ports/bitrix-config.port.js';
-import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';
-import { BITRIX_OAUTH_STATE_STORE } from '../bitrix/ports/bitrix-oauth-state-store.port.js';
-import { BITRIX_REQUEST_LIMITER } from '../bitrix/ports/bitrix-request-limiter.port.js';
+import {
+  BitrixCoreModule,
+  BITRIX_CONFIG,
+  BITRIX_INSTALLATION_STORE,
+  BITRIX_OAUTH_STATE_STORE,
+  BITRIX_REQUEST_LIMITER,
+} from '@modules/bitrix/index.js';
 import { BitrixInstallationEntity } from './entities/bitrix-installation.entity.js';
 import { TiktokBitrixInstallController } from './controllers/bitrix-install.controller.js';
 import {

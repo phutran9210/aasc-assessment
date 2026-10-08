@@ -1,6 +1,9 @@
 export { BitrixModule } from './bitrix.module.js';
 export { BitrixCoreModule, BITRIX_CONFIG } from './bitrix-core.module.js';
+export type { BitrixCoreConfig } from './ports/bitrix-config.port.js';
 export { BITRIX_BATCH } from './constants/index.js';
+export { BitrixOAuthService } from './services/bitrix-oauth.service.js';
+export { BitrixHttpTransport } from './services/bitrix-http-transport.service.js';
 export { BITRIX_INSTALLATION_STORE } from './ports/bitrix-installation-store.port.js';
 export { BITRIX_OAUTH_STATE_STORE } from './ports/bitrix-oauth-state-store.port.js';
 export { BITRIX_REQUEST_LIMITER } from './ports/bitrix-request-limiter.port.js';

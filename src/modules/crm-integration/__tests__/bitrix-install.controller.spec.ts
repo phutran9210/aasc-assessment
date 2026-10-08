@@ -1,5 +1,5 @@
 import { TiktokBitrixInstallController } from '../controllers/bitrix-install.controller.js';
-import type { BitrixOAuthService } from '@modules/bitrix/services/bitrix-oauth.service.js';
+import type { BitrixOAuthService } from '@modules/bitrix/index.js';
 
 describe('TiktokBitrixInstallController', () => {
   it('delegates install payload handling to the OAuth service', async () => {
