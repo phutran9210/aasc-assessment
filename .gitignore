@@ -12,7 +12,9 @@ coverage/
 .env.*
 !.env.example
 data/
-secrets/
+# The folder itself is tracked (.gitkeep) so that Docker does not create it owned by root.
+secrets/*
+!secrets/.gitkeep
 
 # logs
 logs/

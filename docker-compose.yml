@@ -16,7 +16,8 @@ services:
     volumes:
       - aasc-data:/app/data
       # Service account key for the Google Sheets sync (GOOGLE_SERVICE_ACCOUNT_KEY_FILE=secrets/...).
-      - ./secrets:/app/secrets:ro
+      # Writable: in OAuth mode the app stores the Google refresh token here.
+      - ./secrets:/app/secrets
       # mapping.json of the lead sync; edit on the host, the next run picks it up.
       - ./config:/app/config:ro
     restart: unless-stopped
