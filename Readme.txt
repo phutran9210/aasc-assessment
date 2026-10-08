@@ -955,5 +955,40 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       1 crm.item.fields + 6 batch tìm trùng + 6 batch ghi), Google 9 lần đọc và 8 lần ghi.
       Lần chạy lại không có thay đổi: Bitrix24 2 lần, Google 3 lần đọc.
 
-      Kết quả chạy thật 150 hàng: <thời gian> giây, <số> lần gặp rate limit.
+      Kết quả chạy thật ngày 08/10/2026, trên một Google Sheet thật (service account) và
+      một portal Bitrix24 thật (OAuth, chế độ CRM cổ điển):
+
+        TC1 Tạo mới        5 hàng mẫu: created=4, failed=1 (hàng cố ý sai email và ngân sách).
+                           Giai đoạn NEW / IN_PROCESS / PROCESSED đúng theo cột Trạng thái;
+                           số điện thoại mất số 0 khi import được lưu thành +84...
+        Chạy lại           skipped=5, Bitrix24 không có lead mới.
+        TC2 Cập nhật       Sửa ô Công ty của một hàng: updated=1, skipped=4; lead đổi theo,
+                           cột "Thời gian đồng bộ cuối" của hàng đó đổi.
+        TC2 Định dạng      In đậm và đổi định dạng số của ô (15000000 thành 15,000,000):
+                           skipped, không có lệnh ghi.
+        TC3 Trùng email    Lead tạo tay trong Bitrix24, thêm hàng cùng email: updated=1,
+                           created=0, ô Lead ID nhận ID của lead tạo tay.
+        TC3 Trùng số ĐT    Lead tạo tay có +84977000111, hàng ghi 0977000111: updated=1.
+        TC4 Lỗi dữ liệu    Hàng sai dữ liệu ghi "Lỗi" kèm lý do; các hàng khác vẫn chạy.
+        Custom field       Thêm trường UF_CRM_CAMPAIGN_CODE và một cột vào mapping: giá trị
+                           lên đúng lead; đổi mapping làm mọi hàng đồng bộ lại một lần.
+        HTTP               POST /lead-sync/runs trả 202 (401 khi thiếu JWT); lần chạy hiện
+                           trong GET /lead-sync/runs với trigger=http.
+        Lịch               LEAD_SYNC_CRON="* * * * *": lần chạy trigger=schedule xuất hiện
+                           đúng đầu phút kế tiếp.
+        Cột ẩn             "Lead ID Bitrix24" và "Sync Hash" ẩn, ba cột còn lại hiện.
+        Hiệu năng          150 hàng mới (samples/leads-150.csv): created=150 trong 22,2
+                           giây, 6 lô, 0 lần gặp rate limit. Chạy lại: skipped=150 trong
+                           2,6 giây.
+
+      Chưa kiểm trên hệ thống thật: rate limit và timeout của Bitrix24 (không gặp trong các
+      lần chạy trên; mới có test tự động), và chế độ BITRIX24_WEBHOOK_URL.
+
+      Hai điều rút ra khi chạy thật:
+        - Portal Bitrix24 mới mặc định ở chế độ CRM đơn giản (không dùng Lead): lead vừa tạo
+          bị tự chuyển thành Deal và Contact, mất giai đoạn. Ứng dụng kiểm tra chế độ này
+          trước mỗi lần chạy và dừng lại; bật CRM cổ điển trong CRM > Cài đặt > Chế độ CRM.
+        - File CSV import vào Google Sheets tạo tab tên mặc định (ví dụ "Untitled"), không
+          phải "Leads": đổi tên tab hoặc sửa GOOGLE_SHEET_NAME.
+
       Video demo: <liên kết>.
