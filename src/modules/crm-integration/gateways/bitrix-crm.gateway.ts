@@ -1,6 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  GatewayTimeoutException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { BitrixApiService } from '../../bitrix/services/bitrix-api.service.js';
+import { BitrixHttpError } from '../../bitrix/services/bitrix-http-transport.service.js';
 import type {
   CrmCandidateQuery,
   CrmFieldMetadata,
@@ -187,11 +195,22 @@ export class BitrixCrmGateway implements CrmGateway {
   }
 
   private async call(method: string, payload: Record<string, unknown>): Promise<unknown> {
-    const response = await this.api.callRaw<unknown>(method, payload, {
-      retryTransient: false,
-      retryRateLimit: false,
-    });
-    return response.result;
+    try {
+      const response = await this.api.callRaw<unknown>(method, payload, {
+        retryTransient: false,
+        retryRateLimit: false,
+      });
+      return response.result;
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      if (error instanceof BitrixHttpError) {
+        if (error.timeout) throw new GatewayTimeoutException('Bitrix CRM request timed out');
+        if (error.status === 429)
+          throw new HttpException('Bitrix CRM rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS);
+        throw new BadGatewayException('Bitrix CRM request failed');
+      }
+      throw error;
+    }
   }
 
   private filter(query: CrmCandidateQuery): Record<string, string> {
