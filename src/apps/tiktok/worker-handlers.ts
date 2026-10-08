@@ -5,15 +5,18 @@ import type {
 import type { TiktokIngestHandler } from '../../modules/crm-integration/workers/tiktok-ingest.handler.js';
 import type { LeadSyncHandler } from '../../modules/crm-integration/workers/lead-sync.handler.js';
 import type { TimelineHandler } from '../../modules/crm-integration/workers/timeline.handler.js';
+import type { ConversionHandler } from '../../modules/crm-integration/workers/conversion.handler.js';
 
 export function createTiktokWorkerHandlers(
   ingest: TiktokIngestHandler,
   leadSync: LeadSyncHandler,
   timeline: TimelineHandler,
+  conversion: ConversionHandler,
 ): OperationHandlerRegistry {
   return new Map<string, OperationHandler>([
     ['tiktok_ingest', ingest],
     ['bitrix_lead_sync', leadSync],
     ['crm_timeline', timeline],
+    ['bitrix_deal_convert', conversion],
   ]);
 }

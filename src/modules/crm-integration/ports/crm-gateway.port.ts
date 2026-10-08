@@ -23,6 +23,7 @@ export type CrmMetadata = {
 
 export type CrmCandidateQuery = {
   marker?: ExternalId;
+  leadId?: ExternalId;
   email?: string;
   phone?: string;
   limit?: number;

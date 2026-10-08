@@ -158,6 +158,8 @@ export class BitrixStore {
       if (typeof email === 'string' && item.fields.email !== email) return false;
       const phone = filter['=PHONE'];
       if (typeof phone === 'string' && item.fields.phone !== phone) return false;
+      const leadId = filter['=leadId'];
+      if (typeof leadId === 'string' && String(item.fields.leadId) !== leadId) return false;
       return true;
     });
     const start = Number(payload.start ?? 0);

@@ -238,6 +238,7 @@ export class BitrixCrmGateway implements CrmGateway {
   private filter(query: CrmCandidateQuery): Record<string, string> {
     const filter: Record<string, string> = {};
     if (query.marker) filter[`=${EXTERNAL_ID_FIELD}`] = query.marker;
+    if (query.leadId) filter['=leadId'] = query.leadId;
     if (query.email) filter['=EMAIL'] = query.email;
     if (query.phone) filter['=PHONE'] = query.phone;
     return filter;

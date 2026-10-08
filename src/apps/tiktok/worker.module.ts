@@ -27,6 +27,12 @@ import { RemoteReconciliationService } from '../../modules/crm-integration/servi
 import { TimelineService } from '../../modules/crm-integration/services/timeline.service.js';
 import { LeadSyncHandler } from '../../modules/crm-integration/workers/lead-sync.handler.js';
 import { TimelineHandler } from '../../modules/crm-integration/workers/timeline.handler.js';
+import { ConversionService } from '../../modules/crm-integration/services/conversion.service.js';
+import { AssignmentService } from '../../modules/crm-integration/services/assignment.service.js';
+import { AssignmentCursorRepository } from '../../modules/crm-integration/repositories/assignment-cursor.repository.js';
+import { DealRepository } from '../../modules/crm-integration/repositories/deal.repository.js';
+import { ConfigurationRepository } from '../../modules/crm-integration/repositories/configuration.repository.js';
+import { ConversionHandler } from '../../modules/crm-integration/workers/conversion.handler.js';
 import { CRM_GATEWAY } from '../../modules/crm-integration/ports/crm-gateway.port.js';
 import type { CrmGateway } from '../../modules/crm-integration/ports/crm-gateway.port.js';
 import { BitrixCrmGateway } from '../../modules/crm-integration/gateways/bitrix-crm.gateway.js';
@@ -41,6 +47,14 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     LeadRepository,
     LeadIdentityRepository,
     SubmissionRepository,
+    AssignmentCursorRepository,
+    AssignmentService,
+    DealRepository,
+    {
+      provide: ConfigurationRepository,
+      inject: [getDataSourceToken('tiktok')],
+      useFactory: (dataSource: DataSource) => new ConfigurationRepository(dataSource),
+    },
     OperationRepository,
     WebhookEventRepository,
     RemoteReconciliationService,
@@ -130,9 +144,9 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     },
     {
       provide: LeadSyncHandler,
-      inject: [getDataSourceToken('tiktok'), LeadSyncService],
-      useFactory: (dataSource: DataSource, sync: LeadSyncService) =>
-        new LeadSyncHandler(dataSource, sync),
+      inject: [getDataSourceToken('tiktok'), LeadSyncService, ConversionService],
+      useFactory: (dataSource: DataSource, sync: LeadSyncService, conversions: ConversionService) =>
+        new LeadSyncHandler(dataSource, sync, conversions),
     },
     {
       provide: TimelineHandler,
@@ -141,8 +155,47 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         new TimelineHandler(dataSource, timeline),
     },
     {
+      provide: ConversionService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        ConfigurationRepository,
+        AssignmentService,
+        OperationRepository,
+        OutboxRepository,
+        CRM_GATEWAY,
+        RemoteReconciliationService,
+        TimelineService,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        configurations: ConfigurationRepository,
+        assignments: AssignmentService,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+        gateway: CrmGateway,
+        reconciliation: RemoteReconciliationService,
+        timeline: TimelineService,
+      ) =>
+        new ConversionService(
+          dataSource,
+          configurations,
+          assignments,
+          operations,
+          outbox,
+          gateway,
+          reconciliation,
+          timeline,
+        ),
+    },
+    {
+      provide: ConversionHandler,
+      inject: [getDataSourceToken('tiktok'), ConversionService],
+      useFactory: (dataSource: DataSource, conversions: ConversionService) =>
+        new ConversionHandler(dataSource, conversions),
+    },
+    {
       provide: TIKTOK_OPERATION_HANDLERS,
-      inject: [TiktokIngestHandler, LeadSyncHandler, TimelineHandler],
+      inject: [TiktokIngestHandler, LeadSyncHandler, TimelineHandler, ConversionHandler],
       useFactory: createTiktokWorkerHandlers,
     },
     {
