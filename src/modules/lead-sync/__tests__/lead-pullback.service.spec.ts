@@ -1,4 +1,5 @@
 import type { LeadSyncConfig } from '@config/index.js';
+import { BitrixHttpError } from '@modules/bitrix/index.js';
 import type { SheetCell, SheetsClient } from '@modules/google-sheets/index.js';
 
 import { Logger } from '@nestjs/common';
@@ -204,5 +205,23 @@ describe('LeadPullback', () => {
     const run = await pull();
 
     expect(run).toMatchObject({ status: 'failed', stopReason: 'Google từ chối truy cập' });
+  });
+
+  it('should explain a portal whose plan blocks the REST API the same way a normal run does', async () => {
+    const { gateway, pull } = await synced();
+    jest
+      .spyOn(gateway, 'getLeads')
+      .mockRejectedValue(
+        new BitrixHttpError(
+          'Feature is not available on the current plan.',
+          'FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN',
+          403,
+        ),
+      );
+
+    const run = await pull();
+
+    expect(run.status).toBe('failed');
+    expect(run.stopReason).toMatch(/^Gói dịch vụ của portal Bitrix24 không cho dùng REST API/);
   });
 });

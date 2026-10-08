@@ -19,3 +19,7 @@ process.env.LEAD_SYNC_TIMEZONE = 'Asia/Ho_Chi_Minh';
 process.env.LEAD_SYNC_CRON = '*/15 * * * *';
 // No backoff waits in e2e.
 process.env.LEAD_SYNC_MAX_RETRIES = '0';
+// One-way by default: a developer's .env may turn two-way sync on.
+process.env.LEAD_SYNC_DIRECTION = 'sheet-to-bitrix';
+process.env.APP_PUBLIC_URL = '';
+process.env.BITRIX24_OUTGOING_TOKEN = '';

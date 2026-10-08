@@ -8,6 +8,7 @@ import type { LeadSyncTrigger } from '../constants/index.js';
 import { planPullback } from '../domain/pullback.js';
 import { formatTimestamp } from '../domain/timestamp.js';
 import type { LeadSyncRun } from '../entities/lead-sync-run.entity.js';
+import { describeError } from '../errors/describe-error.js';
 import { LeadSyncBusyError, LeadSyncConfigError } from '../errors/index.js';
 import { BitrixLeadGateway } from '../gateways/bitrix-lead.gateway.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
@@ -67,7 +68,7 @@ export class LeadPullback {
     try {
       conflicts = await this.pull(leadIds, counters);
     } catch (error) {
-      stopReason = error instanceof Error ? error.message : String(error);
+      stopReason = describeError(error);
       this.logger.error(`Lead pullback ${run.id} failed: ${stopReason}`);
     }
 

@@ -8,7 +8,6 @@ import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/c
 import type { BeforeApplicationShutdown } from '@nestjs/common';
 
 import {
-  BITRIX_PLAN_BLOCKED_CODE,
   BITRIX_TIME_LIMIT_CODE,
   BITRIX_TRANSIENT_CODES,
   HASH_KIND,
@@ -31,6 +30,7 @@ import {
 } from '../domain/sync-planner.js';
 import { formatTimestamp } from '../domain/timestamp.js';
 import type { LeadSyncRun } from '../entities/lead-sync-run.entity.js';
+import { describeError } from '../errors/describe-error.js';
 import { LeadSyncBusyError, LeadSyncConfigError, LeadSyncMappingError } from '../errors/index.js';
 import { BitrixLeadGateway } from '../gateways/bitrix-lead.gateway.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
@@ -455,14 +455,6 @@ function codeOf(error: unknown): string {
   if (error instanceof SheetsError) return `SHEETS_${error.kind.toUpperCase()}`;
   if (error instanceof HttpException) return `HTTP_${error.getStatus()}`;
   return 'UNKNOWN';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof BitrixHttpError) {
-    if (error.code === BITRIX_PLAN_BLOCKED_CODE) return MESSAGES.BITRIX_PLAN_BLOCKED(error.code);
-    return error.code ? `${error.message} (${error.code})` : error.message;
-  }
-  return error instanceof Error ? error.message : String(error);
 }
 
 /** Outcome of one failed batch command, as a row failure. */
