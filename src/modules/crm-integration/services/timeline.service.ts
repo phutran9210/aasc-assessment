@@ -1,14 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { IsNull } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
-import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
-import { TimelineEntity } from '../entities/timeline.entity.js';
+import { TimelineRepository } from '../repositories/timeline.repository.js';
 import type { TimelineInput } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
@@ -24,6 +22,7 @@ export class TimelineService {
     private readonly reconciliation: RemoteReconciliationService,
     private readonly operations: OperationRepository,
     private readonly outbox: OutboxRepository,
+    private readonly timelines: TimelineRepository,
   ) {}
 
   async append(
@@ -37,18 +36,20 @@ export class TimelineService {
 
   async execute(timelineId: string, context: OperationContext): Promise<OperationOutcome> {
     await context.assertOwnership();
-    const timeline = await this.dataSource.getRepository(TimelineEntity).findOne({
-      where: { id: timelineId },
-    });
+    const timeline = await this.timelines.findById(timelineId, this.dataSource.manager);
     if (!timeline) return { outcome: 'quarantined', errorCode: 'TIMELINE_NOT_FOUND' };
 
     try {
       const result = await this.reconciliation.find('timeline', timeline.marker);
       if (result.status === 'ambiguous') {
-        await this.dataSource.getRepository(TimelineEntity).update(timeline.id, {
-          status: 'reconcile_required',
-          lastErrorCode: 'TIMELINE_MARKER_AMBIGUOUS',
-        });
+        await this.timelines.update(
+          timeline.id,
+          {
+            status: 'reconcile_required',
+            lastErrorCode: 'TIMELINE_MARKER_AMBIGUOUS',
+          },
+          this.dataSource.manager,
+        );
         return { outcome: 'reconcile_required', errorCode: 'TIMELINE_MARKER_AMBIGUOUS' };
       }
       if (result.status === 'found') {
@@ -76,20 +77,23 @@ export class TimelineService {
     manager: EntityManager,
   ): Promise<string> {
     const marker = input.marker || `aasc-tiktok/timeline/${input.leadId}/${input.entityId}`;
-    let timeline = await manager.getRepository(TimelineEntity).findOne({ where: { marker } });
+    let timeline = await this.timelines.findByMarker(marker, manager);
     if (!timeline) {
-      timeline = await manager.getRepository(TimelineEntity).save({
-        id: uuidv7(),
-        leadId: input.leadId,
-        entityType: input.entityType,
-        remoteEntityId: input.entityId,
-        marker,
-        comment: input.comment,
-        status: 'pending',
-        attempt: 0,
-        nextAttemptAt: null,
-        lastErrorCode: null,
-      });
+      timeline = await this.timelines.save(
+        {
+          id: uuidv7(),
+          leadId: input.leadId,
+          entityType: input.entityType,
+          remoteEntityId: input.entityId,
+          marker,
+          comment: input.comment,
+          status: 'pending',
+          attempt: 0,
+          nextAttemptAt: null,
+          lastErrorCode: null,
+        },
+        manager,
+      );
     }
     const operation = await this.operations.ensure(
       {
@@ -102,22 +106,23 @@ export class TimelineService {
       manager,
     );
     if (operation.status === 'pending') {
-      const existingDispatch = await manager.getRepository(OutboxEntity).findOne({
-        where: { operationId: operation.id, publishedAt: IsNull() },
-      });
-      if (!existingDispatch)
+      if (!(await this.outbox.hasUnpublished(operation.id, manager)))
         await this.outbox.append(operation.id, QUEUE_NAMES.bitrixLeadSync, new Date(), manager);
     }
     return timeline.id;
   }
 
   private async markPosted(timelineId: string, remoteId: string): Promise<void> {
-    await this.dataSource.getRepository(TimelineEntity).update(timelineId, {
-      remoteTimelineId: remoteId,
-      status: 'posted',
-      nextAttemptAt: null,
-      lastErrorCode: null,
-    });
+    await this.timelines.update(
+      timelineId,
+      {
+        remoteTimelineId: remoteId,
+        status: 'posted',
+        nextAttemptAt: null,
+        lastErrorCode: null,
+      },
+      this.dataSource.manager,
+    );
   }
 
   private async scheduleReconciliation(
@@ -125,18 +130,14 @@ export class TimelineService {
     context: OperationContext,
   ): Promise<OperationOutcome> {
     const nextAttempt = await this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(TimelineEntity);
-      const timeline = await repository.findOne({
-        where: { id: timelineId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const timeline = await this.timelines.findByIdForUpdate(timelineId, manager);
       if (!timeline) return null;
       const attempt = timeline.attempt + 1;
       if (attempt > RETRY_DELAYS_MS.length) {
         timeline.status = 'reconcile_required';
         timeline.nextAttemptAt = null;
         timeline.lastErrorCode = 'TIMELINE_RECONCILIATION_EXHAUSTED';
-        await repository.save(timeline);
+        await this.timelines.save(timeline, manager);
         return { exhausted: true as const };
       }
       timeline.attempt = attempt;
@@ -144,7 +145,7 @@ export class TimelineService {
       const delayMs = RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[0];
       timeline.nextAttemptAt = new Date(Date.now() + (delayMs ?? 5_000));
       timeline.lastErrorCode = 'TIMELINE_MUTATION_AMBIGUOUS';
-      await repository.save(timeline);
+      await this.timelines.save(timeline, manager);
       const operation = await this.operations.ensure(
         {
           operationKey: `crm-timeline/${timeline.id}/${attempt}`,

@@ -12,6 +12,7 @@ import { SubmissionEntity } from '@modules/crm-integration/entities/submission.e
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import { FeedbackRepository } from '@modules/crm-integration/repositories/feedback.repository.js';
 import { MockTiktokAdapter } from '@modules/tiktok/adapters/mock-tiktok.adapter.js';
 import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
 import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
@@ -38,6 +39,7 @@ describe('TikTok conversion feedback ledger', () => {
       new OperationRepository(),
       new OutboxRepository(),
       new MockTiktokAdapter(server.tiktokBaseUrl, 'mock-api-key', 'mock-webhook-secret', 30),
+      new FeedbackRepository(),
     );
     await storeRules();
   });

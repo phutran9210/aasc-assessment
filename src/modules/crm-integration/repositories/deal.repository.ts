@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import type { DataSource, EntityManager, QueryDeepPartialEntity } from 'typeorm';
+import type { DataSource, DeepPartial, EntityManager, QueryDeepPartialEntity } from 'typeorm';
 
 import { DealEntity } from '../entities/deal.entity.js';
 
@@ -10,6 +10,16 @@ export class DealRepository {
 
   findByLead(leadId: string, manager: EntityManager = this.dataSource.manager) {
     return manager.getRepository(DealEntity).findOne({ where: { leadId } });
+  }
+
+  findByLeadForUpdate(leadId: string, manager: EntityManager) {
+    return manager
+      .getRepository(DealEntity)
+      .findOne({ where: { leadId }, lock: { mode: 'pessimistic_write' } });
+  }
+
+  create(input: DeepPartial<DealEntity>, manager: EntityManager): DealEntity {
+    return manager.getRepository(DealEntity).create(input);
   }
 
   findById(id: string, manager: EntityManager = this.dataSource.manager) {

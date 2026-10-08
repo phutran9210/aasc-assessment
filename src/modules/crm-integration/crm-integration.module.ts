@@ -31,6 +31,11 @@ import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-s
 import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
 import { BitrixApiService } from '../bitrix/services/bitrix-api.service.js';
 import { DealPollService } from './services/deal-poll.service.js';
+import { DealPollRepository } from './repositories/deal-poll.repository.js';
+import { TimelineRepository } from './repositories/timeline.repository.js';
+import { FeedbackRepository } from './repositories/feedback.repository.js';
+import { LeadRepository } from './repositories/lead.repository.js';
+import { SubmissionRepository } from './repositories/submission.repository.js';
 import { LeadsController } from './controllers/leads.controller.js';
 import { DealsController } from './controllers/deals.controller.js';
 import { OperationsController } from './controllers/operations.controller.js';
@@ -88,6 +93,7 @@ export class CrmIntegrationModule {
             OperationRepository,
             OutboxRepository,
             TIKTOK_FEEDBACK_PROVIDER,
+            FeedbackRepository,
           ],
           useFactory: (
             dataSource: DataSource,
@@ -95,11 +101,24 @@ export class CrmIntegrationModule {
             operations: OperationRepository,
             outbox: OutboxRepository,
             provider: TiktokFeedbackProvider,
+            feedbackData: FeedbackRepository,
           ) =>
-            new ConversionFeedbackService(dataSource, configurations, operations, outbox, provider),
+            new ConversionFeedbackService(
+              dataSource,
+              configurations,
+              operations,
+              outbox,
+              provider,
+              feedbackData,
+            ),
         },
         WebhookEventRepository,
         DealHistoryRepository,
+        DealPollRepository,
+        TimelineRepository,
+        FeedbackRepository,
+        LeadRepository,
+        SubmissionRepository,
         IntegrationReadService,
         {
           provide: IntegrationReadRepository,
@@ -111,6 +130,9 @@ export class CrmIntegrationModule {
           inject: [
             getDataSourceToken('tiktok'),
             OutboxRepository,
+            OperationRepository,
+            LeadRepository,
+            DealRepository,
             ConfigurationRepository,
             CRM_GATEWAY,
             RemoteReconciliationService,
@@ -118,6 +140,9 @@ export class CrmIntegrationModule {
           useFactory: (
             dataSource: DataSource,
             outbox: OutboxRepository,
+            operations: OperationRepository,
+            leads: LeadRepository,
+            deals: DealRepository,
             configurations: ConfigurationRepository,
             gateway: CrmGateway,
             reconciliation: RemoteReconciliationService,
@@ -125,6 +150,9 @@ export class CrmIntegrationModule {
             new OperationControlService(
               dataSource,
               outbox,
+              operations,
+              leads,
+              deals,
               configurations,
               gateway,
               reconciliation,
@@ -137,13 +165,15 @@ export class CrmIntegrationModule {
             CRM_GATEWAY,
             OperationRepository,
             OutboxRepository,
+            DealPollRepository,
           ],
           useFactory: (
             ds: DataSource,
             gateway: CrmGateway,
             operations: OperationRepository,
             outbox: OutboxRepository,
-          ) => new DealPollService(ds, gateway, operations, outbox),
+            pollData: DealPollRepository,
+          ) => new DealPollService(ds, gateway, operations, outbox, pollData),
         },
         {
           provide: BitrixDealInbox,
@@ -210,6 +240,7 @@ export class CrmIntegrationModule {
             RemoteReconciliationService,
             OperationRepository,
             OutboxRepository,
+            TimelineRepository,
           ],
           useFactory: (
             dataSource: DataSource,
@@ -217,7 +248,9 @@ export class CrmIntegrationModule {
             reconciliation: RemoteReconciliationService,
             operations: OperationRepository,
             outbox: OutboxRepository,
-          ) => new TimelineService(dataSource, gateway, reconciliation, operations, outbox),
+            timelines: TimelineRepository,
+          ) =>
+            new TimelineService(dataSource, gateway, reconciliation, operations, outbox, timelines),
         },
         {
           provide: ConversionService,
@@ -230,6 +263,10 @@ export class CrmIntegrationModule {
             CRM_GATEWAY,
             RemoteReconciliationService,
             TimelineService,
+            LeadRepository,
+            SubmissionRepository,
+            DealRepository,
+            AnalyticsRevisionRepository,
             ConversionFeedbackService,
           ],
           useFactory: (
@@ -241,6 +278,10 @@ export class CrmIntegrationModule {
             gateway: CrmGateway,
             reconciliation: RemoteReconciliationService,
             timeline: TimelineService,
+            leads: LeadRepository,
+            submissions: SubmissionRepository,
+            deals: DealRepository,
+            analyticsRevisions: AnalyticsRevisionRepository,
             feedback: ConversionFeedbackService,
           ) =>
             new ConversionService(
@@ -252,6 +293,10 @@ export class CrmIntegrationModule {
               gateway,
               reconciliation,
               timeline,
+              leads,
+              submissions,
+              deals,
+              analyticsRevisions,
               feedback,
             ),
         },

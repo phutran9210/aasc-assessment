@@ -10,9 +10,17 @@ describe('BitrixDealInbox', () => {
   const operations = {
     findById: jest.fn(),
     findByKey: jest.fn(),
+    findByKeyForUpdate: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    hasActiveAggregateOperation: jest.fn(),
     ensure: jest.fn().mockResolvedValue({ id: 'operation-1', status: 'pending' }),
   };
-  const outbox = { append: jest.fn().mockResolvedValue(undefined) };
+  const outbox = {
+    append: jest.fn().mockResolvedValue(undefined),
+    hasUnpublished: jest.fn().mockResolvedValue(false),
+  };
   const api = { mode: 'oauth', verifyApplicationToken: jest.fn().mockResolvedValue(false) };
   const installations = { findCurrent: jest.fn().mockResolvedValue(null) };
   const dataSource = {

@@ -16,6 +16,7 @@ import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js
 import { BitrixCrmGateway } from '@modules/crm-integration/gateways/bitrix-crm.gateway.js';
 import { RemoteReconciliationService } from '@modules/crm-integration/services/remote-reconciliation.service.js';
 import { TimelineService } from '@modules/crm-integration/services/timeline.service.js';
+import { TimelineRepository } from '@modules/crm-integration/repositories/timeline.repository.js';
 import { LeadSyncService } from '@modules/crm-integration/services/lead-sync.service.js';
 import { LeadRepository } from '@modules/crm-integration/repositories/lead.repository.js';
 import { SubmissionRepository } from '@modules/crm-integration/repositories/submission.repository.js';
@@ -88,6 +89,7 @@ describe('Bitrix lead synchronization', () => {
       reconciliation,
       operations,
       outbox,
+      new TimelineRepository(),
     );
     syncService = new LeadSyncService(
       infrastructure.database.dataSource,

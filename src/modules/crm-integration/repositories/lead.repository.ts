@@ -24,10 +24,24 @@ export class LeadRepository {
     return manager.getRepository(LeadEntity).findOne({ where: { id } });
   }
 
+  findByIdIn(id: string, manager: EntityManager): Promise<LeadEntity | null> {
+    return this.findById(id, manager);
+  }
+
   findByIdForUpdate(id: string, manager: EntityManager): Promise<LeadEntity | null> {
     return manager
       .getRepository(LeadEntity)
       .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+  }
+
+  findByPortalRemote(
+    portalKey: string,
+    remoteId: string,
+    manager: EntityManager,
+  ): Promise<LeadEntity | null> {
+    return manager
+      .getRepository(LeadEntity)
+      .findOne({ where: { portalKey, bitrixLeadId: remoteId } });
   }
 
   save(lead: LeadEntity, manager: EntityManager): Promise<LeadEntity> {

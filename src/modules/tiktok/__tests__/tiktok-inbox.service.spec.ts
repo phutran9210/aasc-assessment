@@ -90,9 +90,17 @@ function createService() {
   const operations = {
     findById: jest.fn(),
     findByKey: jest.fn(),
+    findByKeyForUpdate: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    save: jest.fn(),
+    create: jest.fn(),
+    hasActiveAggregateOperation: jest.fn(),
     ensure: jest.fn().mockResolvedValue({ id: 'operation-1' }),
   };
-  const outbox = { append: jest.fn().mockResolvedValue(undefined) };
+  const outbox = {
+    append: jest.fn().mockResolvedValue(undefined),
+    hasUnpublished: jest.fn().mockResolvedValue(false),
+  };
   const configurations = {
     revisions: jest.fn().mockResolvedValue({ mapping: 2, rules: 4 }),
   };

@@ -4,7 +4,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
@@ -15,10 +14,8 @@ import type {
   EventResult,
   TiktokFeedbackProvider,
 } from '../ports/tiktok-feedback-provider.port.js';
-import { FeedbackLedgerEntity } from '@modules/crm-integration/entities/feedback-ledger.entity.js';
-import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
-import { SubmissionEntity } from '@modules/crm-integration/entities/submission.entity.js';
 import { ConfigurationRepository } from '@modules/crm-integration/repositories/configuration.repository.js';
+import { FeedbackRepository } from '@modules/crm-integration/repositories/feedback.repository.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { FeedbackPolicy } from '@modules/crm-integration/types/rule.types.js';
 
@@ -30,15 +27,12 @@ export class ConversionFeedbackService {
     private readonly operations: OperationRepository,
     private readonly outbox: OutboxRepository,
     @Inject(TIKTOK_FEEDBACK_PROVIDER) private readonly provider: TiktokFeedbackProvider,
+    private readonly feedbackData: FeedbackRepository,
   ) {}
 
   async schedule(leadId: string, milestone: FeedbackMilestone, tx: EntityManager): Promise<void> {
-    const lead = await tx.getRepository(LeadEntity).findOne({ where: { id: leadId } });
+    const { lead, submission } = await this.feedbackData.findLeadContext(leadId, tx);
     if (!lead) return;
-    const submission = await tx.getRepository(SubmissionEntity).findOne({
-      where: { leadId },
-      order: { occurredAt: 'DESC', id: 'DESC' },
-    });
     const consented =
       submission?.sendFeedback === true &&
       submission.isHistorical === false &&
@@ -74,11 +68,8 @@ export class ConversionFeedbackService {
         : createHash('sha256')
             .update(lead.advertiserId + '\0' + lead.id + '\0' + milestone)
             .digest('hex');
-    const ledgerRepository = tx.getRepository(FeedbackLedgerEntity);
-    await ledgerRepository
-      .createQueryBuilder()
-      .insert()
-      .values({
+    await this.feedbackData.ensureLedger(
+      {
         id: uuidv7(),
         advertiserId: lead.advertiserId,
         leadId,
@@ -93,13 +84,10 @@ export class ConversionFeedbackService {
         detail: (built.status === 'ready' ? (built.event.payload ?? {}) : {}) as never,
         lastErrorCode: null,
         operationId: null,
-      })
-      .orIgnore()
-      .execute();
-    const ledger = await ledgerRepository.findOne({
-      where: { advertiserId: lead.advertiserId, leadId, milestone },
-      lock: { mode: 'pessimistic_write' },
-    });
+      },
+      tx,
+    );
+    const ledger = await this.feedbackData.findForUpdate(lead.advertiserId, leadId, milestone, tx);
     if (!ledger || ledger.status !== 'queued' || built.status !== 'ready' || ledger.operationId)
       return;
 
@@ -115,7 +103,7 @@ export class ConversionFeedbackService {
       tx,
     );
     ledger.operationId = operation.id;
-    await ledgerRepository.save(ledger);
+    await this.feedbackData.save(ledger, tx);
     if (operation.status === 'pending' || operation.status === 'retry_wait') {
       await this.outbox.append(operation.id, QUEUE_NAMES.tiktokFeedback, new Date(), tx);
     }
@@ -123,14 +111,11 @@ export class ConversionFeedbackService {
 
   async send(operationId: string, context: OperationContext): Promise<OperationOutcome> {
     await context.assertOwnership();
-    const operation = await this.dataSource.getRepository(OperationEntity).findOne({
-      where: { id: operationId },
-    });
+    const operation = await this.operations.findById(operationId, this.dataSource.manager);
     const ledgerId = operation?.payload.feedbackLedgerId;
     if (!operation || !ledgerId)
       return { outcome: 'quarantined', errorCode: 'FEEDBACK_OPERATION_INVALID' };
-    const ledgerRepository = this.dataSource.getRepository(FeedbackLedgerEntity);
-    const ledger = await ledgerRepository.findOne({ where: { id: ledgerId } });
+    const ledger = await this.feedbackData.findById(ledgerId, this.dataSource.manager);
     if (!ledger) return { outcome: 'quarantined', errorCode: 'FEEDBACK_LEDGER_MISSING' };
     if (ledger.status === 'accepted' || ledger.status === 'skipped_no_consent')
       return { outcome: 'succeeded', remoteId: ledger.eventId };
@@ -144,7 +129,11 @@ export class ConversionFeedbackService {
       ]);
     } catch (error) {
       const errorCode = error instanceof ProviderHttpError ? error.code : 'FEEDBACK_PROVIDER_ERROR';
-      await ledgerRepository.update(ledger.id, { status: 'rejected', lastErrorCode: errorCode });
+      await this.feedbackData.update(
+        ledger.id,
+        { status: 'rejected', lastErrorCode: errorCode },
+        this.dataSource.manager,
+      );
       return {
         outcome: 'retry_wait',
         nextAttemptAt: new Date(
@@ -156,10 +145,11 @@ export class ConversionFeedbackService {
     }
     const result = results.find((item) => item.eventId === ledger.eventId);
     if (!result) {
-      await ledgerRepository.update(ledger.id, {
-        status: 'rejected',
-        lastErrorCode: 'FEEDBACK_RESULT_MISSING',
-      });
+      await this.feedbackData.update(
+        ledger.id,
+        { status: 'rejected', lastErrorCode: 'FEEDBACK_RESULT_MISSING' },
+        this.dataSource.manager,
+      );
       return {
         outcome: 'retry_wait',
         nextAttemptAt: new Date(Date.now() + 5_000),
@@ -167,11 +157,19 @@ export class ConversionFeedbackService {
       };
     }
     if (result.status === 'accepted') {
-      await ledgerRepository.update(ledger.id, { status: 'accepted', lastErrorCode: null });
+      await this.feedbackData.update(
+        ledger.id,
+        { status: 'accepted', lastErrorCode: null },
+        this.dataSource.manager,
+      );
       return { outcome: 'succeeded', remoteId: ledger.eventId };
     }
     const errorCode = result.errorCode ?? 'FEEDBACK_REJECTED';
-    await ledgerRepository.update(ledger.id, { status: 'rejected', lastErrorCode: errorCode });
+    await this.feedbackData.update(
+      ledger.id,
+      { status: 'rejected', lastErrorCode: errorCode },
+      this.dataSource.manager,
+    );
     return {
       outcome: 'retry_wait',
       nextAttemptAt: new Date(Date.now() + 5_000),

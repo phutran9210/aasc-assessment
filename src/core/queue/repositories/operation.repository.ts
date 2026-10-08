@@ -17,6 +17,43 @@ export class OperationRepository {
     return tx.getRepository(OperationEntity).findOne({ where: { operationKey } });
   }
 
+  findByIdForUpdate(id: string, tx: EntityManager): Promise<OperationEntity | null> {
+    return tx
+      .getRepository(OperationEntity)
+      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+  }
+
+  findByKeyForUpdate(operationKey: string, tx: EntityManager): Promise<OperationEntity | null> {
+    return tx
+      .getRepository(OperationEntity)
+      .findOne({ where: { operationKey }, lock: { mode: 'pessimistic_write' } });
+  }
+
+  save(operation: OperationEntity, tx: EntityManager): Promise<OperationEntity> {
+    return tx.getRepository(OperationEntity).save(operation);
+  }
+
+  create(input: Partial<OperationEntity>, tx: EntityManager): OperationEntity {
+    return tx.getRepository(OperationEntity).create(input);
+  }
+
+  async hasActiveAggregateOperation(
+    aggregateId: string,
+    excludedOperationId: string,
+    statuses: string[],
+    tx: EntityManager,
+  ): Promise<boolean> {
+    const active = await tx
+      .getRepository(OperationEntity)
+      .createQueryBuilder('operation')
+      .setLock('pessimistic_write')
+      .where('operation.aggregateId = :aggregateId', { aggregateId })
+      .andWhere('operation.id <> :excludedOperationId', { excludedOperationId })
+      .andWhere('operation.status IN (:...statuses)', { statuses })
+      .getOne();
+    return active !== null;
+  }
+
   async ensure(input: EnsureOperationInput, tx: EntityManager): Promise<OperationEntity> {
     const normalized = {
       operationKey: input.operationKey,

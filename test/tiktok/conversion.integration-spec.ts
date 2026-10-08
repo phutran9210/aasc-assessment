@@ -25,6 +25,11 @@ import { ConfigurationRepository } from '@modules/crm-integration/repositories/c
 import { ConversionService } from '@modules/crm-integration/services/conversion.service.js';
 import { RemoteReconciliationService } from '@modules/crm-integration/services/remote-reconciliation.service.js';
 import { TimelineService } from '@modules/crm-integration/services/timeline.service.js';
+import { TimelineRepository } from '@modules/crm-integration/repositories/timeline.repository.js';
+import { LeadRepository } from '@modules/crm-integration/repositories/lead.repository.js';
+import { SubmissionRepository } from '@modules/crm-integration/repositories/submission.repository.js';
+import { DealRepository } from '@modules/crm-integration/repositories/deal.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
 import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
 import { TiktokStore } from '@modules/tiktok/testing/tiktok-store.js';
@@ -87,7 +92,14 @@ describe('TikTok lead conversion saga', () => {
     gateway = moduleRef.get(BitrixCrmGateway);
     const dataSource = infrastructure.database.dataSource;
     const reconciliation = new RemoteReconciliationService(gateway);
-    const timeline = new TimelineService(dataSource, gateway, reconciliation, operations, outbox);
+    const timeline = new TimelineService(
+      dataSource,
+      gateway,
+      reconciliation,
+      operations,
+      outbox,
+      new TimelineRepository(),
+    );
     conversions = new ConversionService(
       dataSource,
       new ConfigurationRepository(dataSource),
@@ -97,6 +109,10 @@ describe('TikTok lead conversion saga', () => {
       gateway,
       reconciliation,
       timeline,
+      new LeadRepository(),
+      new SubmissionRepository(),
+      new DealRepository(dataSource),
+      new AnalyticsRevisionRepository(),
     );
     leases = new AggregateLeaseRepository(dataSource);
   });

@@ -5,15 +5,16 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { QUEUE_NAMES, retryQueueForOperation } from '@core/queue/constants/operation.constants.js';
 import type { QueueName } from '@core/queue/types/operation.types.js';
 import type { Actor } from '@modules/integration-auth/types/index.js';
 import { AuditEventEntity } from '../entities/audit-event.entity.js';
-import { DealEntity } from '../entities/deal.entity.js';
-import { LeadEntity } from '../entities/lead.entity.js';
 import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
+import { LeadRepository } from '../repositories/lead.repository.js';
+import { DealRepository } from '../repositories/deal.repository.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
@@ -28,6 +29,9 @@ export class OperationControlService {
   constructor(
     @InjectDataSource('tiktok') private readonly dataSource: DataSource,
     private readonly outbox: OutboxRepository,
+    private readonly operations: OperationRepository,
+    private readonly leads: LeadRepository,
+    private readonly deals: DealRepository,
     private readonly configurations: ConfigurationRepository,
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly reconciliation: RemoteReconciliationService,
@@ -36,11 +40,7 @@ export class OperationControlService {
   async retry(id: string, reason: string, actor: Actor): Promise<OperationDto> {
     if (!reason?.trim()) throw new ConflictException('A reason is required');
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(OperationEntity);
-      const operation = await repository.findOne({
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const operation = await this.operations.findByIdForUpdate(id, manager);
       if (!operation) throw new NotFoundException('Operation was not found');
       if (ACTIVE_STATUSES.has(operation.status)) throw new ConflictException('Operation is active');
       if (operation.status !== 'dead_letter')
@@ -53,7 +53,7 @@ export class OperationControlService {
       operation.nextAttemptAt = null;
       operation.leaseUntil = null;
       operation.leaseToken = null;
-      await repository.save(operation);
+      await this.operations.save(operation, manager);
       await this.outbox.append(operation.id, queue, new Date(), manager);
       await this.audit(
         manager,
@@ -69,9 +69,7 @@ export class OperationControlService {
   }
 
   async resolve(id: string, input: OperationResolveDto, actor: Actor): Promise<OperationDto> {
-    const snapshot = await this.dataSource
-      .getRepository(OperationEntity)
-      .findOne({ where: { id } });
+    const snapshot = await this.operations.findById(id, this.dataSource.manager);
     if (!snapshot) throw new NotFoundException('Operation was not found');
     if (ACTIVE_STATUSES.has(snapshot.status)) throw new ConflictException('Operation is active');
     if (!['reconcile_required', 'quarantined', 'dead_letter'].includes(snapshot.status))
@@ -102,11 +100,7 @@ export class OperationControlService {
     }
 
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(OperationEntity);
-      const operation = await repository.findOne({
-        where: { id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const operation = await this.operations.findByIdForUpdate(id, manager);
       if (!operation || ACTIVE_STATUSES.has(operation.status))
         throw new ConflictException('Operation state changed during resolution');
       const before = auditState(operation);
@@ -124,7 +118,7 @@ export class OperationControlService {
       operation.completedAt = new Date();
       operation.leaseUntil = null;
       operation.leaseToken = null;
-      await repository.save(operation);
+      await this.operations.save(operation, manager);
       await this.audit(
         manager,
         operation,
@@ -144,11 +138,7 @@ export class OperationControlService {
     actor: Actor,
   ): Promise<OperationDto> {
     return this.dataSource.transaction(async (manager) => {
-      const repo = manager.getRepository(OperationEntity);
-      const original = await repo.findOne({
-        where: { id: snapshot.id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const original = await this.operations.findByIdForUpdate(snapshot.id, manager);
       if (!original || ACTIVE_STATUSES.has(original.status))
         throw new ConflictException('Operation state changed during resolution');
       if (original.aggregateId)
@@ -163,41 +153,41 @@ export class OperationControlService {
         original.attempt + Number(original.payload.reconciliationAttempt ?? 0) + 1,
       );
       let key = `${original.operationKey}/resolution/${suffix}`;
-      while (await repo.findOne({ where: { operationKey: key } })) {
+      while (await this.operations.findByKey(key, manager)) {
         suffix += 1;
         key = `${original.operationKey}/resolution/${suffix}`;
       }
-      const next = repo.create({
-        id: uuidv7(),
-        operationKey: key,
-        kind: original.kind,
-        aggregateId: original.aggregateId,
-        targetVersion: original.targetVersion,
-        status: 'pending',
-        attempt: 0,
-        leaseUntil: null,
-        leaseToken: null,
-        remoteId: null,
-        lastErrorCode: null,
-        lastErrorDetail: null,
-        nextAttemptAt: null,
-        payload: {
-          ...original.payload,
-          sourceOperationId: original.id,
-          reconciliationAttempt: suffix,
-          ...(input.action === 'confirm_remote_absent' ? { remoteAbsenceConfirmed: true } : {}),
+      const next = this.operations.create(
+        {
+          id: uuidv7(),
+          operationKey: key,
+          kind: original.kind,
+          aggregateId: original.aggregateId,
+          targetVersion: original.targetVersion,
+          status: 'pending',
+          attempt: 0,
+          leaseUntil: null,
+          leaseToken: null,
+          remoteId: null,
+          lastErrorCode: null,
+          lastErrorDetail: null,
+          nextAttemptAt: null,
+          payload: {
+            ...original.payload,
+            sourceOperationId: original.id,
+            reconciliationAttempt: suffix,
+            ...(input.action === 'confirm_remote_absent' ? { remoteAbsenceConfirmed: true } : {}),
+          },
+          configRevisions: revisions,
+          actorId: actor.sub,
+          completedAt: null,
         },
-        configRevisions: revisions,
-        actorId: actor.sub,
-        completedAt: null,
-      });
-      const persisted = await repo.save(next);
+        manager,
+      );
+      const persisted = await this.operations.save(next, manager);
       const aggregateId = original.aggregateId;
       if (original.kind === 'bitrix_deal_convert' && aggregateId) {
-        const deal = await manager.getRepository(DealEntity).findOne({
-          where: { leadId: aggregateId },
-          lock: { mode: 'pessimistic_write' },
-        });
+        const deal = await this.deals.findByLeadForUpdate(aggregateId, manager);
         if (deal) {
           if (deal.conversionStatus === 'completed')
             throw new ConflictException('Completed conversion cannot be reprocessed');
@@ -211,13 +201,11 @@ export class OperationControlService {
           }
           deal.conversionStatus = 'pending';
           deal.version += 1;
-          await manager.getRepository(DealEntity).save(deal);
+          await this.deals.save(deal, manager);
         }
       }
       if (original.kind === 'bitrix_lead_sync' && aggregateId) {
-        const lead = await manager
-          .getRepository(LeadEntity)
-          .findOne({ where: { id: aggregateId }, lock: { mode: 'pessimistic_write' } });
+        const lead = await this.leads.findByIdForUpdate(aggregateId, manager);
         if (lead) {
           if (
             input.action === 'reprocess_with_current_config' &&
@@ -227,7 +215,7 @@ export class OperationControlService {
           }
           lead.syncStatus = 'pending';
           lead.lastErrorCode = null;
-          await manager.getRepository(LeadEntity).save(lead);
+          await this.leads.save(lead, manager);
         }
       }
       await this.outbox.append(persisted.id, queueFor(persisted.kind), new Date(), manager);
@@ -255,18 +243,14 @@ export class OperationControlService {
       if (operation.kind === 'bitrix_lead_sync' || operation.kind === 'tiktok_ingest') {
         const localId = leadId;
         if (!localId) throw new ConflictException('Operation has no lead scope');
-        const lead = await this.dataSource
-          .getRepository(LeadEntity)
-          .findOne({ where: { id: localId } });
+        const lead = await this.leads.findById(localId, this.dataSource.manager);
         if (!lead) throw new NotFoundException('Lead was not found');
         const remote = await this.gateway.getLead(remoteId);
         if (remote.marker !== `aasc-tiktok/${lead.id}`)
           throw new ConflictException('Remote lead marker does not match');
       } else if (operation.kind === 'bitrix_deal_convert') {
         if (!dealId) throw new ConflictException('Operation has no deal scope');
-        const deal = await this.dataSource
-          .getRepository(DealEntity)
-          .findOne({ where: { id: dealId } });
+        const deal = await this.deals.findById(dealId);
         if (!deal) throw new NotFoundException('Deal was not found');
         const remote = await this.gateway.getDeal(remoteId);
         if (remote.marker !== `aasc-tiktok/deal/${deal.id}`)
@@ -303,40 +287,32 @@ export class OperationControlService {
     if (operation.kind === 'bitrix_lead_sync' || operation.kind === 'tiktok_ingest') {
       const leadId = operation.payload.leadId ?? operation.aggregateId;
       if (!leadId) throw new ConflictException('Operation has no lead scope');
-      const lead = await manager
-        .getRepository(LeadEntity)
-        .findOne({ where: { id: leadId }, lock: { mode: 'pessimistic_write' } });
+      const lead = await this.leads.findByIdForUpdate(leadId, manager);
       if (!lead) throw new NotFoundException('Lead was not found');
       await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
         `bitrix-lead/${lead.portalKey}/${remoteId}`,
       ]);
-      const collision = await manager
-        .getRepository(LeadEntity)
-        .findOne({ where: { portalKey: lead.portalKey, bitrixLeadId: remoteId } });
+      const collision = await this.leads.findByPortalRemote(lead.portalKey, remoteId, manager);
       if (collision && collision.id !== lead.id)
         throw new ConflictException('Remote lead is linked to another local lead');
       lead.bitrixLeadId = remoteId;
       lead.syncStatus = 'synced';
       lead.lastErrorCode = null;
-      await manager.getRepository(LeadEntity).save(lead);
+      await this.leads.save(lead, manager);
     } else if (operation.kind === 'bitrix_deal_convert') {
       const dealId = operation.payload.dealId;
       if (!dealId) throw new ConflictException('Operation has no deal scope');
-      const deal = await manager
-        .getRepository(DealEntity)
-        .findOne({ where: { id: dealId }, lock: { mode: 'pessimistic_write' } });
+      const deal = await this.deals.findByIdForUpdate(dealId, manager);
       if (!deal) throw new NotFoundException('Deal was not found');
       await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
         `bitrix-deal/${deal.portalKey}/${remoteId}`,
       ]);
-      const collision = await manager
-        .getRepository(DealEntity)
-        .findOne({ where: { portalKey: deal.portalKey, bitrixDealId: remoteId } });
+      const collision = await this.deals.findByPortalRemote(deal.portalKey, remoteId, manager);
       if (collision && collision.id !== deal.id)
         throw new ConflictException('Remote deal is linked to another local deal');
       deal.bitrixDealId = remoteId;
       deal.conversionStatus = 'completed';
-      await manager.getRepository(DealEntity).save(deal);
+      await this.deals.save(deal, manager);
     } else {
       throw new ConflictException('This operation cannot link a remote CRM record');
     }
@@ -348,11 +324,7 @@ export class OperationControlService {
     actor: Actor,
   ): Promise<OperationDto> {
     return this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(OperationEntity);
-      const operation = await repository.findOne({
-        where: { id: snapshot.id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const operation = await this.operations.findByIdForUpdate(snapshot.id, manager);
       if (!operation || ACTIVE_STATUSES.has(operation.status))
         throw new ConflictException('Operation state changed during resolution');
       if (operation.kind !== 'tiktok_ingest' || !operation.payload.eventId)
@@ -367,10 +339,7 @@ export class OperationControlService {
       const identityTargets = input.identityTargets;
       if (!targetLeadId || !identityTargets)
         throw new ConflictException('Identity selection is incomplete');
-      const target = await manager.getRepository(LeadEntity).findOne({
-        where: { id: targetLeadId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const target = await this.leads.findByIdForUpdate(targetLeadId, manager);
       if (!event || !target || event.advertiserId !== target.advertiserId)
         throw new ConflictException('Identity target is outside the operation scope');
 
@@ -419,7 +388,7 @@ export class OperationControlService {
       operation.leaseToken = null;
       event.status = 'accepted';
       await manager.getRepository(WebhookEventEntity).save(event);
-      await repository.save(operation);
+      await this.operations.save(operation, manager);
       await this.outbox.append(operation.id, QUEUE_NAMES.tiktokIngest, new Date(), manager);
       await this.audit(
         manager,
@@ -462,15 +431,16 @@ export class OperationControlService {
     await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
       `crm-aggregate/${aggregateId}`,
     ]);
-    const active = await manager
-      .getRepository(OperationEntity)
-      .createQueryBuilder('operation')
-      .setLock('pessimistic_write')
-      .where('operation.aggregateId = :aggregateId', { aggregateId })
-      .andWhere('operation.id <> :currentId', { currentId })
-      .andWhere('operation.status IN (:...statuses)', { statuses: [...ACTIVE_STATUSES] })
-      .getOne();
-    if (active) throw new ConflictException('Another operation is active for this aggregate');
+    if (
+      await this.operations.hasActiveAggregateOperation(
+        aggregateId,
+        currentId,
+        [...ACTIVE_STATUSES],
+        manager,
+      )
+    ) {
+      throw new ConflictException('Another operation is active for this aggregate');
+    }
   }
 }
 

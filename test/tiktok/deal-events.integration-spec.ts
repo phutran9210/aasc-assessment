@@ -7,6 +7,7 @@ import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
 import { DealHistoryRepository } from '@modules/crm-integration/repositories/deal-history.repository.js';
 import { DealRefreshService } from '@modules/crm-integration/services/deal-refresh.service.js';
 import { DealPollService } from '@modules/crm-integration/services/deal-poll.service.js';
+import { DealPollRepository } from '@modules/crm-integration/repositories/deal-poll.repository.js';
 import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
@@ -56,6 +57,7 @@ describe('Bitrix deal event reconciliation', () => {
       gateway,
       new OperationRepository(),
       new OutboxRepository(),
+      new DealPollRepository(infrastructure.database.dataSource),
     );
   });
 

@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { IsNull } from 'typeorm';
 import type { EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
@@ -11,6 +12,12 @@ const ALLOWED_QUEUES = new Set<string>(Object.values(QUEUE_NAMES));
 
 @Injectable()
 export class OutboxRepository {
+  hasUnpublished(operationId: string, tx: EntityManager): Promise<boolean> {
+    return tx.getRepository(OutboxEntity).exists({
+      where: { operationId, publishedAt: IsNull() },
+    });
+  }
+
   async append(
     operationId: string,
     queue: QueueName,

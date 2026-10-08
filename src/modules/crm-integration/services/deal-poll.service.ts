@@ -1,16 +1,13 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { IsNull, Not } from 'typeorm';
 import type { DataSource } from 'typeorm';
-import { v7 as uuidv7 } from 'uuid';
 
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
-import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
 import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, RemoteDeal } from '../ports/crm-gateway.port.js';
-import { DealEntity } from '../entities/deal.entity.js';
-import { DealPollCheckpointEntity } from '../entities/deal-poll-checkpoint.entity.js';
+import { DealPollRepository } from '../repositories/deal-poll.repository.js';
+import type { DealPollCheckpointEntity } from '../entities/deal-poll-checkpoint.entity.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { PollSummary } from '../types/deal-poll-summary.type.js';
 
@@ -24,6 +21,7 @@ export class DealPollService {
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly operations: OperationRepository,
     private readonly outbox: OutboxRepository,
+    private readonly pollData: DealPollRepository,
   ) {}
 
   async run(mode: 'incremental' | 'full'): Promise<PollSummary> {
@@ -56,7 +54,7 @@ export class DealPollService {
           ? (startWatermark?.toISOString() ?? 'initial')
           : (checkpoint.fullScanAt?.toISOString() ?? 'initial');
       if (checkpoint.activeMode !== mode) {
-        checkpoint = await this.dataSource.getRepository(DealPollCheckpointEntity).save({
+        checkpoint = await this.pollData.saveCheckpoint({
           ...checkpoint,
           activeMode: mode,
           pageOffset: 0,
@@ -91,12 +89,12 @@ export class DealPollService {
         offset += page.length;
         checkpoint.pageOffset = offset;
         checkpoint.activeMode = mode;
-        await this.dataSource.getRepository(DealPollCheckpointEntity).save(checkpoint);
+        await this.pollData.saveCheckpoint(checkpoint);
         if (page.length < PAGE_SIZE) break;
       }
 
       const completedAt = new Date();
-      checkpoint = await this.dataSource.getRepository(DealPollCheckpointEntity).save({
+      checkpoint = await this.pollData.saveCheckpoint({
         ...checkpoint,
         activeMode: null,
         pageOffset: 0,
@@ -131,28 +129,11 @@ export class DealPollService {
   }
 
   private async checkpoint(portalKey: string): Promise<DealPollCheckpointEntity> {
-    const repository = this.dataSource.getRepository(DealPollCheckpointEntity);
-    const existing = await repository.findOne({ where: { portalKey } });
-    return (
-      existing ??
-      repository.save({
-        id: uuidv7(),
-        portalKey,
-        incrementalWatermark: null,
-        fullScanAt: null,
-        activeMode: null,
-        pageOffset: 0,
-      })
-    );
+    return this.pollData.checkpoint(portalKey);
   }
 
   private async listManagedPage(portalKey: string, offset: number): Promise<RemoteDeal[]> {
-    const deals = await this.dataSource.getRepository(DealEntity).find({
-      where: { portalKey, bitrixDealId: Not(IsNull()) },
-      order: { id: 'ASC' },
-      skip: offset,
-      take: PAGE_SIZE,
-    });
+    const deals = await this.pollData.listManagedPage(portalKey, offset, PAGE_SIZE);
     return deals.flatMap((deal) =>
       deal.bitrixDealId
         ? [
@@ -168,16 +149,9 @@ export class DealPollService {
   }
 
   private async isManaged(portalKey: string, remote: RemoteDeal): Promise<boolean> {
-    if (
-      await this.dataSource
-        .getRepository(DealEntity)
-        .exists({ where: { portalKey, bitrixDealId: remote.id } })
-    )
-      return true;
+    if (await this.pollData.isManaged(portalKey, remote.id)) return true;
     const localId = remote.marker?.match(/^aasc-tiktok\/deal\/([0-9a-f-]{36})$/i)?.[1];
-    return localId
-      ? this.dataSource.getRepository(DealEntity).exists({ where: { portalKey, id: localId } })
-      : false;
+    return localId ? this.pollData.hasLocalId(portalKey, localId) : false;
   }
 
   private async enqueue(
@@ -195,10 +169,7 @@ export class DealPollService {
         manager,
       );
       if (operation.status !== 'pending') return;
-      const existing = await manager
-        .getRepository(OutboxEntity)
-        .findOne({ where: { operationId: operation.id, publishedAt: IsNull() } });
-      if (!existing)
+      if (!(await this.outbox.hasUnpublished(operation.id, manager)))
         await this.outbox.append(operation.id, QUEUE_NAMES.bitrixDealRefresh, new Date(), manager);
     });
   }

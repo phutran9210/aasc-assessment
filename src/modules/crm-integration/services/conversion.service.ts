@@ -17,7 +17,6 @@ import type { OperationContext, OperationOutcome } from '@core/queue/types/worke
 import { DealEntity } from '../entities/deal.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
-import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
 import { evaluateRules } from '../domain/rule-engine.js';
 import { AssignmentService } from './assignment.service.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
@@ -27,6 +26,10 @@ import { RemoteReconciliationService } from './remote-reconciliation.service.js'
 import type { ConversionReceipt } from '../types/conversion-receipt.type.js';
 import { TimelineService } from './timeline.service.js';
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import { LeadRepository } from '../repositories/lead.repository.js';
+import { SubmissionRepository } from '../repositories/submission.repository.js';
+import { DealRepository } from '../repositories/deal.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { AssignmentPolicy, RulesConfig } from '../types/rule.types.js';
 
@@ -51,6 +54,10 @@ export class ConversionService {
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly reconciliation: RemoteReconciliationService,
     private readonly timeline: TimelineService,
+    private readonly leads: LeadRepository,
+    private readonly submissions: SubmissionRepository,
+    private readonly deals: DealRepository,
+    private readonly analyticsRevisions: AnalyticsRevisionRepository,
     private readonly feedback?: ConversionFeedbackService,
   ) {}
 
@@ -61,16 +68,14 @@ export class ConversionService {
     idempotencyKey?: string,
     requestBody: Record<string, unknown> = {},
   ): Promise<ConversionReceipt | null> {
-    const snapshot = await this.dataSource
-      .getRepository(LeadEntity)
-      .findOne({ where: { id: leadId } });
+    const snapshot = await this.leads.findById(leadId, this.dataSource.manager);
     if (!snapshot) throw new NotFoundException('Lead was not found');
     assertConvertible(snapshot);
 
-    const latestSubmission = await this.dataSource.getRepository(SubmissionEntity).findOne({
-      where: { leadId },
-      order: { occurredAt: 'DESC' },
-    });
+    const latestSubmission = await this.submissions.findLatestForLead(
+      leadId,
+      this.dataSource.manager,
+    );
     if (trigger === 'rule' && (!latestSubmission || !latestSubmission.applyRules)) return null;
 
     let config: Awaited<ReturnType<ConfigurationRepository['findActive']>>;
@@ -93,22 +98,14 @@ export class ConversionService {
     if (!stage) throw new ConflictException('Configured pipeline stage is no longer available');
 
     const assignee = await this.dataSource.transaction(async (manager) => {
-      const leadRepository = manager.getRepository(LeadEntity);
-      const lead = await leadRepository.findOne({
-        where: { id: leadId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const lead = await this.leads.findByIdForUpdate(leadId, manager);
       if (!lead) throw new NotFoundException('Lead was not found');
       assertConvertible(lead);
-      const deals = manager.getRepository(DealEntity);
-      let deal = await deals.findOne({ where: { leadId }, lock: { mode: 'pessimistic_write' } });
+      let deal = await this.deals.findByLeadForUpdate(leadId, manager);
       if (deal) {
         if (deal.conversionStatus === 'failed' || deal.conversionStatus === 'reconcile_required')
           throw new ConflictException('Existing conversion requires operator reconciliation');
-        const operation = await manager.getRepository(OperationEntity).findOne({
-          where: { operationKey: `convert/${leadId}` },
-          lock: { mode: 'pessimistic_write' },
-        });
+        const operation = await this.operations.findByKeyForUpdate(`convert/${leadId}`, manager);
         if (operation && idempotencyKey && actorId) {
           const scopeKey = idempotencyScopeKey(leadId, actorId, idempotencyKey);
           const bodyFingerprint = bodyHash(requestBody);
@@ -124,7 +121,7 @@ export class ConversionService {
                 [scopeKey]: { bodyHash: bodyFingerprint },
               },
             };
-            await manager.getRepository(OperationEntity).save(operation);
+            await this.operations.save(operation, manager);
           }
         }
         if (deal.conversionStatus === 'completed' && deal.bitrixDealId)
@@ -157,28 +154,32 @@ export class ConversionService {
       if (!activeUser) throw new ConflictException('Configured assignee is not active');
 
       const title = `TikTok - ${lead.name} - ${latestSubmission?.formName ?? latestSubmission?.formId ?? 'Lead'}`;
-      deal = await deals.save(
-        deals.create({
-          id: uuidv7(),
-          leadId,
-          portalKey: lead.portalKey,
-          bitrixDealId: null,
-          title: title.slice(0, 255),
-          amount: null,
-          currency: null,
-          pipelineId: String(pipeline.pipeline_id),
-          stageId: pipeline.stage_id,
-          stageSemantics: stage.semantic === 'won' || stage.semantic === 'S' ? 'won' : 'open',
-          stageDeletedAt: null,
-          probability: pipeline.probability,
-          assignedTo,
-          ruleRevision: config.entity.revision,
-          conversionStatus: 'pending',
-          remoteModifiedAt: null,
-          everWonAt: null,
-          currentSnapshotHash: null,
-          version: 1,
-        }),
+      deal = await this.deals.save(
+        this.deals.create(
+          {
+            id: uuidv7(),
+            leadId,
+            portalKey: lead.portalKey,
+            bitrixDealId: null,
+            title: title.slice(0, 255),
+            amount: null,
+            currency: null,
+            pipelineId: String(pipeline.pipeline_id),
+            stageId: pipeline.stage_id,
+            stageSemantics: stage.semantic === 'won' || stage.semantic === 'S' ? 'won' : 'open',
+            stageDeletedAt: null,
+            probability: pipeline.probability,
+            assignedTo,
+            ruleRevision: config.entity.revision,
+            conversionStatus: 'pending',
+            remoteModifiedAt: null,
+            everWonAt: null,
+            currentSnapshotHash: null,
+            version: 1,
+          },
+          manager,
+        ),
+        manager,
       );
       const operation = await this.operations.ensure(
         {
@@ -229,9 +230,7 @@ export class ConversionService {
   }
 
   async execute(operationId: string, context: OperationContext): Promise<OperationOutcome> {
-    const operation = await this.dataSource.getRepository(OperationEntity).findOne({
-      where: { id: operationId },
-    });
+    const operation = await this.operations.findById(operationId, this.dataSource.manager);
     const dealId = operation?.payload.dealId;
     const leadId = operation?.payload.leadId;
     if (!operation || !dealId || !leadId)
@@ -246,12 +245,8 @@ export class ConversionService {
       };
     try {
       await context.assertOwnership();
-      const deal = await this.dataSource
-        .getRepository(DealEntity)
-        .findOne({ where: { id: dealId } });
-      const lead = await this.dataSource
-        .getRepository(LeadEntity)
-        .findOne({ where: { id: leadId } });
+      const deal = await this.deals.findById(dealId);
+      const lead = await this.leads.findById(leadId, this.dataSource.manager);
       if (!deal || !lead)
         return { outcome: 'quarantined', errorCode: 'CONVERSION_AGGREGATE_MISSING' };
       if (deal.conversionStatus === 'completed' && deal.bitrixDealId)
@@ -306,13 +301,21 @@ export class ConversionService {
         }
         await context.assertOwnership();
         await this.dataSource.transaction(async (manager) => {
-          await manager.getRepository(DealEntity).update(deal.id, {
-            bitrixDealId: remote.id,
-            conversionStatus: 'deal_created',
-          });
-          await manager.getRepository(LeadEntity).update(lead.id, {
-            dealCreatedAt: new Date(),
-          });
+          await this.deals.update(
+            deal.id,
+            {
+              bitrixDealId: remote.id,
+              conversionStatus: 'deal_created',
+            },
+            manager,
+          );
+          await this.leads.update(
+            lead.id,
+            {
+              dealCreatedAt: new Date(),
+            },
+            manager,
+          );
           await this.feedback?.schedule(lead.id, 'deal_created', manager);
         });
         deal.bitrixDealId = remote.id;
@@ -333,20 +336,23 @@ export class ConversionService {
       await context.assertOwnership();
       const completedAt = new Date();
       await this.dataSource.transaction(async (manager) => {
-        await manager.getRepository(DealEntity).update(deal.id, {
-          conversionStatus: 'completed',
-          version: () => 'version + 1',
-        });
-        await manager.getRepository(LeadEntity).update(lead.id, {
-          businessStatus: 'converted',
-          convertedAt: completedAt,
-        });
-        await manager
-          .createQueryBuilder()
-          .update(AnalyticsRevisionEntity)
-          .set({ revision: () => 'revision + 1' })
-          .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-          .execute();
+        await this.deals.update(
+          deal.id,
+          {
+            conversionStatus: 'completed',
+            version: () => 'version + 1',
+          },
+          manager,
+        );
+        await this.leads.update(
+          lead.id,
+          {
+            businessStatus: 'converted',
+            convertedAt: completedAt,
+          },
+          manager,
+        );
+        await this.analyticsRevisions.increment(manager);
         await this.timeline.append(
           {
             entityType: 'deal',
@@ -359,7 +365,7 @@ export class ConversionService {
           manager,
         );
       });
-      const latestDeal = await this.dataSource.getRepository(DealEntity).findOneBy({ id: deal.id });
+      const latestDeal = await this.deals.findById(deal.id);
       return { outcome: 'succeeded', remoteId: latestDeal?.bitrixDealId ?? deal.bitrixDealId };
     } finally {
       await context.releaseAggregateLease(lease);
@@ -367,7 +373,7 @@ export class ConversionService {
   }
 
   private updateDeal(id: string, patch: Partial<DealEntity>): Promise<unknown> {
-    return this.dataSource.getRepository(DealEntity).update(id, patch);
+    return this.deals.update(id, patch, this.dataSource.manager);
   }
 
   private async metadata(): Promise<Awaited<ReturnType<CrmGateway['metadata']>>> {
@@ -394,10 +400,7 @@ export class ConversionService {
     context: OperationContext,
   ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      const deal = await manager.getRepository(DealEntity).findOne({
-        where: { id: dealId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const deal = await this.deals.findByIdForUpdate(dealId, manager);
       if (!deal) return;
       const attempt = Math.min(deal.version, RETRY_DELAYS_MS.length);
       const when = new Date(Date.now() + (RETRY_DELAYS_MS[attempt - 1] ?? 5_000));
@@ -415,7 +418,7 @@ export class ConversionService {
       );
       await this.outbox.append(retry.id, QUEUE_NAMES.bitrixDealConvert, when, manager);
       deal.version += 1;
-      await manager.getRepository(DealEntity).save(deal);
+      await this.deals.save(deal, manager);
       void context;
     });
   }
