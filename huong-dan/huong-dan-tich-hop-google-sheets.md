@@ -2,6 +2,20 @@
 
 Tài liệu dành cho người cài đặt và vận hành. Các mục 2 đến 8 đi theo thứ tự công việc: thiết lập Google, thiết lập Bitrix24, cấu hình, chạy, đồng bộ hai chiều, xử lý sự cố, giám sát.
 
+Video đi kèm: [`huong-dan-lead-sync.mp4`](huong-dan-lead-sync.mp4) (3 phút 14 giây, có phụ đề từng bước). Video quay trang quản trị; thao tác trên Google Sheet và Bitrix24 được thực hiện ngoài khung hình và nêu trong phụ đề.
+
+| Bước  | Nội dung trong video                                         |
+| ----- | ------------------------------------------------------------ |
+| 1–2   | Đăng nhập và mở trang quản trị                               |
+| 3     | Trang Tổng quan: kết nối, lịch, bộ đếm của lần chạy gần nhất |
+| 4     | Chạy thử                                                     |
+| 5     | Sửa một ô trong Sheet rồi chạy đồng bộ                       |
+| 6–7   | Lịch sử đồng bộ, chi tiết một lần chạy, phân trang           |
+| 8     | Lần chạy 500 hàng                                            |
+| 9     | Hai chiều: đổi giai đoạn trong Bitrix24, Sheet đổi theo      |
+| 10    | Lead tạo trong Bitrix24 thành hàng mới                       |
+| 11–12 | Xem mapping, sửa mapping, mapping sai bị từ chối             |
+
 ## 1. Tổng quan
 
 Sales nhập khách hàng tiềm năng vào một Google Sheet. Ứng dụng đọc Sheet, tạo hoặc cập nhật Lead trong Bitrix24, rồi ghi kết quả vào chính hàng đó. Khi bật hai chiều, thay đổi trong Bitrix24 được ghi ngược về Sheet.
@@ -295,6 +309,7 @@ Tra theo thông báo:
 | `Bitrix24 đang ở chế độ CRM đơn giản`                      | Bật CRM cổ điển (mục 3.1)                                                      |
 | `Gói dịch vụ của portal Bitrix24 không cho dùng REST API`  | Portal chặn REST: do gói dịch vụ, hoặc khóa tạm sau khi bị gọi dồn dập (mục 9) |
 | `Chưa kết nối Bitrix24`                                    | Chưa đặt `BITRIX24_WEBHOOK_URL` và chưa cài ứng dụng                           |
+| `Bitrix24 từ chối thông tin xác thực`                      | Mã webhook sai hoặc đã bị đổi, hoặc token OAuth không còn hiệu lực             |
 | `Bitrix24 installation không khớp` (409 khi cài)           | Portal đang cài khác `BITRIX24_DOMAIN`                                         |
 | `Current authorization type is denied` khi đăng ký sự kiện | Đang dùng incoming webhook; tạo webhook ra (mục 3.3)                           |
 | `Sự kiện Bitrix24 có application_token không hợp lệ`       | `BITRIX24_OUTGOING_TOKEN` khác token của webhook ra                            |
