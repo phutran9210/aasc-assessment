@@ -1087,4 +1087,6 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
         - File CSV import vào Google Sheets tạo tab tên mặc định (ví dụ "Untitled"), không
           phải "Leads": đổi tên tab hoặc sửa GOOGLE_SHEET_NAME.
 
-      Video demo: <liên kết>.
+      Video demo (3 phút 14 giây, có phụ đề từng bước): huong-dan/huong-dan-lead-sync.mp4
+      https://github.com/phutran9210/aasc-assessment/blob/main/huong-dan/huong-dan-lead-sync.mp4
+      Tài liệu hướng dẫn chi tiết: huong-dan/huong-dan-tich-hop-google-sheets.md
