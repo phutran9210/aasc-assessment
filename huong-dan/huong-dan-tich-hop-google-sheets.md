@@ -1,86 +1,82 @@
 # Hướng dẫn tích hợp Google Sheets với Bitrix24 (đồng bộ Lead)
 
-Tài liệu này hướng dẫn cài đặt và vận hành tính năng đồng bộ Lead giữa một Google Sheet và Bitrix24 CRM của ứng dụng AASC Assessment. Đọc từ trên xuống là đủ để chạy được lần đồng bộ đầu tiên.
+Tài liệu dành cho người cài đặt và vận hành. Các mục 2 đến 8 đi theo thứ tự công việc: thiết lập Google, thiết lập Bitrix24, cấu hình, chạy, đồng bộ hai chiều, xử lý sự cố, giám sát.
 
-> Trạng thái kiểm chứng: ngày 08/10/2026 toàn bộ luồng đã chạy trên một Google Sheet thật và một portal Bitrix24 thật (chiều đi, chiều về, real-time, Google OAuth, incoming và outgoing webhook). Kết quả ở mục 12. Riêng việc thử lại khi gặp rate limit và timeout mới có test tự động.
+## 1. Tổng quan
 
-## 1. Tính năng làm gì
-
-Team sales nhập khách hàng tiềm năng vào một Google Sheet. Ứng dụng đọc Sheet theo lịch hoặc khi được yêu cầu, tạo hoặc cập nhật Lead trong Bitrix24, rồi ghi kết quả vào chính hàng đó. Khi bật đồng bộ hai chiều, giai đoạn và người phụ trách đổi trong Bitrix24 cũng được ghi ngược về Sheet sau vài giây.
+Sales nhập khách hàng tiềm năng vào một Google Sheet. Ứng dụng đọc Sheet, tạo hoặc cập nhật Lead trong Bitrix24, rồi ghi kết quả vào chính hàng đó. Khi bật hai chiều, thay đổi trong Bitrix24 được ghi ngược về Sheet.
 
 ```text
 Google Sheet --đọc--> lead-sync (NestJS) --batch: tìm trùng, add/update--> Bitrix24
      ^                     |    ^
-     +--ghi kết quả--------+    +--sự kiện "lead thay đổi" (hai chiều)-------+
+     +--ghi kết quả--------+    +--sự kiện lead tạo mới / thay đổi (hai chiều)--+
                            |
-                           +--> SQLite: nhật ký lần chạy, khóa "mỗi lúc một lần chạy"
+                           +--> SQLite: nhật ký lần chạy, khóa một-lần-chạy, hàng chờ sự kiện
 ```
 
-- Sheet giữ trạng thái của từng hàng (Lead ID, Sync Hash). SQLite chỉ giữ nhật ký lần chạy.
-- Mỗi lần chạy xử lý từng lô 25 hàng: tìm trùng, ghi Bitrix24, ghi lại Sheet.
-- Chạy lại bao nhiêu lần cũng không tạo lead trùng.
+- Trạng thái của từng hàng (Lead ID, Sync Hash) nằm trong Sheet. SQLite chỉ giữ nhật ký và hàng chờ.
+- Mỗi lần chạy xử lý từng lô 25 hàng.
+- Chạy lại không tạo lead trùng.
 
-## 2. Điều kiện cần
+Cần có: Node ≥ 24.9 và pnpm 11.2.2 (hoặc Docker), một project Google Cloud, một Google Sheet, một portal Bitrix24, file `.env` (`cp .env.example .env`). Cài ứng dụng qua OAuth và nhận sự kiện real-time cần thêm một địa chỉ công khai, ví dụ ngrok.
 
-| Thứ cần có                               | Ghi chú                                                               |
-| ---------------------------------------- | --------------------------------------------------------------------- |
-| Node ≥ 24.9, pnpm 11.2.2                 | Hoặc Docker, xem mục 7.5                                              |
-| Tài khoản Google Cloud                   | Để tạo service account hoặc OAuth client                              |
-| Một Google Sheet                         | Bạn phải có quyền Share hoặc quyền sửa                                |
-| Portal Bitrix24 ở chế độ **CRM cổ điển** | Xem mục 4.1; portal mới mặc định ở chế độ CRM đơn giản                |
-| File `.env`                              | `cp .env.example .env` nếu chưa có                                    |
-| Địa chỉ công khai (ví dụ ngrok)          | Chỉ cần cho cài ứng dụng qua OAuth và cho đồng bộ hai chiều real-time |
+## 2. Thiết lập Google
 
-## 3. Chuẩn bị phía Google
+Chọn một trong hai cách xác thực.
 
-Có hai cách xác thực, chọn một.
+### 2.1. Service account (mặc định)
 
-### 3.1. Service account (mặc định)
-
-1. Vào <https://console.cloud.google.com>, tạo một project và bật **Google Sheets API**.
-2. Vào **IAM & Admin → Service Accounts → Create service account**. Không cần gán role nào.
-3. Mở service account vừa tạo, chọn **Keys → Add key → Create new key → JSON**. Lưu file thành `secrets/google-sa.json`. Nội dung thư mục `secrets/` không được commit.
+1. Vào <https://console.cloud.google.com>, tạo project, bật **Google Sheets API**.
+2. **IAM & Admin → Service Accounts → Create service account**. Không gán role.
+3. Mở service account, **Keys → Add key → Create new key → JSON**. Lưu thành `secrets/google-sa.json`.
 4. Tạo Google Sheet: **File → Import → Upload** file `samples/leads-template.csv`.
-5. Đổi tên **tab** (ở thanh dưới cùng của Sheet) thành `Leads`. File CSV import tạo tab mang tên mặc định như `Untitled`; đổi tên file không đổi tên tab.
-6. Bấm **Share**, dán email của service account (trường `client_email` trong file JSON) và chọn quyền **Editor**. Ứng dụng cần quyền Editor vì nó thêm cột và ghi kết quả.
-7. Chép chuỗi nằm giữa `/d/` và `/edit` trong URL của Sheet. Đó là `GOOGLE_SHEET_ID`.
+5. Đổi tên **tab** ở thanh dưới cùng thành `Leads`. Import CSV tạo tab tên `Untitled`; đổi tên file không đổi tên tab.
+6. **Share** Sheet cho email trong trường `client_email` của file JSON, quyền **Editor**.
+7. Chép chuỗi giữa `/d/` và `/edit` trong URL của Sheet vào `GOOGLE_SHEET_ID`.
 
-Chỉ share đúng Sheet này cho service account, không cấp quyền ở mức Drive.
-
-### 3.2. OAuth 2.0 của một tài khoản Google
+### 2.2. OAuth 2.0
 
 1. **APIs & Services → Credentials → Create credentials → OAuth client ID**, loại **Web application**.
-2. Để trống **Authorized JavaScript origins**. Ở **Authorized redirect URIs** thêm `http://localhost:3000/google/oauth/callback` (hoặc `https://<địa chỉ công khai>/google/oauth/callback`).
-3. Khi ứng dụng OAuth còn ở chế độ thử nghiệm, thêm email sẽ đăng nhập vào **Test users** của OAuth consent screen. Thiếu bước này Google báo `403 access_denied`.
-4. Trong `.env` đặt `GOOGLE_AUTH_MODE=oauth`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` và `GOOGLE_OAUTH_REDIRECT_URI`. Redirect URI phải khớp từng ký tự với URI đã đăng ký, kể cả dấu `/` ở cuối.
-5. Chạy ứng dụng, đăng nhập, gọi `GET /google/oauth/authorize` kèm JWT. Mở `url` trả về bằng trình duyệt và đồng ý. Đường dẫn có hiệu lực 10 phút và dùng được một lần.
-6. Google chuyển về `/google/oauth/callback`; refresh token được lưu vào `GOOGLE_OAUTH_TOKEN_FILE` (mặc định `secrets/google-oauth-token.json`, quyền 600).
+2. Để trống **Authorized JavaScript origins**. Thêm vào **Authorized redirect URIs**: `http://localhost:3000/google/oauth/callback`.
+3. Ứng dụng OAuth ở chế độ thử nghiệm: thêm email sẽ đăng nhập vào **Test users**, nếu không Google trả `403 access_denied`.
+4. Trong `.env`: `GOOGLE_AUTH_MODE=oauth`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`. Redirect URI phải khớp từng ký tự với URI đã đăng ký, kể cả dấu `/` cuối.
+5. Chạy ứng dụng, đăng nhập, gọi `GET /google/oauth/authorize` kèm JWT, mở `url` trả về và đồng ý. Đường dẫn dùng một lần, hết hạn sau 10 phút.
+6. Refresh token được lưu vào `GOOGLE_OAUTH_TOKEN_FILE` (mặc định `secrets/google-oauth-token.json`, quyền 600).
 
-Tài khoản đã đồng ý phải có quyền sửa Sheet; không cần Share cho service account.
+Tài khoản đã đồng ý phải có quyền sửa Sheet.
 
-## 4. Chuẩn bị phía Bitrix24
+## 3. Thiết lập Bitrix24
 
-### 4.1. Bật CRM cổ điển
+### 3.1. Bật CRM cổ điển
 
-Ở chế độ CRM đơn giản, Bitrix24 vẫn nhận lead mới nhưng tự chuyển ngay thành Deal và Contact, làm mất giai đoạn lấy từ Sheet. Ứng dụng kiểm tra chế độ này trước mỗi lần chạy và dừng lại nếu portal không dùng Lead.
+Portal mới mặc định ở chế độ CRM đơn giản: lead vừa tạo bị chuyển ngay thành Deal và Contact, mất giai đoạn lấy từ Sheet. Ứng dụng kiểm tra chế độ này trước mỗi lần chạy và dừng nếu portal không dùng Lead.
 
-Vào **CRM → Cài đặt → Chế độ CRM**, chọn **CRM cổ điển**. Dấu hiệu đã đổi xong: menu CRM có mục **Leads**.
+Vào **CRM → Cài đặt → Chế độ CRM**, chọn **CRM cổ điển**. Xong khi menu CRM có mục **Leads**.
 
-### 4.2. Cách ứng dụng gọi Bitrix24
+### 3.2. Cho ứng dụng gọi Bitrix24
 
-Có hai cách, chọn một.
+Chọn một trong hai cách.
 
-**Incoming webhook.** Vào **Ứng dụng → Tài nguyên cho nhà phát triển → Khác → Webhook vào**. Ở mục quyền truy cập chọn `crm`, bấm **Create**, rồi chép URL trong ô "Webhook để gọi REST API" vào `BITRIX24_WEBHOOK_URL`. URL có dạng `https://<portal>/rest/<user id>/<mã webhook>/` và bản thân nó là secret.
+**Incoming webhook.** **Ứng dụng → Tài nguyên cho nhà phát triển → Khác → Webhook vào**. Chọn quyền `crm` (thêm `user` nếu muốn tra người phụ trách theo email), bấm **Create**. Chép URL trong ô "Webhook để gọi REST API" vào `BITRIX24_WEBHOOK_URL`. URL này là secret. Khi biến có giá trị, mọi lời gọi Bitrix24 của ứng dụng đi qua webhook, kể cả API `/contacts`.
 
-Khi `BITRIX24_WEBHOOK_URL` có giá trị, mọi lời gọi Bitrix24 của ứng dụng dùng webhook, kể cả API Contact (`/contacts`).
+**Cài ứng dụng qua OAuth.** Để trống `BITRIX24_WEBHOOK_URL`, cài ứng dụng theo mục 13 của `Readme.txt`. "Your handler path" và "Initial installation path" đều là `https://<địa chỉ công khai>/install`, quyền `crm`.
 
-**OAuth (cài ứng dụng).** Để trống `BITRIX24_WEBHOOK_URL` và cài ứng dụng qua `/install` như hướng dẫn ở mục 13 của `Readme.txt`. Cả "Your handler path" và "Initial installation path" là `https://<địa chỉ công khai>/install`, quyền `crm`.
+Chuyển sang portal khác: sửa `BITRIX24_DOMAIN`, `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET` rồi cài lại. Chỉ portal trùng `BITRIX24_DOMAIN` được thay bản ghi cài đặt cũ; portal khác nhận 409.
 
-Muốn chuyển ứng dụng sang một portal khác: đổi `BITRIX24_DOMAIN`, `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET` trong `.env` rồi cài lại. Lượt cài từ portal trùng `BITRIX24_DOMAIN` được phép thay bản ghi cài đặt cũ; portal khác bị từ chối với mã 409.
+### 3.3. Cho Bitrix24 báo sự kiện về (chỉ cần khi dùng hai chiều)
 
-## 5. Cấu hình `.env`
+Handler là `<APP_PUBLIC_URL>/lead-sync/bitrix-events`. Địa chỉ phải truy cập được từ internet.
 
-Cấu hình tối thiểu (service account và incoming webhook):
+- **Ứng dụng đã cài qua OAuth:** gọi một lần `POST /lead-sync/bitrix-events/register` kèm JWT. Gọi lại khi đổi địa chỉ công khai.
+- **Chỉ dùng incoming webhook:** **Tài nguyên cho nhà phát triển → Khác → Webhook ra**. Điền handler, chọn hai sự kiện tạo Lead (`ONCRMLEADADD`) và cập nhật Lead (`ONCRMLEADUPDATE`), bấm **Create**. Chép token Bitrix24 hiện ra vào `BITRIX24_OUTGOING_TOKEN`.
+
+Hai cách dùng được cùng lúc; một lead được báo hai lần vẫn chỉ được xử lý một lần.
+
+## 4. Cấu hình
+
+### 4.1. `.env`
+
+Tối thiểu, với service account và incoming webhook:
 
 ```dotenv
 GOOGLE_SERVICE_ACCOUNT_KEY_FILE=secrets/google-sa.json
@@ -89,63 +85,48 @@ GOOGLE_SHEET_NAME=Leads
 BITRIX24_WEBHOOK_URL=https://<portal>.bitrix24.com/rest/<user id>/<mã>/
 ```
 
-Toàn bộ biến liên quan:
+| Biến                                                                                | Mặc định                          | Ý nghĩa                                                                         |
+| ----------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------- |
+| `GOOGLE_AUTH_MODE`                                                                  | `service_account`                 | `service_account` hoặc `oauth`                                                  |
+| `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`                                                   | trống                             | Đường dẫn file khóa JSON                                                        |
+| `GOOGLE_SERVICE_ACCOUNT_KEY_BASE64`                                                 | trống                             | File khóa mã hóa base64 (`base64 -w0 secrets/google-sa.json`); ưu tiên hơn file |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` | trống                             | OAuth client, khi dùng chế độ `oauth`                                           |
+| `GOOGLE_OAUTH_TOKEN_FILE`                                                           | `secrets/google-oauth-token.json` | Nơi lưu refresh token                                                           |
+| `GOOGLE_SHEET_ID`                                                                   | trống                             | Chuỗi giữa `/d/` và `/edit`                                                     |
+| `GOOGLE_SHEET_NAME`                                                                 | `Leads`                           | Tên tab                                                                         |
+| `BITRIX24_WEBHOOK_URL`                                                              | trống                             | Có giá trị thì dùng incoming webhook thay OAuth                                 |
+| `BITRIX24_OUTGOING_TOKEN`                                                           | trống                             | Token của webhook ra (mục 3.3)                                                  |
+| `APP_PUBLIC_URL`                                                                    | trống                             | Địa chỉ công khai của ứng dụng                                                  |
+| `LEAD_SYNC_DIRECTION`                                                               | `sheet-to-bitrix`                 | `two-way` bật thêm chiều Bitrix24 về Sheet                                      |
+| `LEAD_SYNC_MAPPING_PATH`                                                            | `config/mapping.json`             | File mapping                                                                    |
+| `LEAD_SYNC_CRON`                                                                    | trống                             | Biểu thức cron, ví dụ `*/15 * * * *`; trống là tắt lịch                         |
+| `LEAD_SYNC_TIMEZONE`                                                                | `Asia/Ho_Chi_Minh`                | Múi giờ của lịch, cột thời gian và ô ngày giờ                                   |
+| `LEAD_SYNC_DEFAULT_COUNTRY`                                                         | `VN`                              | Quốc gia khi chuẩn hóa số điện thoại: `VN`, `US`, `SG`                          |
+| `LEAD_SYNC_MAX_RETRIES`                                                             | `4`                               | Số lần thử lại một lời gọi API (0 đến 10)                                       |
+| `LEAD_SYNC_LOG_RETENTION_DAYS`                                                      | `30`                              | Số ngày giữ nhật ký lần chạy                                                    |
 
-| Biến                                                   | Mặc định                          | Ý nghĩa                                                         |
-| ------------------------------------------------------ | --------------------------------- | --------------------------------------------------------------- |
-| `GOOGLE_AUTH_MODE`                                     | `service_account`                 | `service_account` hoặc `oauth`                                  |
-| `GOOGLE_SERVICE_ACCOUNT_KEY_FILE`                      | trống                             | Đường dẫn file khóa JSON                                        |
-| `GOOGLE_SERVICE_ACCOUNT_KEY_BASE64`                    | trống                             | Nội dung file khóa mã hóa base64; được ưu tiên hơn file         |
-| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` | trống                             | OAuth client, khi dùng chế độ `oauth`                           |
-| `GOOGLE_OAUTH_REDIRECT_URI`                            | trống                             | Phải khớp URI đã đăng ký với Google                             |
-| `GOOGLE_OAUTH_TOKEN_FILE`                              | `secrets/google-oauth-token.json` | Nơi lưu refresh token sau khi cấp quyền                         |
-| `GOOGLE_SHEET_ID`                                      | trống                             | Chuỗi giữa `/d/` và `/edit`                                     |
-| `GOOGLE_SHEET_NAME`                                    | `Leads`                           | Tên tab                                                         |
-| `BITRIX24_WEBHOOK_URL`                                 | trống                             | Có giá trị thì dùng incoming webhook thay OAuth                 |
-| `BITRIX24_OUTGOING_TOKEN`                              | trống                             | Token của outgoing webhook tạo tay, xem mục 8.2                 |
-| `APP_PUBLIC_URL`                                       | trống                             | Địa chỉ công khai của ứng dụng; cần cho real-time               |
-| `LEAD_SYNC_DIRECTION`                                  | `sheet-to-bitrix`                 | `two-way` bật thêm chiều Bitrix24 về Sheet                      |
-| `LEAD_SYNC_MAPPING_PATH`                               | `config/mapping.json`             | File mapping                                                    |
-| `LEAD_SYNC_CRON`                                       | trống                             | Biểu thức cron, ví dụ `*/15 * * * *`; trống là tắt lịch         |
-| `LEAD_SYNC_TIMEZONE`                                   | `Asia/Ho_Chi_Minh`                | Múi giờ của lịch và của cột thời gian                           |
-| `LEAD_SYNC_DEFAULT_COUNTRY`                            | `VN`                              | Quốc gia mặc định khi chuẩn hóa số điện thoại: `VN`, `US`, `SG` |
-| `LEAD_SYNC_MAX_RETRIES`                                | `4`                               | Số lần thử lại một lần gọi API (0 đến 10)                       |
-| `LEAD_SYNC_LOG_RETENTION_DAYS`                         | `30`                              | Số ngày giữ nhật ký lần chạy                                    |
+Thiếu cấu hình: ứng dụng vẫn khởi động, `POST /lead-sync/runs` trả `503`, `GET /lead-sync/status` nêu thứ còn thiếu. Sai định dạng (cron, URL webhook, base64): ứng dụng dừng khi khởi động và nêu tên biến. Sửa `.env` xong phải khởi động lại.
 
-Khi không mount được file khóa (ví dụ trên một số nền tảng container), dùng biến base64:
+### 4.2. Các cột của Sheet
 
-```bash
-base64 -w0 secrets/google-sa.json
-```
+Người dùng nhập chín cột: `Tên khách hàng`, `Email`, `Số điện thoại`, `Công ty`, `Nguồn lead (UTM Source)`, `Ngân sách dự kiến`, `Trạng thái`, `Người phụ trách`, `Ghi chú`.
 
-Mọi biến đều tùy chọn. Chưa cấu hình đủ thì ứng dụng vẫn khởi động; `POST /lead-sync/runs` trả `503` và `GET /lead-sync/status` nêu thứ còn thiếu. Giá trị sai định dạng (cron không hợp lệ, URL webhook không phải HTTPS, base64 không giải mã được) làm ứng dụng dừng ngay khi khởi động và nêu tên biến.
+Ứng dụng tự thêm năm cột ở lần chạy đầu:
 
-Sau khi sửa `.env` phải khởi động lại ứng dụng; chế độ watch chỉ theo dõi mã nguồn.
+| Cột                      | Nội dung                                                     |
+| ------------------------ | ------------------------------------------------------------ |
+| `Trạng thái đồng bộ`     | `Chờ xử lý`, `Đã đồng bộ` hoặc `Lỗi`. Ô trống là `Chờ xử lý` |
+| `Lead ID Bitrix24`       | Cột ẩn                                                       |
+| `Thời gian đồng bộ cuối` | `yyyy-MM-dd HH:mm:ss` theo `LEAD_SYNC_TIMEZONE`              |
+| `Thông báo lỗi`          | Cột sai và cách sửa; được xóa khi hàng đồng bộ thành công    |
+| `Sync Hash`              | Cột ẩn                                                       |
 
-## 6. Cấu trúc Sheet và mapping
-
-### 6.1. Các cột
-
-Chín cột do người dùng nhập: `Tên khách hàng`, `Email`, `Số điện thoại`, `Công ty`, `Nguồn lead (UTM Source)`, `Ngân sách dự kiến`, `Trạng thái`, `Người phụ trách`, `Ghi chú`.
-
-Năm cột do ứng dụng tự thêm vào cuối hàng tiêu đề ở lần chạy đầu:
-
-| Cột                      | Nội dung                                                              |
-| ------------------------ | --------------------------------------------------------------------- |
-| `Trạng thái đồng bộ`     | `Chờ xử lý`, `Đã đồng bộ` hoặc `Lỗi`. Ô trống được coi là `Chờ xử lý` |
-| `Lead ID Bitrix24`       | Cột ẩn                                                                |
-| `Thời gian đồng bộ cuối` | `yyyy-MM-dd HH:mm:ss` theo `LEAD_SYNC_TIMEZONE`                       |
-| `Thông báo lỗi`          | Nêu cột sai và cách sửa; được xóa khi hàng đồng bộ thành công         |
-| `Sync Hash`              | Cột ẩn                                                                |
-
-Quy tắc khi dùng Sheet:
-
-- Cột được tìm theo **tên tiêu đề**, nên có thể đổi thứ tự cột. Không đổi tên tiêu đề.
+- Cột được tìm theo tên tiêu đề: đổi thứ tự được, đổi tên thì không.
 - Không sửa hai cột ẩn.
-- Mỗi hàng cần `Tên khách hàng` và ít nhất một trong hai `Email`, `Số điện thoại`.
-- Muốn ép đồng bộ lại một hàng: đặt `Trạng thái đồng bộ` thành `Chờ xử lý`.
+- Mỗi hàng cần `Tên khách hàng` và ít nhất `Email` hoặc `Số điện thoại`.
+- Ép đồng bộ lại một hàng: đặt `Trạng thái đồng bộ` thành `Chờ xử lý`.
 
-### 6.2. `config/mapping.json`
+### 4.3. Mapping (`config/mapping.json`)
 
 Mỗi phần tử của `fields` nối một cột với một trường lead:
 
@@ -153,39 +134,40 @@ Mỗi phần tử của `fields` nối một cột với một trường lead:
 { "column": "Ngân sách dự kiến", "field": "opportunity", "type": "number" }
 ```
 
-| Kiểu       | Ví dụ đầu vào                                         | Gửi sang Bitrix24                                                                                                                                                                          |
-| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `string`   | `"  Nguyễn  Văn An "`                                 | `"Nguyễn Văn An"`                                                                                                                                                                          |
-| `email`    | `"An@Example.com "`                                   | `"an@example.com"`                                                                                                                                                                         |
-| `phone`    | `0901 234 567`, `901234567`, `+84 901234567`          | `"+84901234567"`                                                                                                                                                                           |
-| `number`   | `1500000`, `1.500.000 ₫`, `15tr`                      | `1500000`, `1500000`, `15000000`                                                                                                                                                           |
-| `date`     | `08/10/2026`, `2026-10-08`, ô định dạng ngày          | `"2026-10-08"` (ngày trước tháng sau; bỏ phần giờ)                                                                                                                                         |
-| `datetime` | `08/10/2026 14:30`, `2026-10-08T14:30:00`, ô ngày giờ | `"2026-10-08T14:30:00+07:00"`; ô không ghi múi giờ thì tính theo `LEAD_SYNC_TIMEZONE`                                                                                                      |
-| `enum`     | `Đang liên hệ`                                        | Mã trong bảng `values`, ví dụ `IN_PROCESS`                                                                                                                                                 |
-| `user`     | Email hoặc tên người phụ trách                        | ID trong bảng `values`. Email không có trong bảng thì được tra trong Bitrix24 bằng `user.get` (webhook hoặc ứng dụng cần thêm quyền `user`); vẫn không có thì dùng `defaults.assignedById` |
+| Kiểu       | Ví dụ đầu vào                                         | Gửi sang Bitrix24                                                                                                               |
+| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `string`   | `"  Nguyễn  Văn An "`                                 | `"Nguyễn Văn An"`                                                                                                               |
+| `email`    | `"An@Example.com "`                                   | `"an@example.com"`                                                                                                              |
+| `phone`    | `0901 234 567`, `901234567`, `+84 901234567`          | `"+84901234567"`                                                                                                                |
+| `number`   | `1500000`, `1.500.000 ₫`, `15tr`, `500k`              | `1500000`, `1500000`, `15000000`, `500000`                                                                                      |
+| `date`     | `08/10/2026`, `2026-10-08`, ô ngày                    | `"2026-10-08"` (ngày trước tháng sau)                                                                                           |
+| `datetime` | `08/10/2026 14:30`, `2026-10-08T14:30:00`, ô ngày giờ | `"2026-10-08T14:30:00+07:00"`; thiếu múi giờ thì lấy `LEAD_SYNC_TIMEZONE`                                                       |
+| `enum`     | `Đang liên hệ`                                        | Mã trong bảng `values`, ví dụ `IN_PROCESS`                                                                                      |
+| `user`     | Email hoặc tên người phụ trách                        | ID trong bảng `values`; email ngoài bảng được tra bằng `user.get` (cần quyền `user`); không có thì dùng `defaults.assignedById` |
 
-Ô email hoặc số điện thoại có thể chứa nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead và không thay thế giá trị lead đã có.
+Ô email hoặc số điện thoại nhận nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead, không thay giá trị lead đã có.
 
-Các khóa khác của file:
+Các khóa khác:
 
-- `titleTemplate`: mẫu sinh tiêu đề lead, ví dụ `{Tên khách hàng} - {Công ty}`.
-- `defaults`: giá trị gửi kèm mọi hàng (mặc định `currencyId: VND`, `stageId: NEW`, `assignedById: 1`).
+- `titleTemplate`: mẫu tiêu đề lead, ví dụ `{Tên khách hàng} - {Công ty}`.
+- `defaults`: giá trị gửi kèm mọi hàng (`currencyId: VND`, `stageId: NEW`, `assignedById: 1`).
 - `dedupe.keys`: khóa chống trùng, mặc định `["email", "phone"]`.
-- `sheet.headerRow`: số hàng chứa tiêu đề, mặc định `1`.
+- `sheet.headerRow`: hàng chứa tiêu đề, mặc định `1`.
+- `pull` trên từng cột: xem mục 6.1.
 
-Trường tùy chỉnh khai báo như trường thường với tên gốc:
+Trường tùy chỉnh dùng tên gốc:
 
 ```json
 { "column": "Mã chiến dịch", "field": "UF_CRM_CAMPAIGN_CODE", "type": "string" }
 ```
 
-Mapping được kiểm tra ở đầu mỗi lần chạy. Nếu cột không có trong Sheet hoặc trường không có trong `crm.item.fields`, lần chạy kết thúc `failed`, nêu đúng tên cột hoặc trường sai, và không hàng nào bị đụng tới.
+Mapping được kiểm tra ở đầu mỗi lần chạy. Cột không có trong Sheet hoặc trường không có trong `crm.item.fields`: lần chạy `failed`, nêu tên cột hoặc trường, không hàng nào bị đụng tới.
 
-Sửa mapping làm mọi hàng được đồng bộ lại ở lần chạy kế tiếp. Nên chạy thử trước để xem số hàng bị ảnh hưởng. Mapping sửa được bằng tay trong file, qua `PUT /lead-sync/mapping`, hoặc trong trang quản trị (mục 7.2).
+Sửa mapping làm mọi hàng đồng bộ lại ở lần chạy kế tiếp; chạy thử trước. Sửa bằng file, bằng `PUT /lead-sync/mapping`, hoặc trong trang quản trị.
 
-## 7. Chạy đồng bộ
+## 5. Chạy và triển khai
 
-### 7.1. Dòng lệnh
+### 5.1. Dòng lệnh
 
 ```bash
 pnpm sync:leads --dry-run   # chạy thử, không ghi gì vào Bitrix24 và Sheet
@@ -193,216 +175,214 @@ pnpm sync:leads             # chạy một lần và chờ kết quả
 pnpm sync:leads --force     # đồng bộ lại mọi hàng dù không đổi
 ```
 
-`make sync-leads` và `make sync-leads-dry` là hai lệnh tắt tương ứng. Mã thoát khác 0 khi lần chạy `failed`, `aborted` hoặc không khởi động được.
+Mã thoát khác 0 khi lần chạy `failed`, `aborted` hoặc không khởi động được. Lần đầu: chạy `--dry-run`, xem bảng tổng kết, rồi chạy thật.
 
-Trình tự nên làm ở lần đầu: `--dry-run`, xem bảng tổng kết, rồi mới chạy thật.
-
-Dữ liệu thử cho số lượng lớn:
+Dữ liệu thử:
 
 ```bash
 pnpm seed:leads 500      # thêm 500 hàng sinh bằng faker tiếng Việt vào cuối Sheet
 pnpm seed:leads --clear  # xóa mọi hàng seed và các lead tương ứng trong Bitrix24
 ```
 
-Hàng seed được nhận ra bằng email thuộc miền `seed.example.com`, nên các hàng khác của Sheet không bị đụng tới. Lệnh không chạy khi `NODE_ENV=production`.
+Hàng seed mang email thuộc miền `seed.example.com`; lệnh xóa chỉ đụng tới các hàng đó. Lệnh không chạy khi `NODE_ENV=production`, kể cả trong bản Docker.
 
-### 7.2. Trang quản trị
+### 5.2. Trang quản trị
 
-Mở `http://localhost:3000/lead-sync.html` sau khi đăng nhập ở trang chủ.
+`http://localhost:3000/lead-sync.html`, sau khi đăng nhập ở trang chủ.
 
-| Mục             | Nội dung                                                             |
-| --------------- | -------------------------------------------------------------------- |
-| Tổng quan       | Kết nối Google và Bitrix24, lịch, bộ đếm của lần chạy gần nhất       |
-| Lịch sử đồng bộ | Các lần chạy; bấm vào một lần để xem từng hàng và lý do lỗi          |
-| Mapping cột     | Xem và sửa mapping; mapping sai bị từ chối kèm lý do, file không đổi |
+| Mục             | Nội dung                                                                  |
+| --------------- | ------------------------------------------------------------------------- |
+| Tổng quan       | Kết nối Google và Bitrix24, lịch, bộ đếm của lần chạy gần nhất            |
+| Lịch sử đồng bộ | Các lần chạy, 10 lần mỗi trang; bấm một lần để xem từng hàng và lý do lỗi |
+| Mapping cột     | Xem và sửa mapping; mapping sai bị từ chối kèm lý do                      |
 
-Nút "Chạy thử" là `--dry-run`, ô "Đồng bộ lại mọi hàng" là `--force`.
+"Chạy thử" là `--dry-run`, "Đồng bộ lại mọi hàng" là `--force`.
 
-### 7.3. HTTP
+### 5.3. HTTP
 
-Các endpoint dưới đây cần JWT lấy từ `POST /auth/login`.
+Cần JWT lấy từ `POST /auth/login`.
 
-| Lời gọi                                                             | Kết quả                                                                |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `POST /lead-sync/runs` với body `{"dryRun": false, "force": false}` | `202 {"runId": "..."}`, lần chạy tiếp tục ở nền                        |
-| `GET /lead-sync/runs/<runId>`                                       | Bộ đếm và các hàng đã tạo, cập nhật, lỗi                               |
-| `GET /lead-sync/runs?page=1&limit=20`                               | Lịch sử, mới nhất trước                                                |
-| `GET /lead-sync/status`                                             | Lịch, lần chạy gần nhất, kiểm tra kết nối Google và Bitrix24           |
-| `GET /lead-sync/mapping`, `PUT /lead-sync/mapping`                  | Đọc và lưu mapping; mapping sai trả `400` kèm lý do                    |
-| `POST /lead-sync/pull`                                              | Kéo giai đoạn và người phụ trách của mọi lead về Sheet (cần `two-way`) |
-| `POST /lead-sync/bitrix-events/register`                            | Đăng ký nhận sự kiện lead với Bitrix24 (cần `two-way`, OAuth)          |
-| `GET /google/oauth/authorize`                                       | Lấy đường dẫn cấp quyền Google (chế độ `oauth`)                        |
+| Lời gọi                                                        | Kết quả                                             |
+| -------------------------------------------------------------- | --------------------------------------------------- |
+| `POST /lead-sync/runs` với `{"dryRun": false, "force": false}` | `202 {"runId": "..."}`, chạy tiếp ở nền             |
+| `GET /lead-sync/runs?page=1&limit=20`                          | Lịch sử, mới nhất trước                             |
+| `GET /lead-sync/runs/<runId>`                                  | Bộ đếm và các hàng đã tạo, cập nhật, lỗi            |
+| `GET /lead-sync/status`                                        | Lịch, lần chạy gần nhất, kết nối Google và Bitrix24 |
+| `GET /lead-sync/mapping`, `PUT /lead-sync/mapping`             | Đọc và lưu mapping; mapping sai trả `400`           |
+| `POST /lead-sync/pull`                                         | Kéo từ Bitrix24 về Sheet (cần `two-way`)            |
+| `POST /lead-sync/bitrix-events/register`                       | Đăng ký nhận sự kiện lead (cần `two-way`, OAuth)    |
+| `GET /google/oauth/authorize`                                  | Đường dẫn cấp quyền Google (chế độ `oauth`)         |
 
-`409` nghĩa là đang có lần chạy khác (thông báo kèm `runId`). `503` nghĩa là chưa cấu hình đủ.
+`409`: đang có lần chạy khác. `503`: chưa cấu hình đủ.
 
-```bash
-curl -X POST http://localhost:3000/lead-sync/runs \
-  -H "Authorization: Bearer $JWT" -H 'Content-Type: application/json' -d '{}'
-```
+### 5.4. Theo lịch
 
-### 7.4. Theo lịch
+Đặt `LEAD_SYNC_CRON` rồi chạy server. Nhịp trùng lúc lần chạy trước chưa xong thì bị bỏ qua. Lệnh CLI không khởi động lịch.
 
-Đặt `LEAD_SYNC_CRON` rồi chạy server (`pnpm start:dev` hoặc Docker). Nhịp nào trùng lúc lần chạy trước chưa xong thì bị bỏ qua, không xếp hàng. Lệnh CLI không khởi động lịch.
-
-### 7.5. Docker
+### 5.5. Docker
 
 ```bash
 docker compose up -d --build
 docker compose run --rm app node dist/cli/lead-sync.js --dry-run
 ```
 
-`docker-compose.yml` mount `./secrets` (ghi được, để lưu refresh token Google OAuth) và `./config` (chỉ đọc). Vì `./config` chỉ đọc nên trong Docker không sửa mapping qua trang quản trị được; sửa file trên máy chủ.
+`./secrets` được mount ghi được (để lưu refresh token Google); `./config` được mount chỉ đọc, nên trong Docker phải sửa mapping bằng file trên máy chủ.
 
-## 8. Đồng bộ hai chiều
+## 6. Đồng bộ hai chiều
 
-Bật bằng `LEAD_SYNC_DIRECTION=two-way`. Chiều về mặc định gồm các cột có bảng `values` trong mapping (kiểu `enum` và `user`), tức `Trạng thái` và `Người phụ trách`: mã của Bitrix24 được đổi thành nhãn trong Sheet. Mã không có nhãn trong mapping (ví dụ giai đoạn `CONVERTED`) được bỏ qua.
+Bật bằng `LEAD_SYNC_DIRECTION=two-way` và thiết lập sự kiện theo mục 3.3.
 
-Cột kiểu `string` hoặc `number` chảy về khi mapping khai báo thêm `"pull": true`; đặt `"pull": false` để một cột `enum` hoặc `user` không chảy về. Email, số điện thoại và ngày tháng chỉ đi một chiều.
+### 6.1. Cột nào chảy về Sheet
+
+- Cột `enum` và `user` (`Trạng thái`, `Người phụ trách`): mặc định có. Mã của Bitrix24 được đổi thành nhãn trong bảng `values`; mã không có nhãn (ví dụ `CONVERTED`) bị bỏ qua.
+- Cột `string` và `number`: chỉ khi mapping ghi `"pull": true`.
+- Đặt `"pull": false` để một cột `enum` hoặc `user` không chảy về.
+- Email, số điện thoại, ngày tháng và tiêu đề lead chỉ đi từ Sheet sang Bitrix24.
 
 ```json
 { "column": "Công ty", "field": "companyTitle", "type": "string", "pull": true }
 ```
 
-### 8.1. Xung đột
+### 6.2. Xung đột
 
-Hàng đã bị sửa trong Sheet sau lần đồng bộ cuối (nội dung không còn khớp `Sync Hash`) thì **Sheet thắng**: hàng không bị ghi đè, và lần chạy Sheet → Bitrix24 kế tiếp đẩy giá trị của Sheet lên.
+Hàng đã bị sửa trong Sheet sau lần đồng bộ cuối (nội dung không khớp `Sync Hash`): **Sheet thắng**. Hàng không bị ghi đè; lần chạy Sheet → Bitrix24 kế tiếp đẩy giá trị của Sheet lên.
 
-Hàng không có sửa đổi chờ thì nhận giá trị của Bitrix24 cùng `Sync Hash` mới, nên thay đổi không bị dội ngược thành một lần cập nhật. Sự kiện do chính lần chạy của ứng dụng gây ra tìm thấy Sheet đã khớp và không ghi gì.
+Hàng không có sửa đổi chờ: nhận giá trị của Bitrix24 cùng `Sync Hash` mới, nên lần chạy chiều đi sau đó bỏ qua nó. Sự kiện do chính ứng dụng gây ra tìm thấy Sheet đã khớp và không ghi gì.
 
-### 8.2. Real-time
+### 6.3. Real-time
 
-Bitrix24 gọi `POST <APP_PUBLIC_URL>/lead-sync/bitrix-events` mỗi khi một lead đổi. Các sự kiện trong 2 giây được gom lại và kéo về trong một lần chạy (`trigger=webhook`). Mỗi sự kiện được kiểm bằng `application_token`; token lạ bị trả `403`.
+Bitrix24 gọi handler khi một lead được tạo hoặc thay đổi. Mỗi sự kiện được kiểm bằng `application_token`; token lạ nhận `403`. ID của lead vào một hàng chờ trong SQLite, các sự kiện trong 2 giây được xử lý chung một lần chạy (`trigger=webhook`).
 
-Có hai cách để Bitrix24 biết địa chỉ này, dùng được song song:
+- Lead rời hàng chờ sau một lần kéo về không thất bại. Sự kiện nhận ngay trước khi ứng dụng khởi động lại được xử lý lúc khởi động.
+- Khi một lần chạy khác đang giữ khóa, lượt kéo về thử lại mỗi 5 giây cho tới khi khóa được nhả.
+- Bitrix24 không gửi đủ sự kiện khi dữ liệu đổi dồn dập: tạo 500 lead liên tiếp, 125 sự kiện về tới ứng dụng. Cần đủ thì gọi thêm `POST /lead-sync/pull`.
 
-- **Ứng dụng đã cài qua OAuth:** đặt `APP_PUBLIC_URL`, chạy ứng dụng, gọi một lần `POST /lead-sync/bitrix-events/register` kèm JWT. Gọi lại khi đổi địa chỉ công khai.
-- **Outgoing webhook tạo tay** (khi chỉ dùng incoming webhook): vào **Tài nguyên cho nhà phát triển → Khác → Webhook ra**, đặt handler là `<APP_PUBLIC_URL>/lead-sync/bitrix-events`, chọn sự kiện cập nhật Lead (`ONCRMLEADUPDATE`) và sự kiện tạo Lead (`ONCRMLEADADD`), bấm **Create**, rồi chép token Bitrix24 hiện ra vào `BITRIX24_OUTGOING_TOKEN`.
+### 6.4. Lead tạo trong Bitrix24
 
-ID của lead vừa đổi được xếp vào một hàng chờ trong SQLite và chỉ rời hàng chờ sau một lần kéo về không thất bại. Sự kiện nhận ngay trước khi ứng dụng khởi động lại, hoặc trong lúc Bitrix24 lỗi, được kéo về sau.
+Lead tạo trực tiếp trong Bitrix24 được thêm thành hàng mới dưới hàng cuối, kèm Lead ID. Không thêm hàng cho:
 
-Bitrix24 không cam kết gửi đủ sự kiện khi dữ liệu đổi dồn dập: trong lần thử tạo 500 lead liên tiếp, chỉ 125 sự kiện về tới ứng dụng. Khi cần chắc chắn đủ, gọi thêm `POST /lead-sync/pull`.
+- lead do chính lần đồng bộ tạo ra;
+- lead có email hoặc số điện thoại đã nằm trong một hàng. Hàng đó được nối với lead ở lần chạy chiều đi.
 
-Địa chỉ handler phải truy cập được từ internet; `localhost` không dùng được. Khi cả hai cách cùng bật, mỗi thay đổi sinh hai sự kiện nhưng lead chỉ được kéo về một lần.
+### 6.5. Kéo tay
 
-### 8.3. Lead tạo trong Bitrix24
+`POST /lead-sync/pull` cập nhật mọi hàng đã liên kết (`trigger=pull`). Nó không tìm lead mới.
 
-Lead tạo trực tiếp trong Bitrix24 (sự kiện `ONCRMLEADADD`) được thêm thành một hàng mới dưới hàng cuối của Sheet, kèm Lead ID, nên lần chạy chiều đi sau đó bỏ qua nó. Hai trường hợp không thêm hàng:
+## 7. Xử lý sự cố
 
-- Lead do chính lần đồng bộ tạo ra: hàng của nó đã có sẵn.
-- Lead có email hoặc số điện thoại đã nằm trong một hàng: hàng đó sẽ được nối với lead ở lần chạy chiều đi, thêm hàng nữa sẽ thành trùng.
+Cách ứng dụng phản ứng:
 
-Để nhận sự kiện này: ứng dụng đã cài thì gọi lại `POST /lead-sync/bitrix-events/register`; outgoing webhook tạo tay thì chọn thêm sự kiện tạo Lead. Kéo tay (`POST /lead-sync/pull`) không tìm lead mới, chỉ cập nhật các hàng đã liên kết.
+| Loại lỗi                                                       | Hành vi                                                                      |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Dữ liệu một hàng sai                                           | Hàng ghi `Lỗi` kèm lý do; bị bỏ qua tới khi được sửa                         |
+| Bitrix24 từ chối một hàng                                      | Như trên; các hàng khác vẫn đồng bộ                                          |
+| Rate limit, timeout, 5xx                                       | Thử lại có backoff. Hết lượt: cả lô ghi lỗi tạm thời, thử lại ở lần chạy sau |
+| `OPERATION_TIME_LIMIT`                                         | Dừng lần chạy (`aborted`); các hàng còn lại ghi `Chờ xử lý`                  |
+| Sai khóa, Sheet chưa share, mapping sai, portal ở CRM đơn giản | Lần chạy `failed` kèm việc cần làm                                           |
 
-### 8.4. Kéo tay
+Tra theo thông báo:
 
-`POST /lead-sync/pull` kèm JWT kéo mọi lead đã liên kết (`trigger=pull`). Dùng khi không có địa chỉ công khai, hoặc để bù các sự kiện bị lỡ lúc ứng dụng tắt.
+| Thông báo                                                  | Nguyên nhân và cách sửa                                                        |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `Chưa cấu hình GOOGLE_SHEET_ID`                            | Thiếu biến trong `.env`                                                        |
+| `Chưa cấu hình khóa service account`                       | Thiếu cả `..._KEY_FILE` lẫn `..._KEY_BASE64`                                   |
+| `Không đọc được file khóa service account ...`             | File không ở đường dẫn ghi trong `.env`                                        |
+| `Chưa cấp quyền Google`                                    | Chế độ `oauth` nhưng chưa đồng ý; làm bước 5 mục 2.2                           |
+| `Google từ chối truy cập`                                  | Chưa share Sheet quyền Editor, hoặc khóa sai                                   |
+| `Spreadsheet không có worksheet tên ...`                   | Tên tab khác `GOOGLE_SHEET_NAME`                                               |
+| `Sheet không có cột ...`                                   | Tiêu đề cột khác với mapping                                                   |
+| `Bitrix24 không có trường lead ...`                        | Sai tên trường trong mapping; đối chiếu `crm.item.fields`                      |
+| `Bitrix24 đang ở chế độ CRM đơn giản`                      | Bật CRM cổ điển (mục 3.1)                                                      |
+| `Gói dịch vụ của portal Bitrix24 không cho dùng REST API`  | Portal chặn REST: do gói dịch vụ, hoặc khóa tạm sau khi bị gọi dồn dập (mục 9) |
+| `Chưa kết nối Bitrix24`                                    | Chưa đặt `BITRIX24_WEBHOOK_URL` và chưa cài ứng dụng                           |
+| `Bitrix24 installation không khớp` (409 khi cài)           | Portal đang cài khác `BITRIX24_DOMAIN`                                         |
+| `Current authorization type is denied` khi đăng ký sự kiện | Đang dùng incoming webhook; tạo webhook ra (mục 3.3)                           |
+| `Sự kiện Bitrix24 có application_token không hợp lệ`       | `BITRIX24_OUTGOING_TOKEN` khác token của webhook ra                            |
+| `Đồng bộ hai chiều đang tắt`                               | Đặt `LEAD_SYNC_DIRECTION=two-way`                                              |
+| `Assignees not looked up with user.get` (log)              | Thiếu quyền `user`; ứng dụng dùng người phụ trách mặc định                     |
+| `Lead không còn tồn tại trong Bitrix24`                    | Lead đã bị xóa; xóa ô Lead ID để tạo lại                                       |
+| `Ô Lead ID Bitrix24 không phải số nguyên dương`            | Ô bị sửa tay; xóa nội dung ô                                                   |
+| `Hàng bị di chuyển trong lúc đồng bộ`                      | Có người sắp xếp hoặc chèn hàng khi đang chạy; lần chạy sau tự xử lý           |
+| `Trùng với hàng N`                                         | Hai hàng cùng email hoặc số điện thoại; hàng trên được xử lý                   |
 
-Hai chiều dùng chung khóa "mỗi lúc một lần chạy" với chiều đi. Khi đang bận, sự kiện được thử lại mỗi 5 giây cho tới khi lần chạy kia xong.
+## 8. Giám sát và bảo trì
 
-## 9. Chống trùng và idempotency
-
-- Hàng chưa có Lead ID luôn được tìm trùng trước bằng `crm.duplicate.findbycomm`, theo email rồi số điện thoại. Tìm thấy thì cập nhật lead đó, không thì tạo mới.
-- Hàng đã có Lead ID chỉ được gửi lại khi nội dung đổi (so `Sync Hash`). Đổi định dạng ô, ví dụ in đậm hoặc `15000000` thành `15,000,000`, không tính là đổi.
-- Hai hàng trỏ tới cùng một lead: hàng trên được xử lý, hàng dưới nhận `Trùng với hàng N`.
-- Gửi batch bị timeout: ứng dụng không gửi lại nguyên lệnh mà tìm trùng lại trước, nên lead đã tạo ở lần gọi trước không bị tạo lần hai.
-- Xóa nội dung ô Lead ID của một hàng đã đồng bộ: lần chạy sau tìm trùng và nối lại đúng lead cũ.
-
-## 10. Xử lý lỗi
-
-| Loại lỗi                                                       | Ứng dụng làm gì                                                                             |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Dữ liệu một hàng sai                                           | Hàng đó ghi `Lỗi` kèm lý do; bị bỏ qua cho tới khi được sửa                                 |
-| Bitrix24 từ chối một hàng                                      | Như trên; các hàng khác vẫn đồng bộ                                                         |
-| Rate limit, timeout, 5xx                                       | Thử lại có backoff. Hết lượt: cả lô 25 hàng ghi lỗi tạm thời và được thử lại ở lần chạy sau |
-| `OPERATION_TIME_LIMIT`                                         | Dừng lần chạy (`aborted`); các hàng còn lại ghi `Chờ xử lý`                                 |
-| Sai khóa, Sheet chưa share, mapping sai, portal ở CRM đơn giản | Lần chạy kết thúc `failed` kèm việc cần làm                                                 |
-
-Sự cố thường gặp:
-
-| Thông báo                                                 | Nguyên nhân và cách sửa                                                                                    |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `Chưa cấu hình GOOGLE_SHEET_ID`                           | Thiếu biến trong `.env`                                                                                    |
-| `Chưa cấu hình khóa service account`                      | Thiếu cả `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` lẫn `..._KEY_BASE64`                                            |
-| `Không đọc được file khóa service account ...`            | File không nằm ở đường dẫn trong `.env`; kiểm tra tên file                                                 |
-| `Chưa cấp quyền Google`                                   | Chế độ `oauth` nhưng chưa đồng ý; làm bước 5 của mục 3.2                                                   |
-| `Google từ chối truy cập`                                 | Chưa share Sheet quyền Editor cho email của service account, hoặc khóa sai                                 |
-| `Spreadsheet không có worksheet tên ...`                  | Tên tab khác `GOOGLE_SHEET_NAME`; đổi tên tab, không phải tên file                                         |
-| `Sheet không có cột ...`                                  | Tiêu đề cột trong Sheet khác với `mapping.json`                                                            |
-| `Bitrix24 không có trường lead ...`                       | Sai tên trường trong mapping; đối chiếu với `crm.item.fields`                                              |
-| `Bitrix24 đang ở chế độ CRM đơn giản`                     | Bật CRM cổ điển, xem mục 4.1                                                                               |
-| `Gói dịch vụ của portal Bitrix24 không cho dùng REST API` | Portal chặn REST. Có thể do gói dịch vụ, cũng có thể là khóa tạm thời sau một đợt gọi dồn dập (xem mục 12) |
-| `Bitrix24 installation không khớp` (409 khi cài)          | Một portal khác với `BITRIX24_DOMAIN` đang cài ứng dụng; sửa `.env` rồi cài lại                            |
-| `Lead không còn tồn tại trong Bitrix24`                   | Lead đã bị xóa; xóa nội dung ô Lead ID nếu muốn tạo lại                                                    |
-| `Ô Lead ID Bitrix24 không phải số nguyên dương`           | Ô bị sửa tay; xóa nội dung ô để đồng bộ lại                                                                |
-| `Hàng bị di chuyển trong lúc đồng bộ`                     | Có người sắp xếp hoặc chèn hàng khi đang chạy; lần chạy sau tự xử lý                                       |
-| `Chưa kết nối Bitrix24`                                   | Chưa đặt `BITRIX24_WEBHOOK_URL` và chưa cài ứng dụng qua `/install`                                        |
-| `Đồng bộ hai chiều đang tắt`                              | Đặt `LEAD_SYNC_DIRECTION=two-way`                                                                          |
-| `Sự kiện Bitrix24 có application_token không hợp lệ`      | Token trong `BITRIX24_OUTGOING_TOKEN` khác token của webhook ra; chép lại từ portal                        |
-
-Nên đặt lịch ngoài giờ nhập liệu cao điểm: sắp xếp hoặc chèn hàng trong lúc đang chạy làm các hàng đó bị hoãn sang lần chạy sau.
-
-## 11. Giám sát
-
-Log của server có một dòng mở đầu, một dòng mỗi lô và một dòng tổng kết:
+**Log.** Mỗi lần chạy có một dòng mở đầu, một dòng mỗi lô và một dòng tổng kết:
 
 ```text
 Lead sync <runId> finished: total=120 created=30 updated=10 skipped=78 failed=2 duration=14.2s
-Lead pullback <runId> finished: total=1 updated=1 skipped=0 conflicts=0
+Lead pullback <runId> finished: total=1 added=0 updated=1 skipped=0 conflicts=0
 ```
 
-Mỗi hàng lỗi có một dòng `error` gồm số hàng, bước thất bại, mã lỗi và thông báo. Log và nhật ký không chứa email, số điện thoại hay tên khách hàng; số hàng và Lead ID đủ để truy ngược.
+Mỗi hàng lỗi có một dòng `error` gồm số hàng, bước thất bại, mã lỗi, thông báo. Log không chứa email, số điện thoại hay tên khách hàng.
 
-Nhật ký nằm trong hai bảng SQLite `lead_sync_run` và `lead_sync_run_item`, đọc qua trang quản trị hoặc `GET /lead-sync/runs`. Cột nguồn của một lần chạy là `schedule`, `http`, `cli` (chiều đi) hoặc `webhook`, `pull` (chiều về). Lần chạy cũ hơn `LEAD_SYNC_LOG_RETENTION_DAYS` ngày bị xóa ở đầu mỗi lần chạy.
+**Nhật ký.** Bảng `lead_sync_run` và `lead_sync_run_item`, xem trong trang quản trị hoặc `GET /lead-sync/runs`. Nguồn của một lần chạy: `schedule`, `http`, `cli` (chiều đi), `webhook`, `pull` (chiều về). Lần chạy cũ hơn `LEAD_SYNC_LOG_RETENTION_DAYS` ngày tự bị xóa.
 
-Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 14 lần (1 `crm.settings.mode.get`, 1 `crm.item.fields`, 6 batch tìm trùng, 6 batch ghi), Google 9 lần đọc và 8 lần ghi. Chạy lại khi không có thay đổi: Bitrix24 2 lần, Google 3 lần đọc. Các con số này được ghim bằng test tự động với client giả.
+**Kiểm tra nhanh.** `GET /lead-sync/status` trả kết nối Google, kết nối Bitrix24, lịch và lần chạy gần nhất.
 
-## 12. Kết quả trên hệ thống thật (08/10/2026)
+**Việc định kỳ.**
 
-| Kịch bản                             | Kết quả                                                                                                                                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TC1 Tạo mới                          | 5 hàng mẫu: 4 lead được tạo, 1 hàng cố ý sai bị báo `Lỗi`. Giai đoạn đúng theo cột `Trạng thái`; số điện thoại mất số 0 khi import được lưu thành `+84...`                                     |
-| Chạy lại                             | Mọi hàng `skipped`, Bitrix24 không có lead mới                                                                                                                                                 |
-| TC2 Cập nhật                         | Sửa một ô: 1 hàng `updated`, lead đổi theo, thời gian đồng bộ đổi                                                                                                                              |
-| TC2 Định dạng                        | In đậm và đổi định dạng số của ô: `skipped`, không có lệnh ghi                                                                                                                                 |
-| TC3 Trùng email, trùng số điện thoại | Lead tạo tay trong Bitrix24 được cập nhật, không có lead mới; `0977000111` khớp với `+84977000111`                                                                                             |
-| TC4 Lỗi dữ liệu                      | Hàng sai ghi `Lỗi` kèm lý do; các hàng khác vẫn chạy                                                                                                                                           |
-| Custom field                         | Trường `UF_CRM_*` nhận đúng giá trị; đổi mapping làm mọi hàng đồng bộ lại một lần                                                                                                              |
-| Kiểu `date`                          | Bitrix24 nhận `2026-10-08` cho một trường ngày tùy chỉnh                                                                                                                                       |
-| Nhiều giá trị                        | Thêm email và số điện thoại thứ hai vào ô: lead nhận thêm hai giá trị, giá trị cũ giữ nguyên                                                                                                   |
-| HTTP, lịch, cột ẩn                   | `POST /lead-sync/runs` trả 202; lần chạy theo cron xuất hiện đúng đầu phút; hai cột kỹ thuật được ẩn                                                                                           |
-| Hiệu năng                            | 150 hàng mới: 150 lead trong 22,2 giây, 6 lô, 0 lần gặp rate limit. Chạy lại: `skipped=150` trong 2,6 giây                                                                                     |
-| Số lượng lớn                         | `pnpm seed:leads 500`: 500 lead trong 72,4 giây, 20 lô, 0 lần gặp rate limit. Chạy lại: `skipped=509` trong 2,3 giây. `--force`: cập nhật 508 lead trong 46,6 giây. Kéo về 508 lead: 11,7 giây |
-| Phân trang                           | Trang quản trị chia 75 lần chạy thành 8 trang; chi tiết lần chạy 500 hàng mở trong khoảng 0,1 giây                                                                                             |
-| Hai chiều                            | Đổi giai đoạn lead trong Bitrix24: ô `Trạng thái` đổi theo sau khoảng 5 giây; lần chạy chiều đi sau đó `skipped`                                                                               |
-| Xung đột                             | Sửa Sheet rồi đổi lead trong Bitrix24: hàng không bị ghi đè, lần chạy chiều đi đẩy giá trị của Sheet lên                                                                                       |
-| Google OAuth                         | Cấp quyền, đọc và ghi Sheet bằng refresh token, chạy trọn cả hai chiều                                                                                                                         |
-| Incoming webhook                     | Chạy thử, cập nhật lead, chạy lại và real-time đều đạt                                                                                                                                         |
-| Outgoing webhook                     | Sự kiện của webhook ra và của ứng dụng đã cài cùng được chấp nhận; lead được kéo về một lần; token lạ bị trả 403                                                                               |
-| Lead tạo trong Bitrix24              | Outgoing webhook gửi `ONCRMLEADADD`; sau khoảng 4 giây lead thành hàng mới kèm Lead ID; lần chạy chiều đi sau đó `skipped`, không có lead trùng                                                |
-| Cột `"pull": true`                   | Đổi công ty và ngân sách của lead trong Bitrix24: hai ô của hàng đổi theo; lần chạy chiều đi sau đó `skipped`                                                                                  |
+| Việc                       | Cách làm                                                                  |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Đổi khóa service account   | Tạo key mới, thay file, khởi động lại, xóa key cũ trên Google Cloud       |
+| Cấp lại quyền Google OAuth | Gọi lại `GET /google/oauth/authorize` và đồng ý                           |
+| Đổi mã incoming webhook    | Tạo mới trong portal, sửa `BITRIX24_WEBHOOK_URL`, khởi động lại           |
+| Đổi địa chỉ công khai      | Sửa `APP_PUBLIC_URL`; đăng ký lại sự kiện hoặc sửa handler của webhook ra |
+| Sao lưu                    | File SQLite ở `DATABASE_PATH` và thư mục `secrets/`                       |
+| Bù sự kiện bị lỡ           | `POST /lead-sync/pull`                                                    |
 
-Chưa kiểm trên hệ thống thật: việc thử lại khi gặp rate limit và timeout của Bitrix24. Portal có trả `QUERY_LIMIT_EXCEEDED` khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp, nên nhánh này mới có test tự động.
+Đặt lịch ngoài giờ nhập liệu cao điểm: hàng bị sắp xếp hoặc chèn lúc đang chạy bị hoãn sang lần chạy sau.
 
-Một quan sát về Bitrix24: sau một đợt gọi dồn dập (khoảng 900 lệnh trong vài giây), portal trả `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` cho mọi lệnh trong khoảng 20 phút rồi tự hoạt động lại. Lỗi này vì vậy có thể là khóa tạm thời, không nhất thiết do gói dịch vụ. Chưa có tài liệu của Bitrix24 xác nhận cơ chế này.
+Số lời gọi API cho 150 hàng mới (6 lô): Bitrix24 14 (1 `crm.settings.mode.get`, 1 `crm.item.fields`, 6 batch tìm trùng, 6 batch ghi), Google 9 đọc và 8 ghi. Chạy lại khi không đổi: Bitrix24 2, Google 3 đọc.
 
-Câu hỏi còn mở: `crm.duplicate.findbycomm` có trả lead đã chuyển đổi hoặc đã xóa hay không. Nếu có và điều đó gây nối nhầm, lọc theo `stageSemanticId` trong `BitrixLeadGateway.getLeads`.
+## 9. Kết quả kiểm thử
 
-## 13. Giới hạn của phiên bản này
+Chạy ngày 08/10/2026 trên một Google Sheet thật và một portal Bitrix24 thật.
 
-- Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead; các cột này chỉ đi từ Sheet sang Bitrix24.
-- Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện (ứng dụng tắt, chưa đăng ký sự kiện tạo lead) không được thêm vào Sheet về sau.
-- Tra người phụ trách bằng `user.get` cần quyền `user`; thiếu quyền thì ứng dụng ghi một dòng cảnh báo và dùng người phụ trách mặc định. Nhánh tra thành công mới có test tự động, vì portal thử chỉ cấp quyền `crm`.
-- Khóa "mỗi lúc một lần chạy" nằm trong SQLite, nên chỉ có tác dụng khi server và CLI dùng chung file dữ liệu. Chạy nhiều container với volume riêng không được hỗ trợ.
+| Kịch bản                            | Kết quả                                                                                                                             |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| TC1 Tạo mới                         | 5 hàng mẫu: 4 lead được tạo đúng giai đoạn, 1 hàng cố ý sai bị báo `Lỗi`. Số điện thoại mất số 0 khi import được lưu thành `+84...` |
+| TC2 Cập nhật                        | Sửa một ô: 1 hàng `updated`, lead đổi theo. Chỉ đổi định dạng ô: `skipped`                                                          |
+| TC3 Trùng lặp                       | Lead tạo tay trong Bitrix24 được cập nhật theo email và theo số điện thoại; không có lead mới                                       |
+| TC4 Lỗi dữ liệu                     | Hàng sai ghi `Lỗi` kèm lý do; các hàng khác vẫn chạy                                                                                |
+| Idempotency                         | Chạy lại: mọi hàng `skipped`                                                                                                        |
+| Custom field, `date`, nhiều giá trị | Trường `UF_CRM_*` nhận đúng giá trị; Bitrix24 nhận `2026-10-08`; email và số điện thoại thứ hai được thêm vào lead                  |
+| HTTP, lịch, cột ẩn                  | `POST /lead-sync/runs` trả 202; lần chạy theo cron xuất hiện đúng đầu phút; hai cột kỹ thuật được ẩn                                |
+| Hiệu năng 150 hàng                  | 150 lead trong 22,2 giây, 6 lô. Chạy lại: 2,6 giây                                                                                  |
+| Hiệu năng 500 hàng                  | 500 lead trong 72,4 giây, 20 lô. Chạy lại: 2,3 giây. `--force`: 508 lead trong 46,6 giây. Kéo về 508 lead: 11,7 giây                |
+| Đối chiếu sau 500 hàng              | 508 hàng liên kết, 508 lead trên portal, 0 chỗ lệch về giai đoạn, người phụ trách, công ty, ngân sách                               |
+| Hai chiều                           | Đổi giai đoạn trong Bitrix24: Sheet đổi theo sau khoảng 5 giây; lần chạy chiều đi sau đó `skipped`                                  |
+| Xung đột                            | Sửa Sheet rồi đổi lead trong Bitrix24: hàng không bị ghi đè; lần chạy chiều đi đẩy giá trị của Sheet lên                            |
+| Cột `"pull": true`                  | Đổi công ty và ngân sách trong Bitrix24: hai ô của hàng đổi theo                                                                    |
+| Lead tạo trong Bitrix24             | Webhook ra gửi `ONCRMLEADADD`; sau khoảng 4 giây lead thành hàng mới; không có lead trùng                                           |
+| Google OAuth                        | Cấp quyền, đọc và ghi Sheet bằng refresh token, chạy cả hai chiều                                                                   |
+| Incoming và outgoing webhook        | Chạy thử, cập nhật, real-time đều đạt; token lạ nhận 403                                                                            |
+| Trang quản trị                      | 75 lần chạy chia 8 trang; chi tiết lần chạy 500 hàng mở trong khoảng 0,1 giây                                                       |
+| Smoke test                          | 22 kiểm tra đạt: trang, phân quyền, kết nối, hai chiều đồng bộ, không dội ngược                                                     |
+| Docker                              | Bản production build được và khởi động được                                                                                         |
 
-## 14. Tham khảo trong repo
+Không gặp rate limit trong các lần chạy trên. Việc thử lại khi gặp rate limit và timeout có test tự động, chưa xảy ra trên hệ thống thật. Nhánh tra người phụ trách thành công bằng `user.get` cũng mới có test tự động, vì portal thử chỉ cấp quyền `crm`. Lệnh `pnpm seed:leads --clear` mới có test tự động.
 
-| Nội dung                                               | Vị trí                                                                        |
-| ------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| Điều phối, hàm thuần, API, lịch, hai chiều             | `src/modules/lead-sync/`                                                      |
-| Xác thực (service account, OAuth) và gọi Google Sheets | `src/modules/google-sheets/`                                                  |
-| Gọi REST, batch, giới hạn tốc độ Bitrix24              | `src/modules/bitrix/`                                                         |
-| Lệnh CLI                                               | `src/cli/lead-sync.ts`                                                        |
-| Trang quản trị                                         | `public/lead-sync.html`, `public/js/lead-sync.js`, `public/css/lead-sync.css` |
-| Mapping mặc định                                       | `config/mapping.json`                                                         |
-| Dữ liệu mẫu                                            | `samples/leads-template.csv`, `samples/leads-150.csv`                         |
-| Bản rút gọn của tài liệu này                           | `Readme.txt`, mục 15                                                          |
+Quan sát về Bitrix24: sau khoảng 900 lời gọi trong vài giây, portal trả `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` cho mọi lời gọi trong khoảng 20 phút rồi tự hoạt động lại. Tài liệu của Bitrix24 không mô tả cơ chế này.
+
+Kiểm thử tự động: `pnpm check` chạy lint, kiểm tra kiểu, unit test và e2e. `pnpm test:cov` áp ngưỡng 70% cho `lead-sync` và `google-sheets`.
+
+## 10. Giới hạn
+
+- Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead.
+- Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện không được thêm vào Sheet về sau; kéo tay chỉ cập nhật hàng đã liên kết.
+- Chưa biết `crm.duplicate.findbycomm` có trả lead đã chuyển đổi hoặc đã xóa hay không.
+- Khóa một-lần-chạy nằm trong SQLite: server và CLI phải dùng chung file dữ liệu. Nhiều container với volume riêng không được hỗ trợ.
+
+## 11. Tham khảo trong repo
+
+| Nội dung                                         | Vị trí                                                                        |
+| ------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Điều phối, hàm thuần, API, lịch, hai chiều, seed | `src/modules/lead-sync/`                                                      |
+| Xác thực và gọi Google Sheets                    | `src/modules/google-sheets/`                                                  |
+| Gọi REST, batch, giới hạn tốc độ Bitrix24        | `src/modules/bitrix/`                                                         |
+| Lệnh CLI                                         | `src/cli/lead-sync.ts`, `src/cli/lead-sheet-seed.ts`                          |
+| Trang quản trị                                   | `public/lead-sync.html`, `public/js/lead-sync.js`, `public/css/lead-sync.css` |
+| Mapping mặc định                                 | `config/mapping.json`                                                         |
+| Dữ liệu mẫu                                      | `samples/leads-template.csv`, `samples/leads-150.csv`                         |
+| Bản rút gọn                                      | `Readme.txt`, mục 15                                                          |
