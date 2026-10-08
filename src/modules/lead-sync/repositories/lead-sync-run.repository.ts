@@ -73,7 +73,11 @@ export class LeadSyncRunRepository extends BaseRepository<LeadSyncRun> {
     await this.repo.update({ id }, { ...counters, heartbeatAt: nowMs() });
   }
 
-  /** Ends the run and releases the lock. */
+  /**
+   * Ends the run and releases the lock. Only a run that is still `running` is closed: one that
+   * a later run took over stays `aborted`, even if its process was alive after all and now
+   * reports its own outcome.
+   */
   async finish(
     id: string,
     status: LeadSyncRunStatus,
@@ -81,7 +85,7 @@ export class LeadSyncRunRepository extends BaseRepository<LeadSyncRun> {
     stopReason: string | null,
   ): Promise<LeadSyncRun> {
     await this.repo.update(
-      { id },
+      { id, status: RUNNING },
       {
         ...counters,
         status,

@@ -89,6 +89,24 @@ describe('LeadSyncRunRepository', () => {
     });
   });
 
+  it('should not let a run that was taken over overwrite its "aborted" status when it ends', async () => {
+    const stale = await runs.acquire('schedule', false, STALE_MS);
+    await dataSource
+      .getRepository(LeadSyncRun)
+      .update({ id: stale?.id }, { heartbeatAt: Date.now() - STALE_MS - 1 });
+    await runs.acquire('http', false, STALE_MS);
+
+    const closed = await runs.finish(
+      stale?.id ?? '',
+      'succeeded',
+      { total: 9, created: 9, updated: 0, skipped: 0, failed: 0 },
+      null,
+    );
+
+    expect(closed.status).toBe('aborted');
+    expect(closed.stopReason).toBe('Lần chạy không còn phản hồi và đã bị lần chạy sau tiếp quản');
+  });
+
   it('should keep a slow but alive run locked while it sends heartbeats', async () => {
     const run = await runs.acquire('schedule', false, STALE_MS);
     await dataSource.getRepository(LeadSyncRun).update({ id: run?.id }, { heartbeatAt: 1 });

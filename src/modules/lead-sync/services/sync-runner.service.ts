@@ -8,6 +8,7 @@ import { HttpException, HttpStatus, Inject, Injectable, Logger } from '@nestjs/c
 import type { BeforeApplicationShutdown } from '@nestjs/common';
 
 import {
+  BITRIX_PLAN_BLOCKED_CODE,
   BITRIX_TIME_LIMIT_CODE,
   BITRIX_TRANSIENT_CODES,
   HASH_KIND,
@@ -458,6 +459,7 @@ function codeOf(error: unknown): string {
 
 function describeError(error: unknown): string {
   if (error instanceof BitrixHttpError) {
+    if (error.code === BITRIX_PLAN_BLOCKED_CODE) return MESSAGES.BITRIX_PLAN_BLOCKED(error.code);
     return error.code ? `${error.message} (${error.code})` : error.message;
   }
   return error instanceof Error ? error.message : String(error);

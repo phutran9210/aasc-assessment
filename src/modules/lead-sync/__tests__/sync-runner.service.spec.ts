@@ -530,6 +530,22 @@ describe('SyncRunner', () => {
       expect(sheet.cell(2, 'Trạng thái đồng bộ')).toBe('');
     });
 
+    it('should explain in Vietnamese that the portal plan blocks the REST API', async () => {
+      const { run, gateway } = harness(leads(2));
+      gateway.findError = new BitrixHttpError(
+        'Feature is not available on the current plan.',
+        'FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN',
+        403,
+      );
+
+      const result = await run();
+
+      expect(result.status).toBe('failed');
+      expect(result.stopReason).toBe(
+        'Gói dịch vụ của portal Bitrix24 không cho dùng REST API (FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN): bật dùng thử hoặc nâng gói của portal rồi chạy lại',
+      );
+    });
+
     it('should abort on OPERATION_TIME_LIMIT and mark the rows that are left as "Chờ xử lý"', async () => {
       const { run, sheet, gateway } = harness(leads(6), { batchSize: 2 });
       gateway.onWrite = (call) =>

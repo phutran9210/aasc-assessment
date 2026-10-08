@@ -106,3 +106,5 @@ export const BITRIX_TRANSIENT_CODES: readonly string[] = [
 
 /** Bitrix24 blocks a method for a while after it used too much execution time: stop the run. */
 export const BITRIX_TIME_LIMIT_CODE = 'OPERATION_TIME_LIMIT';
+/** Bitrix24 answers this to every REST call when the portal's plan does not include the REST API. */
+export const BITRIX_PLAN_BLOCKED_CODE = 'FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN';
