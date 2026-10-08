@@ -1,3 +1,4 @@
+export { normalizeDate } from './date.normalizer.js';
 export { normalizeEmail } from './email.normalizer.js';
 export { normalizeLookup } from './lookup.normalizer.js';
 export { normalizeNumber } from './number.normalizer.js';

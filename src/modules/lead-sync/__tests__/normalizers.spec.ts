@@ -1,6 +1,7 @@
 import {
   normalizeEmail,
   normalizeLookup,
+  normalizeDate,
   normalizeNumber,
   normalizePhone,
   normalizeText,
@@ -145,5 +146,35 @@ describe('normalizeLookup', () => {
     expect(normalizeLookup(cell('AN@congty.vn'), owner)).toEqual({ ok: true, value: 7 });
     expect(normalizeLookup(cell('Người lạ'), owner)).toEqual({ ok: true, value: undefined });
     expect(normalizeLookup(cell(''), owner)).toEqual({ ok: true, value: undefined });
+  });
+});
+
+describe('normalizeDate', () => {
+  it.each<[string, CellValue['raw'], string | undefined]>([
+    ['08/10/2026', 46303, '2026-10-08'],
+    ['Oct 8, 2026', 46303, '2026-10-08'],
+    ['08/10/2026', '08/10/2026', '2026-10-08'],
+    ['8/3/2026', '8/3/2026', '2026-03-08'],
+    ['08-10-2026', '08-10-2026', '2026-10-08'],
+    ['08.10.2026', '08.10.2026', '2026-10-08'],
+    ['2026-10-08', '2026-10-08', '2026-10-08'],
+    ['2026-10-08T09:30:00+07:00', '2026-10-08T09:30:00+07:00', '2026-10-08'],
+    ['08/10/2026 14:30', 46303.604166, '2026-10-08'],
+    ['', null, undefined],
+  ])('should turn %j (raw %j) into %j', (formatted, raw, expected) => {
+    expect(normalizeDate(cell(formatted, raw))).toEqual({ ok: true, value: expected });
+  });
+
+  it.each<[string, CellValue['raw']]>([
+    ['31/02/2026', '31/02/2026'],
+    ['2026-13-01', '2026-13-01'],
+    ['hôm qua', 'hôm qua'],
+    ['-5', -5],
+    ['TRUE', true],
+  ])('should reject %j', (formatted, raw) => {
+    expect(normalizeDate(cell(formatted, raw))).toEqual({
+      ok: false,
+      error: 'ngày không hợp lệ, ví dụ đúng: 08/10/2026 hoặc 2026-10-08',
+    });
   });
 });

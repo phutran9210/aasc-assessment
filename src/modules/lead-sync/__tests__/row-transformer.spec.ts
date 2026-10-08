@@ -144,6 +144,35 @@ describe('transformRow', () => {
     expect(typed).toHaveProperty('hash', (reformatted as { hash: string }).hash);
   });
 
+  it('should send a date column as YYYY-MM-DD and report a date that does not exist', () => {
+    const withDate: TransformContext = {
+      ...context,
+      mapping: {
+        ...mapping,
+        fields: [
+          ...mapping.fields,
+          {
+            column: 'Ngày hẹn',
+            field: 'UF_CRM_MEETING_DATE',
+            type: 'date',
+            required: false,
+            onUnknown: 'error',
+          },
+        ],
+      },
+    };
+    const base = { 'Tên khách hàng': 'An', Email: 'an@congty.vn' };
+
+    const valid = transformRow(row({ ...base, 'Ngày hẹn': ['Oct 8, 2026', 46303] }), withDate);
+    const invalid = transformRow(row({ ...base, 'Ngày hẹn': '31/02/2026' }), withDate);
+
+    expect(valid).toMatchObject({ kind: 'valid', fields: { UF_CRM_MEETING_DATE: '2026-10-08' } });
+    expect(invalid).toMatchObject({
+      kind: 'invalid',
+      errors: ['Cột "Ngày hẹn": ngày không hợp lệ, ví dụ đúng: 08/10/2026 hoặc 2026-10-08'],
+    });
+  });
+
   it('should report an empty row without validating it', () => {
     expect(transformRow(row({ 'Tên khách hàng': '  ', Email: '' }, 9), context)).toEqual({
       kind: 'empty',

@@ -867,6 +867,8 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       email    "An@Example.com "                     "an@example.com"
       phone    0901 234 567, 901234567, +84...       "+84901234567"
       number   1500000, "1.500.000 ₫", "15tr"        1500000, 1500000, 15000000
+      date     08/10/2026, 2026-10-08, ô ngày       "2026-10-08" (ngày trước tháng sau;
+                                                     bỏ phần giờ)
       enum     "Đang liên hệ"                        mã trong bảng "values" (IN_PROCESS)
       user     email hoặc tên người phụ trách        ID trong bảng "values", không có thì
                                                      dùng defaults.assignedById

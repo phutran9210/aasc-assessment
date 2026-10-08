@@ -14,6 +14,7 @@ import type {
 import {
   normalizeEmail,
   normalizeLookup,
+  normalizeDate,
   normalizeNumber,
   normalizePhone,
   normalizeText,
@@ -101,6 +102,8 @@ function normalizeCell(
       return normalizePhone(cell, country);
     case 'number':
       return normalizeNumber(cell);
+    case 'date':
+      return normalizeDate(cell);
     case 'enum':
     case 'user':
       return normalizeLookup(cell, field);

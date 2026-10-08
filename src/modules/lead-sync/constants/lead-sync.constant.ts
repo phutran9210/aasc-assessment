@@ -32,7 +32,7 @@ export const SYNC_STATUS = {
   ERROR: 'Lỗi',
 } as const;
 
-export const FIELD_TYPES = ['string', 'email', 'phone', 'number', 'enum', 'user'] as const;
+export const FIELD_TYPES = ['string', 'email', 'phone', 'number', 'date', 'enum', 'user'] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
 export const DEDUPE_KEYS = ['email', 'phone'] as const;
