@@ -1,0 +1,21 @@
+{
+  "event_id": "mock-lead-evt-1001",
+  "event": "lead.generate",
+  "advertiser_id": "mock-advertiser-1",
+  "timestamp": "2024-03-01T10:15:00.000Z",
+  "campaign_id": "campaign-spring-2024",
+  "form_id": "form-lead-v1",
+  "lead_data": {
+    "name": "Nguyễn An",
+    "email": "an@example.test",
+    "phone_number": "+84901234567",
+    "city": "Hà Nội",
+    "custom_questions": [
+      {
+        "question_id": "budget",
+        "question_text": "Ngân sách dự kiến",
+        "answer": "5-10 triệu VND"
+      }
+    ]
+  }
+}

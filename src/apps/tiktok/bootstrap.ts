@@ -1,4 +1,5 @@
 import helmet from 'helmet';
+import express from 'express';
 
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -14,7 +15,14 @@ export async function createTiktokApp(
     rawBody: true,
     bodyParser: false,
   });
-  app.useBodyParser('json', { limit: '256kb' });
+  app.use(
+    express.json({
+      limit: '256kb',
+      verify: (request, _response, buffer) => {
+        (request as typeof request & { rawBody?: Buffer }).rawBody = buffer;
+      },
+    }),
+  );
   app.use(helmet());
   const config = validateTiktokEnv(process.env);
   const origins = config.corsOrigins === '*' ? '*' : config.corsOrigins;
