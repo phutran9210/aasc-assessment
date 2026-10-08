@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Đồng bộ Lead – Google Sheets sang Bitrix24</title>
+    <meta
+      name="description"
+      content="Chạy đồng bộ lead từ Google Sheets sang Bitrix24, xem lịch sử các lần chạy và sửa mapping cột."
+    />
+    <link rel="stylesheet" href="/css/lead-sync.css" />
+  </head>
+  <body>
+    <a class="skip" href="#content">Bỏ qua menu</a>
+
+    <div class="app">
+      <!-- Left menu, as in the Bitrix24 workspace -->
+      <nav class="menu" aria-label="Menu chính">
+        <div class="menu-brand">
+          <span class="menu-logo" aria-hidden="true">24</span>
+          <span>AASC CRM Sync</span>
+        </div>
+        <ul class="menu-list">
+          <li><a href="#overview" data-view="overview" aria-current="page">Tổng quan</a></li>
+          <li><a href="#runs" data-view="runs">Lịch sử đồng bộ</a></li>
+          <li><a href="#mapping" data-view="mapping">Mapping cột</a></li>
+        </ul>
+        <ul class="menu-list menu-foot">
+          <li><a href="/docs">Tài liệu API</a></li>
+          <li><a href="/">Trang chủ</a></li>
+          <li><button type="button" id="logout">Đăng xuất</button></li>
+        </ul>
+      </nav>
+
+      <div class="page">
+        <header class="pagehead">
+          <h1 id="page-title">Đồng bộ Lead</h1>
+          <p class="pagehead-sub">Google Sheets sang Bitrix24 CRM</p>
+        </header>
+
+        <main id="content" tabindex="-1">
+          <!-- Toolbar: the primary action sits first, as the Bitrix24 "add" button does -->
+          <div class="toolbar">
+            <button type="button" class="btn btn-success" id="run">Chạy đồng bộ</button>
+            <button type="button" class="btn btn-light" id="dry-run">Chạy thử</button>
+            <label class="check">
+              <input type="checkbox" id="force" />
+              Đồng bộ lại mọi hàng
+            </label>
+            <p class="toolbar-status" id="action-message" role="status" aria-live="polite"></p>
+          </div>
+
+          <!-- Overview -->
+          <section class="view" id="view-overview" aria-labelledby="overview-title">
+            <h2 class="visually-hidden" id="overview-title">Tổng quan</h2>
+
+            <div class="banner hidden" id="config-banner" role="alert"></div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h3>Lần chạy gần nhất</h3>
+                <span class="label" id="last-status">Chưa chạy</span>
+                <span class="panel-meta" id="last-meta"></span>
+              </div>
+              <dl class="counters" id="counters">
+                <div class="counter">
+                  <dt>Tạo mới</dt>
+                  <dd data-counter="created">0</dd>
+                </div>
+                <div class="counter">
+                  <dt>Cập nhật</dt>
+                  <dd data-counter="updated">0</dd>
+                </div>
+                <div class="counter">
+                  <dt>Bỏ qua</dt>
+                  <dd data-counter="skipped">0</dd>
+                </div>
+                <div class="counter counter-danger">
+                  <dt>Lỗi</dt>
+                  <dd data-counter="failed">0</dd>
+                </div>
+              </dl>
+              <p class="stop-reason hidden" id="last-reason"></p>
+            </div>
+
+            <div class="split">
+              <div class="panel">
+                <div class="panel-head"><h3>Kết nối</h3></div>
+                <ul class="rows" id="connections">
+                  <li>
+                    <span class="rows-name">Google Sheets</span>
+                    <span class="label" data-connection="google">Đang kiểm tra</span>
+                    <span class="rows-note" data-connection-note="google"></span>
+                  </li>
+                  <li>
+                    <span class="rows-name">Bitrix24</span>
+                    <span class="label" data-connection="bitrix">Đang kiểm tra</span>
+                    <span class="rows-note" data-connection-note="bitrix"></span>
+                  </li>
+                </ul>
+              </div>
+              <div class="panel">
+                <div class="panel-head"><h3>Lịch tự động</h3></div>
+                <ul class="rows">
+                  <li>
+                    <span class="rows-name">Biểu thức cron</span>
+                    <span id="schedule-cron">Chưa đặt lịch</span>
+                  </li>
+                  <li>
+                    <span class="rows-name">Lần chạy kế tiếp</span>
+                    <span id="schedule-next">Không có</span>
+                  </li>
+                  <li>
+                    <span class="rows-name">Múi giờ</span>
+                    <span id="schedule-timezone"></span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          <!-- Run history -->
+          <section class="view hidden" id="view-runs" aria-labelledby="runs-title">
+            <div class="panel">
+              <div class="panel-head">
+                <h2 id="runs-title">Lịch sử đồng bộ</h2>
+                <span class="panel-meta" id="runs-total"></span>
+              </div>
+              <div class="grid-wrap">
+                <table class="grid">
+                  <thead>
+                    <tr>
+                      <th scope="col">Bắt đầu</th>
+                      <th scope="col">Nguồn</th>
+                      <th scope="col">Kết quả</th>
+                      <th scope="col" class="num">Tổng</th>
+                      <th scope="col" class="num">Tạo</th>
+                      <th scope="col" class="num">Cập nhật</th>
+                      <th scope="col" class="num">Bỏ qua</th>
+                      <th scope="col" class="num">Lỗi</th>
+                      <th scope="col" class="num">Thời gian</th>
+                    </tr>
+                  </thead>
+                  <tbody id="runs-body"></tbody>
+                </table>
+              </div>
+              <p class="empty hidden" id="runs-empty">
+                Chưa có lần chạy nào. Bấm “Chạy thử” để xem trước mà không ghi gì.
+              </p>
+              <div class="pager">
+                <button type="button" class="btn btn-light btn-small" id="runs-prev">Trước</button>
+                <span id="runs-page"></span>
+                <button type="button" class="btn btn-light btn-small" id="runs-next">Sau</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Mapping -->
+          <section class="view hidden" id="view-mapping" aria-labelledby="mapping-title">
+            <div class="panel">
+              <div class="panel-head">
+                <h2 id="mapping-title">Mapping cột</h2>
+                <span class="panel-meta" id="mapping-path"></span>
+                <button type="button" class="btn btn-primary btn-small push" id="mapping-edit">
+                  Sửa mapping
+                </button>
+              </div>
+              <div class="grid-wrap">
+                <table class="grid">
+                  <thead>
+                    <tr>
+                      <th scope="col">Cột trong Sheet</th>
+                      <th scope="col">Trường lead Bitrix24</th>
+                      <th scope="col">Kiểu</th>
+                      <th scope="col">Bắt buộc</th>
+                      <th scope="col">Bảng giá trị</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mapping-body"></tbody>
+                </table>
+              </div>
+              <ul class="rows rows-inline" id="mapping-summary"></ul>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <!-- Slider from the right edge: Bitrix24 opens every detail and form this way -->
+    <div class="slider hidden" id="slider">
+      <div class="slider-overlay" data-close></div>
+      <div
+        class="slider-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="slider-title"
+        tabindex="-1"
+      >
+        <button type="button" class="slider-close" data-close>
+          <span aria-hidden="true">✕</span>
+          <span>Đóng</span>
+        </button>
+        <header class="slider-head">
+          <h2 id="slider-title"></h2>
+        </header>
+        <div class="slider-body" id="slider-body"></div>
+        <footer class="slider-foot hidden" id="slider-foot">
+          <button type="button" class="btn btn-success" id="mapping-save">Lưu mapping</button>
+          <button type="button" class="btn btn-link" data-close>Hủy</button>
+          <p class="slider-message" id="mapping-message" role="alert"></p>
+        </footer>
+      </div>
+    </div>
+
+    <script type="module" src="/js/lead-sync.js"></script>
+  </body>
+</html>

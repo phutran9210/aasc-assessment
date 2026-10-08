@@ -899,6 +899,14 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       (hai thư mục được mount vào container). Chạy tay trong container:
           docker compose run --rm app node dist/cli/lead-sync.js --dry-run
 
+      Trang quản trị: http://localhost:3000/lead-sync.html (đăng nhập ở trang chủ trước).
+          Tổng quan           Kết nối Google và Bitrix24, lịch, bộ đếm của lần chạy gần nhất.
+          Lịch sử đồng bộ     Các lần chạy; bấm vào một lần để xem từng hàng và lý do lỗi.
+          Mapping cột         Xem và sửa mapping (GET, PUT /lead-sync/mapping). Mapping sai bị
+                              từ chối kèm lý do, file không đổi. Trong Docker thư mục config
+                              được mount chỉ đọc nên phải sửa file trên máy chủ.
+          "Chạy thử" là --dry-run, "Đồng bộ lại mọi hàng" là --force.
+
   15.8. Chống trùng và idempotency
 
       - Hàng chưa có Lead ID luôn được tìm trùng trước (crm.duplicate.findbycomm theo
