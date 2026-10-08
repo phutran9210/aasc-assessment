@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_USER: tiktok_test
+      POSTGRES_PASSWORD: tiktok_test_only
+      POSTGRES_DB: tiktok_test
+    ports:
+      - '127.0.0.1::5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tiktok_test -d tiktok_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30

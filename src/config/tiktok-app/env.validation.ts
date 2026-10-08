@@ -3,6 +3,10 @@ import { z } from 'zod';
 const schema = z.object({
   TIKTOK_APP_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   TIKTOK_DATABASE_URL: z.url().startsWith('postgres'),
+  TIKTOK_DATABASE_SCHEMA: z
+    .string()
+    .regex(/^[a-z][a-z0-9_]{0,62}$/)
+    .optional(),
   TIKTOK_REDIS_URL: z.url().startsWith('redis'),
   TIKTOK_JWT_SECRET: z.string().min(32),
   TIKTOK_JWT_ISSUER: z.string().trim().min(1),
@@ -17,8 +21,14 @@ const schema = z.object({
   DEFAULT_PHONE_REGION: z.string().length(2).default('VN'),
   REPORT_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
   INTEGRATION_QUEUE_PREFIX: z.string().trim().min(1).default('aasc-tiktok'),
-  INTEGRATION_WORKER_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
-  INTEGRATION_SCHEDULER_ENABLED: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  INTEGRATION_WORKER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  INTEGRATION_SCHEDULER_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
   INTEGRATION_ARTIFACT_DIR: z.string().trim().min(1).default('data/tiktok-artifacts'),
   CORS_ORIGINS: z.string().default('*'),
 });
@@ -26,6 +36,7 @@ const schema = z.object({
 export type TiktokAppConfig = {
   port: number;
   databaseUrl: string;
+  databaseSchema?: string;
   redisUrl: string;
   jwtSecret: string;
   jwtIssuer: string;
@@ -56,6 +67,7 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
   return {
     port: env.TIKTOK_APP_PORT,
     databaseUrl: env.TIKTOK_DATABASE_URL,
+    databaseSchema: env.TIKTOK_DATABASE_SCHEMA,
     redisUrl: env.TIKTOK_REDIS_URL,
     jwtSecret: env.TIKTOK_JWT_SECRET,
     jwtIssuer: env.TIKTOK_JWT_ISSUER,
@@ -76,6 +88,8 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     corsOrigins:
       env.CORS_ORIGINS === '*'
         ? '*'
-        : env.CORS_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean),
+        : env.CORS_ORIGINS.split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean),
   };
 }

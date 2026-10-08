@@ -1,5 +1,7 @@
 import { Test } from '@nestjs/testing';
+import { getDataSourceToken } from '@nestjs/typeorm';
 import request from 'supertest';
+import { DataSource } from 'typeorm';
 
 describe('TikTok app boundary', () => {
   it('should reject old-app root imports and invalid TikTok configuration', async () => {
@@ -14,12 +16,11 @@ describe('TikTok app boundary', () => {
       TIKTOK_ADVERTISER_ID: 'advertiser-test',
       TIKTOK_WEBHOOK_SECRET: 'mock-webhook-secret',
     });
-    const [{ AppModule }, { DatabaseModule }, { TiktokAppModule }] = await Promise.all([
-      import('../../../app.module.js'),
-      import('../../../core/database/database.module.js'),
-      import('../app.module.js'),
-    ]);
-    const moduleRef = await Test.createTestingModule({ imports: [TiktokAppModule] }).compile();
+    const { TiktokAppModule } = await import('../app.module.js');
+    const moduleRef = await Test.createTestingModule({ imports: [TiktokAppModule] })
+      .overrideProvider(getDataSourceToken('tiktok'))
+      .useValue(new DataSource({ type: 'postgres', url: process.env.TIKTOK_DATABASE_URL }))
+      .compile();
     const app = moduleRef.createNestApplication();
 
     await app.init();
@@ -27,7 +28,8 @@ describe('TikTok app boundary', () => {
     await app.close();
 
     const imports = Reflect.getMetadata('imports', TiktokAppModule) as unknown[];
-    expect(imports).not.toContain(AppModule);
-    expect(imports).not.toContain(DatabaseModule);
+    const importedModuleNames = imports.map((entry) => (entry as { name?: string }).name);
+    expect(importedModuleNames).not.toContain('AppModule');
+    expect(importedModuleNames).not.toContain('DatabaseModule');
   });
 });
