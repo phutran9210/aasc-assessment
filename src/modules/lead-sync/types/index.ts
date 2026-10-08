@@ -57,3 +57,48 @@ export type TransformedRow = ValidRow | InvalidRow | EmptyRow;
 
 /** `value: undefined` means the cell is blank. */
 export type NormalizeResult<T> = { ok: true; value: T | undefined } | { ok: false; error: string };
+
+/** Why a row was not synced, and what to write back about it. */
+export type RowFailure = {
+  rowNumber: number;
+  code: string;
+  message: string;
+  /** Written to `Sync Hash` so the row is skipped until it changes. Absent for retryable errors. */
+  hashCell?: string;
+  /** The Sheet already shows exactly this error: count it, but do not write it again. */
+  unchanged?: boolean;
+  /** The row moved in the Sheet: writing to its old row number would hit another lead. */
+  skipSheet?: boolean;
+};
+
+/** A valid row that has to be sent; `leadId` is the lead it is already linked to, if any. */
+export type PendingRow = { row: ValidRow; leadId?: number };
+
+/** One `crm.duplicate.findbycomm` command: exactly one value, so the key identifies the row. */
+export type DuplicateQuery = { key: string; type: 'EMAIL' | 'PHONE'; value: string };
+
+/** Lead IDs found for one row, ascending. */
+export type DuplicateMatches = { byEmail: number[]; byPhone: number[] };
+
+export type PlannedOp = {
+  row: ValidRow;
+  action: 'create' | 'update';
+  leadId?: number;
+  /** Other leads that matched the same row; only logged. */
+  otherMatches: number[];
+};
+
+/** `crm.item.*` multifield entry: { id, typeId: 'PHONE' | 'EMAIL', valueType, value }. */
+export type BitrixMultifield = {
+  id?: number | string;
+  typeId?: string;
+  valueType?: string;
+  value?: string;
+};
+
+export type BitrixLeadItem = { id: number | string; fm?: unknown; [field: string]: unknown };
+
+export type LeadWriteOp = PlannedOp & { current?: BitrixLeadItem };
+
+export type LeadWriteResult =
+  { ok: true; leadId: number } | { ok: false; code: string; message: string };
