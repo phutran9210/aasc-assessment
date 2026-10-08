@@ -2,8 +2,14 @@ import { BitrixDealInbox } from '../services/bitrix-deal-inbox.service.js';
 
 describe('BitrixDealInbox', () => {
   const accepted = { eventId: 'event-1', duplicate: false };
-  const events = { accept: jest.fn().mockResolvedValue(accepted) };
+  const events = {
+    accept: jest.fn().mockResolvedValue(accepted),
+    findById: jest.fn(),
+    updateStatus: jest.fn(),
+  };
   const operations = {
+    findById: jest.fn(),
+    findByKey: jest.fn(),
     ensure: jest.fn().mockResolvedValue({ id: 'operation-1', status: 'pending' }),
   };
   const outbox = { append: jest.fn().mockResolvedValue(undefined) };

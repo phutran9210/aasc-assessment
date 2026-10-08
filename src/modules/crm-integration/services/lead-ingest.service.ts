@@ -7,21 +7,21 @@ import { v7 as uuidv7 } from 'uuid';
 import type { OperationContext } from '@core/queue/types/worker.types.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
-import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import type { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { LeadEntity } from '../entities/lead.entity.js';
-import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
-import { ConfigurationEntity } from '../entities/configuration.entity.js';
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { LeadIdentityRepository } from '../repositories/lead-identity.repository.js';
 import { SubmissionRepository } from '../repositories/submission.repository.js';
+import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { normalizeLead } from '../domain/normalize-lead.js';
 import { mergeLead } from '../domain/merge-lead.js';
 import { scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { ScorePolicy } from '../types/rule.types.js';
-import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
 import type { IngestOutcome } from '../types/ingest-outcome.type.js';
 
@@ -43,6 +43,9 @@ export class LeadIngestService {
     private readonly submissions: SubmissionRepository,
     private readonly operations: OperationRepository,
     private readonly outbox: OutboxRepository,
+    private readonly webhookEvents: WebhookEventRepository,
+    private readonly configurations: ConfigurationRepository,
+    private readonly analyticsRevisions: AnalyticsRevisionRepository,
     private readonly portalKey: string,
     private readonly region = 'VN',
     private readonly feedback?: ConversionFeedbackService,
@@ -55,16 +58,14 @@ export class LeadIngestService {
   ): Promise<IngestOutcome> {
     await context.assertOwnership();
     return this.dataSource.transaction(async (manager) => {
-      const event = await manager
-        .getRepository(WebhookEventEntity)
-        .findOne({ where: { id: eventId } });
+      const event = await this.webhookEvents.findById(eventId, manager);
       if (!event || event.provider !== 'tiktok')
         return { outcome: 'quarantined', errorCode: 'EVENT_NOT_FOUND' };
       if (event.eventType === 'form.complete' || event.eventType === 'user.interaction') {
         return this.processAssociationEvent(event, context, manager);
       }
       if (event.eventType !== 'lead.generate') {
-        await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'ignored' });
+        await this.webhookEvents.updateStatus(event.id, 'ignored', manager);
         return { outcome: 'quarantined', errorCode: 'EVENT_TYPE_UNSUPPORTED' };
       }
 
@@ -95,9 +96,7 @@ export class LeadIngestService {
       );
       if (normalizedResult.kind === 'quarantined') {
         const errorCode = normalizedResult.reason;
-        await manager
-          .getRepository(WebhookEventEntity)
-          .update(event.id, { status: 'quarantined', errorCode });
+        await this.webhookEvents.updateStatus(event.id, 'quarantined', manager, errorCode);
         return { outcome: 'quarantined', errorCode };
       }
       const normalized = normalizedResult.data;
@@ -113,15 +112,17 @@ export class LeadIngestService {
       );
       if (existingSubmission) {
         if (existingSubmission.payloadHash !== normalizedPayloadHash) {
-          await manager.getRepository(WebhookEventEntity).update(event.id, {
-            status: 'quarantined',
-            errorCode: 'SUBMISSION_KEY_CONTENT_CONFLICT',
-          });
+          await this.webhookEvents.updateStatus(
+            event.id,
+            'quarantined',
+            manager,
+            'SUBMISSION_KEY_CONTENT_CONFLICT',
+          );
           return { outcome: 'quarantined', errorCode: 'SUBMISSION_KEY_CONTENT_CONFLICT' };
         }
         const leadId = existingSubmission.leadId;
         const lead = leadId ? await this.leads.findById(leadId, manager) : null;
-        await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+        await this.webhookEvents.updateStatus(event.id, 'processed', manager);
         return lead
           ? { outcome: 'succeeded', leadId: lead.id, version: lead.version }
           : {
@@ -146,24 +147,27 @@ export class LeadIngestService {
           );
           const leadIds = [...new Set(found.map((identity) => identity.leadId))];
           if (leadIds.length > 1 && !resolvedTargetLeadId) {
-            await manager.getRepository(WebhookEventEntity).update(event.id, {
-              status: 'quarantined',
-              errorCode: 'IDENTITY_CONFLICT',
-            });
+            await this.webhookEvents.updateStatus(
+              event.id,
+              'quarantined',
+              manager,
+              'IDENTITY_CONFLICT',
+            );
             return { outcome: 'quarantined', errorCode: 'IDENTITY_CONFLICT' };
           }
 
-          const repo = manager.getRepository(LeadEntity);
           let lead = resolvedTargetLeadId
-            ? await repo.findOne({ where: { id: resolvedTargetLeadId } })
+            ? await this.leads.findById(resolvedTargetLeadId, manager)
             : leadIds.length
-              ? await repo.findOne({ where: { id: leadIds[0] } })
+              ? await this.leads.findById(leadIds[0] ?? '', manager)
               : null;
           if (resolvedTargetLeadId && (!lead || lead.advertiserId !== normalized.advertiserId)) {
-            await manager.getRepository(WebhookEventEntity).update(event.id, {
-              status: 'quarantined',
-              errorCode: 'IDENTITY_TARGET_SCOPE_MISMATCH',
-            });
+            await this.webhookEvents.updateStatus(
+              event.id,
+              'quarantined',
+              manager,
+              'IDENTITY_TARGET_SCOPE_MISMATCH',
+            );
             return { outcome: 'quarantined', errorCode: 'IDENTITY_TARGET_SCOPE_MISMATCH' };
           }
           const occurredAt = new Date(normalized.occurredAt ?? event.receivedAt.toISOString());
@@ -177,50 +181,53 @@ export class LeadIngestService {
             manager,
             normalizedPayloadHash,
           );
-          await manager.getRepository(SubmissionEntity).save(submission);
+          await this.submissions.save(submission, manager);
 
           const isNewLead = !lead;
           let materialChange = isNewLead;
           if (!lead) {
             const externalSeed = normalized.providerLeadId ?? submissionKey;
-            lead = repo.create({
-              id: uuidv7(),
-              externalId: `tiktok:${createHash('sha256').update(`${normalized.advertiserId}:${externalSeed}`).digest('hex')}`,
-              advertiserId: normalized.advertiserId,
-              scopeKey: normalized.advertiserId,
-              portalKey: this.portalKey,
-              providerMode: event.providerMode as 'mock' | 'business-api',
-              name: normalized.name,
-              email: normalized.email,
-              phone: normalized.phone,
-              city: normalized.city,
-              interests: [...new Set(normalized.interests)].slice(0, 100),
-              score: 0,
-              scoreVersion: context.revisions.scoring ?? 1,
-              scoreBreakdown: {},
-              businessStatus: 'new',
-              syncStatus: 'pending',
-              bitrixLeadId: null,
-              firstSubmissionId: submissionId,
-              lastSubmissionId: submissionId,
-              firstTouchAt: occurredAt,
-              firstTouchCampaignId: normalized.campaignId,
-              lastTouchAt: occurredAt,
-              convertedAt: null,
-              dealCreatedAt: null,
-              fieldProvenance: Object.fromEntries(
-                (['name', 'email', 'phone', 'city'] as const)
-                  .filter((field) => normalized[field]?.trim())
-                  .map((field) => [
-                    field,
-                    { occurredAt: occurredAt.toISOString(), eventKey: normalized.eventKey },
-                  ]),
-              ),
-              lastWrittenFields: {},
-              version: 1,
-              lastErrorCode: null,
-            });
-            lead = await repo.save(lead);
+            lead = this.leads.create(
+              {
+                id: uuidv7(),
+                externalId: `tiktok:${createHash('sha256').update(`${normalized.advertiserId}:${externalSeed}`).digest('hex')}`,
+                advertiserId: normalized.advertiserId,
+                scopeKey: normalized.advertiserId,
+                portalKey: this.portalKey,
+                providerMode: event.providerMode as 'mock' | 'business-api',
+                name: normalized.name,
+                email: normalized.email,
+                phone: normalized.phone,
+                city: normalized.city,
+                interests: [...new Set(normalized.interests)].slice(0, 100),
+                score: 0,
+                scoreVersion: context.revisions.scoring ?? 1,
+                scoreBreakdown: {},
+                businessStatus: 'new',
+                syncStatus: 'pending',
+                bitrixLeadId: null,
+                firstSubmissionId: submissionId,
+                lastSubmissionId: submissionId,
+                firstTouchAt: occurredAt,
+                firstTouchCampaignId: normalized.campaignId,
+                lastTouchAt: occurredAt,
+                convertedAt: null,
+                dealCreatedAt: null,
+                fieldProvenance: Object.fromEntries(
+                  (['name', 'email', 'phone', 'city'] as const)
+                    .filter((field) => normalized[field]?.trim())
+                    .map((field) => [
+                      field,
+                      { occurredAt: occurredAt.toISOString(), eventKey: normalized.eventKey },
+                    ]),
+                ),
+                lastWrittenFields: {},
+                version: 1,
+                lastErrorCode: null,
+              },
+              manager,
+            );
+            lead = await this.leads.save(lead, manager);
           } else {
             const merged = mergeLead(lead, normalized);
             const attributionChanged =
@@ -244,13 +251,13 @@ export class LeadIngestService {
               lead.lastSubmissionId = submissionId;
             }
             if (material) lead.version += 1;
-            lead = await repo.save(lead);
+            lead = await this.leads.save(lead, manager);
           }
           submission.leadId = lead.id;
           submission.associationStatus = 'linked';
           submission.nextLinkAttemptAt = null;
           submission.associationExpiresAt = null;
-          await manager.getRepository(SubmissionEntity).save(submission);
+          await this.submissions.save(submission, manager);
           for (const identity of values) {
             if (
               found.some(
@@ -259,18 +266,19 @@ export class LeadIngestService {
               )
             )
               continue;
-            await manager.getRepository(LeadIdentityEntity).save({
-              id: uuidv7(),
-              advertiserId: normalized.advertiserId,
-              identityType: identity.type,
-              normalizedValue: identity.value,
-              leadId: lead.id,
-            });
+            await this.identities.save(
+              {
+                id: uuidv7(),
+                advertiserId: normalized.advertiserId,
+                identityType: identity.type,
+                normalizedValue: identity.value,
+                leadId: lead.id,
+              },
+              manager,
+            );
           }
 
-          const priorSubmissions = await manager
-            .getRepository(SubmissionEntity)
-            .find({ where: { leadId: lead.id } });
+          const priorSubmissions = await this.submissions.findForLead(lead.id, manager);
           const score = scoreLead(
             {
               email: lead.email,
@@ -297,20 +305,13 @@ export class LeadIngestService {
           lead.score = score.total;
           lead.scoreVersion = context.revisions.scoring ?? 1;
           lead.scoreBreakdown = score.breakdown;
-          await repo.save(lead);
+          await this.leads.save(lead, manager);
           if (isNewLead || materialChange) {
-            await manager
-              .createQueryBuilder()
-              .update(AnalyticsRevisionEntity)
-              .set({ revision: () => 'revision + 1' })
-              .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-              .execute();
+            await this.analyticsRevisions.increment(manager);
           }
 
           if (materialChange) await this.scheduleLeadSync(lead, context, manager);
-          await manager
-            .getRepository(WebhookEventEntity)
-            .update(event.id, { status: 'processed', errorCode: null });
+          await this.webhookEvents.updateStatus(event.id, 'processed', manager, null);
           return { outcome: 'succeeded', leadId: lead.id, version: lead.version };
         },
         manager,
@@ -326,20 +327,18 @@ export class LeadIngestService {
     const payload = event.payload;
     const providerLeadId = stringValue(payload.provider_lead_id);
     const linkedSubmission = providerLeadId
-      ? await manager.getRepository(SubmissionEntity).findOne({
-          where: {
-            advertiserId: event.advertiserId ?? event.scopeKey,
-            providerLeadId,
-            associationStatus: 'linked',
-          },
-          order: { occurredAt: 'DESC' },
-        })
+      ? await this.submissions.findLatestByProviderLeadId(
+          event.advertiserId ?? event.scopeKey,
+          event.providerMode as 'mock' | 'business-api',
+          providerLeadId,
+          manager,
+          'linked',
+        )
       : null;
     const lead = linkedSubmission?.leadId
       ? await this.leads.findById(linkedSubmission.leadId, manager)
       : null;
     const submissionKey = event.eventKey;
-    const repo = manager.getRepository(SubmissionEntity);
     let submission = await this.submissions.findByKey(
       event.advertiserId ?? event.scopeKey,
       event.providerMode as 'mock' | 'business-api',
@@ -348,66 +347,71 @@ export class LeadIngestService {
     );
     const now = new Date();
     if (submission && submission.payloadHash !== event.payloadHash) {
-      await manager.getRepository(WebhookEventEntity).update(event.id, {
-        status: 'quarantined',
-        errorCode: 'SUBMISSION_KEY_CONTENT_CONFLICT',
-      });
+      await this.webhookEvents.updateStatus(
+        event.id,
+        'quarantined',
+        manager,
+        'SUBMISSION_KEY_CONTENT_CONFLICT',
+      );
       return { outcome: 'quarantined', errorCode: 'SUBMISSION_KEY_CONTENT_CONFLICT' };
     }
     if (!submission) {
       const firstAttempt = now;
-      submission = repo.create({
-        id: uuidv7(),
-        advertiserId: event.advertiserId ?? event.scopeKey,
-        providerMode: event.providerMode as 'mock' | 'business-api',
-        leadId: lead?.id ?? null,
-        eventId: event.id,
-        providerLeadId,
-        submissionKey,
-        campaignId: stringValue(payload.campaign_id),
-        campaignName: null,
-        adId: stringValue(payload.ad_id),
-        adName: null,
-        formId: stringValue(payload.form_id),
-        formName: null,
-        ttclid: stringValue(payload.ttclid),
-        utm: {},
-        customAnswers: {},
-        engagement: {
-          event:
-            event.eventType === 'user.interaction'
-              ? stringValue(payload.interaction_type)
-              : 'form_complete',
+      submission = this.submissions.create(
+        {
+          id: uuidv7(),
+          advertiserId: event.advertiserId ?? event.scopeKey,
+          providerMode: event.providerMode as 'mock' | 'business-api',
+          leadId: lead?.id ?? null,
+          eventId: event.id,
+          providerLeadId,
+          submissionKey,
+          campaignId: stringValue(payload.campaign_id),
+          campaignName: null,
+          adId: stringValue(payload.ad_id),
+          adName: null,
+          formId: stringValue(payload.form_id),
+          formName: null,
+          ttclid: stringValue(payload.ttclid),
+          utm: {},
+          customAnswers: {},
+          engagement: {
+            event:
+              event.eventType === 'user.interaction'
+                ? stringValue(payload.interaction_type)
+                : 'form_complete',
+          },
+          consent: {},
+          occurredAt: event.occurredAt ?? now,
+          isHistorical: false,
+          applyRules: true,
+          sendFeedback: true,
+          payloadHash: event.payloadHash,
+          associationStatus: lead ? 'linked' : 'waiting_link',
+          linkAttemptCount: 0,
+          nextLinkAttemptAt: lead ? null : new Date(firstAttempt.getTime() + LINK_INTERVAL_MS),
+          associationExpiresAt: lead ? null : new Date(firstAttempt.getTime() + LINK_MAX_AGE_MS),
         },
-        consent: {},
-        occurredAt: event.occurredAt ?? now,
-        isHistorical: false,
-        applyRules: true,
-        sendFeedback: true,
-        payloadHash: event.payloadHash,
-        associationStatus: lead ? 'linked' : 'waiting_link',
-        linkAttemptCount: 0,
-        nextLinkAttemptAt: lead ? null : new Date(firstAttempt.getTime() + LINK_INTERVAL_MS),
-        associationExpiresAt: lead ? null : new Date(firstAttempt.getTime() + LINK_MAX_AGE_MS),
-      });
-      submission = await repo.save(submission);
+        manager,
+      );
+      submission = await this.submissions.save(submission, manager);
     } else if (!lead && submission.associationStatus === 'waiting_link') {
       if (submission.associationExpiresAt && submission.associationExpiresAt <= now) {
         submission.associationStatus = 'unmatched';
         submission.nextLinkAttemptAt = null;
-        await repo.save(submission);
-        await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+        await this.submissions.save(submission, manager);
+        await this.webhookEvents.updateStatus(event.id, 'processed', manager);
         return { outcome: 'unmatched', submissionId: submission.id };
       }
       submission.linkAttemptCount += 1;
       submission.nextLinkAttemptAt = new Date(now.getTime() + LINK_INTERVAL_MS);
-      await repo.save(submission);
+      await this.submissions.save(submission, manager);
     }
     if (lead) {
       submission.leadId = lead.id;
       submission.associationStatus = 'linked';
       submission.nextLinkAttemptAt = null;
-      await repo.save(submission);
+      await this.submissions.save(submission, manager);
       const oldVersion = lead.version;
       const priorTouch = lead.lastTouchAt;
       const occurredAt = event.occurredAt ?? now;
@@ -420,17 +424,11 @@ export class LeadIngestService {
       if (lead.score >= 70) await this.feedback?.schedule(lead.id, 'lead_qualified', manager);
       if (touchChanged || lead.version !== oldVersion)
         await this.scheduleLeadSync(lead, context, manager);
-      if (touchChanged)
-        await manager
-          .createQueryBuilder()
-          .update(AnalyticsRevisionEntity)
-          .set({ revision: () => 'revision + 1' })
-          .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-          .execute();
-      await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+      if (touchChanged) await this.analyticsRevisions.increment(manager);
+      await this.webhookEvents.updateStatus(event.id, 'processed', manager);
       return { outcome: 'succeeded', leadId: lead.id, version: lead.version };
     }
-    await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+    await this.webhookEvents.updateStatus(event.id, 'processed', manager);
     if (submission.associationStatus === 'waiting_link') {
       await this.scheduleLinkRetry(submission, context, manager);
       return {
@@ -448,9 +446,7 @@ export class LeadIngestService {
     manager: EntityManager,
     touchChanged: boolean,
   ): Promise<void> {
-    const submissions = await manager
-      .getRepository(SubmissionEntity)
-      .find({ where: { leadId: lead.id } });
+    const submissions = await this.submissions.findForLead(lead.id, manager);
     const score = scoreLead(
       {
         email: lead.email,
@@ -480,14 +476,12 @@ export class LeadIngestService {
     lead.scoreVersion = context.revisions.scoring ?? 1;
     lead.scoreBreakdown = score.breakdown;
     if (touchChanged || scoreChanged) lead.version += 1;
-    await manager.getRepository(LeadEntity).save(lead);
+    await this.leads.save(lead, manager);
   }
 
   private async scorePolicy(manager: EntityManager, revision: number): Promise<ScorePolicy> {
     if (revision > 0) {
-      const config = await manager
-        .getRepository(ConfigurationEntity)
-        .findOne({ where: { key: 'rules', revision } });
+      const config = await this.configurations.findRevision('rules', revision, manager);
       const value = config?.value.config ?? config?.value;
       const scoring = record(value).quality_scoring;
       if (scoring && typeof scoring === 'object') return scoring as ScorePolicy;
@@ -504,36 +498,38 @@ export class LeadIngestService {
     manager: EntityManager,
     payloadHash: string,
   ): SubmissionEntity {
-    const repo = manager.getRepository(SubmissionEntity);
-    return repo.create({
-      id,
-      advertiserId: normalized.advertiserId,
-      providerMode: event.providerMode as 'mock' | 'business-api',
-      leadId,
-      eventId: event.id,
-      providerLeadId: normalized.providerLeadId,
-      submissionKey,
-      campaignId: normalized.campaignId,
-      campaignName: normalized.campaignName,
-      adId: normalized.adId,
-      adName: normalized.adName,
-      formId: normalized.formId,
-      formName: normalized.formName,
-      ttclid: normalized.ttclid,
-      utm: normalized.utm,
-      customAnswers: normalized.customAnswers,
-      engagement: { event: 'form_complete' },
-      consent: normalized.consent,
-      occurredAt: new Date(normalized.occurredAt ?? event.receivedAt.toISOString()),
-      isHistorical: normalized.isHistorical,
-      applyRules: normalized.applyRules,
-      sendFeedback: normalized.sendFeedback,
-      payloadHash,
-      associationStatus: leadId ? 'linked' : 'waiting_link',
-      linkAttemptCount: 0,
-      nextLinkAttemptAt: null,
-      associationExpiresAt: null,
-    });
+    return this.submissions.create(
+      {
+        id,
+        advertiserId: normalized.advertiserId,
+        providerMode: event.providerMode as 'mock' | 'business-api',
+        leadId,
+        eventId: event.id,
+        providerLeadId: normalized.providerLeadId,
+        submissionKey,
+        campaignId: normalized.campaignId,
+        campaignName: normalized.campaignName,
+        adId: normalized.adId,
+        adName: normalized.adName,
+        formId: normalized.formId,
+        formName: normalized.formName,
+        ttclid: normalized.ttclid,
+        utm: normalized.utm,
+        customAnswers: normalized.customAnswers,
+        engagement: { event: 'form_complete' },
+        consent: normalized.consent,
+        occurredAt: new Date(normalized.occurredAt ?? event.receivedAt.toISOString()),
+        isHistorical: normalized.isHistorical,
+        applyRules: normalized.applyRules,
+        sendFeedback: normalized.sendFeedback,
+        payloadHash,
+        associationStatus: leadId ? 'linked' : 'waiting_link',
+        linkAttemptCount: 0,
+        nextLinkAttemptAt: null,
+        associationExpiresAt: null,
+      },
+      manager,
+    );
   }
 
   private async scheduleLeadSync(

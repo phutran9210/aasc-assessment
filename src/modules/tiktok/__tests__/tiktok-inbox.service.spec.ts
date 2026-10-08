@@ -86,8 +86,12 @@ describe('TiktokInboxService', () => {
 });
 
 function createService() {
-  const events = { accept: jest.fn() };
-  const operations = { ensure: jest.fn().mockResolvedValue({ id: 'operation-1' }) };
+  const events = { accept: jest.fn(), findById: jest.fn(), updateStatus: jest.fn() };
+  const operations = {
+    findById: jest.fn(),
+    findByKey: jest.fn(),
+    ensure: jest.fn().mockResolvedValue({ id: 'operation-1' }),
+  };
   const outbox = { append: jest.fn().mockResolvedValue(undefined) };
   const configurations = {
     revisions: jest.fn().mockResolvedValue({ mapping: 2, rules: 4 }),

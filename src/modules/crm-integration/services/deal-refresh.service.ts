@@ -3,13 +3,15 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 
-import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
-import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
-import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
+import type { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, CrmMetadata, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { DealEntity } from '../entities/deal.entity.js';
+import { DealRepository } from '../repositories/deal.repository.js';
 import { DealHistoryRepository } from '../repositories/deal-history.repository.js';
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
 
@@ -22,6 +24,10 @@ export class DealRefreshService {
     private readonly dataSource: DataSource,
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly history: DealHistoryRepository,
+    private readonly deals: DealRepository,
+    private readonly operations: OperationRepository,
+    private readonly webhookEvents: WebhookEventRepository,
+    private readonly analyticsRevisions: AnalyticsRevisionRepository,
     private readonly feedback?: ConversionFeedbackService,
   ) {}
 
@@ -37,13 +43,12 @@ export class DealRefreshService {
 
     try {
       await context.assertOwnership();
-      const operation = await this.dataSource.getRepository(OperationEntity).findOne({
-        where: { id: context.operationId },
-      });
+      const operation = await this.operations.findById(
+        context.operationId,
+        this.dataSource.manager,
+      );
       const event = operation?.payload.eventId
-        ? await this.dataSource.getRepository(WebhookEventEntity).findOne({
-            where: { id: operation.payload.eventId },
-          })
+        ? await this.webhookEvents.findById(operation.payload.eventId, this.dataSource.manager)
         : null;
       const eventType = event?.eventType;
       if (eventType === 'deal.delete') return this.tombstone(remoteId, event, context);
@@ -59,16 +64,12 @@ export class DealRefreshService {
       const deal = await this.findManagedDeal(remote, remoteId);
       if (!deal) {
         if (event)
-          await this.dataSource
-            .getRepository(WebhookEventEntity)
-            .update(event.id, { status: 'ignored' });
+          await this.webhookEvents.updateStatus(event.id, 'ignored', this.dataSource.manager);
         return { outcome: 'succeeded', remoteId };
       }
 
       let snapshot = await this.snapshot(remote);
-      const current = await this.dataSource
-        .getRepository(DealEntity)
-        .findOne({ where: { id: deal.id } });
+      const current = await this.deals.findById(deal.id);
       if (
         current?.remoteModifiedAt &&
         snapshot.modifiedAt &&
@@ -84,60 +85,59 @@ export class DealRefreshService {
 
       await context.assertOwnership();
       const changed = await this.dataSource.transaction(async (manager) => {
-        const repository = manager.getRepository(DealEntity);
-        const locked = await repository.findOne({
-          where: { id: deal.id },
-          lock: { mode: 'pessimistic_write' },
-        });
+        const locked = await this.deals.findByIdForUpdate(deal.id, manager);
         if (!locked) return false;
         if (
           locked.remoteModifiedAt &&
           snapshot.modifiedAt &&
           snapshot.modifiedAt.getTime() < locked.remoteModifiedAt.getTime()
         ) {
-          if (event)
-            await manager
-              .getRepository(WebhookEventEntity)
-              .update(event.id, { status: 'processed' });
+          if (event) await this.webhookEvents.updateStatus(event.id, 'processed', manager);
           return false;
         }
         if (locked.currentSnapshotHash === snapshot.hash) {
-          await repository.update(locked.id, {
-            ...(locked.bitrixDealId ? {} : { bitrixDealId: remote.id }),
-            ...(snapshot.modifiedAt &&
-            (!locked.remoteModifiedAt || snapshot.modifiedAt > locked.remoteModifiedAt)
-              ? { remoteModifiedAt: snapshot.modifiedAt }
-              : {}),
-          });
-          if (event)
-            await manager
-              .getRepository(WebhookEventEntity)
-              .update(event.id, { status: 'processed' });
+          await this.deals.update(
+            locked.id,
+            {
+              ...(locked.bitrixDealId ? {} : { bitrixDealId: remote.id }),
+              ...(snapshot.modifiedAt &&
+              (!locked.remoteModifiedAt || snapshot.modifiedAt > locked.remoteModifiedAt)
+                ? { remoteModifiedAt: snapshot.modifiedAt }
+                : {}),
+            },
+            manager,
+          );
+          if (event) await this.webhookEvents.updateStatus(event.id, 'processed', manager);
           return false;
         }
 
         const observedAt = new Date();
         const semantics = snapshot.stageSemantics;
         const previousSemantics = locked.stageSemantics;
-        await repository.update(locked.id, {
-          bitrixDealId: remote.id,
-          title: remote.title || locked.title,
-          amount: snapshot.amount,
-          currency: snapshot.currency,
-          pipelineId: snapshot.pipelineId,
-          stageId: snapshot.stageId,
-          stageSemantics: semantics,
-          probability: semantics === 'won' ? 100 : semantics === 'lost' ? 0 : snapshot.probability,
-          assignedTo: snapshot.assignedTo,
-          remoteModifiedAt: snapshot.modifiedAt ?? locked.remoteModifiedAt,
-          everWonAt:
-            semantics === 'won'
-              ? (locked.everWonAt ?? snapshot.modifiedAt ?? observedAt)
-              : locked.everWonAt,
-          currentSnapshotHash: snapshot.hash,
-          stageDeletedAt: null,
-          version: () => 'version + 1',
-        });
+        await this.deals.update(
+          locked.id,
+          {
+            bitrixDealId: remote.id,
+            title: remote.title || locked.title,
+            amount: snapshot.amount,
+            currency: snapshot.currency,
+            pipelineId: snapshot.pipelineId,
+            stageId: snapshot.stageId,
+            stageSemantics: semantics,
+            probability:
+              semantics === 'won' ? 100 : semantics === 'lost' ? 0 : snapshot.probability,
+            assignedTo: snapshot.assignedTo,
+            remoteModifiedAt: snapshot.modifiedAt ?? locked.remoteModifiedAt,
+            everWonAt:
+              semantics === 'won'
+                ? (locked.everWonAt ?? snapshot.modifiedAt ?? observedAt)
+                : locked.everWonAt,
+            currentSnapshotHash: snapshot.hash,
+            stageDeletedAt: null,
+            version: () => 'version + 1',
+          },
+          manager,
+        );
         await this.history.record(
           {
             dealId: locked.id,
@@ -155,14 +155,8 @@ export class DealRefreshService {
           manager,
         );
         if (semantics === 'won') await this.feedback?.schedule(locked.leadId, 'deal_won', manager);
-        await manager
-          .createQueryBuilder()
-          .update(AnalyticsRevisionEntity)
-          .set({ revision: () => 'revision + 1' })
-          .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-          .execute();
-        if (event)
-          await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+        await this.analyticsRevisions.increment(manager);
+        if (event) await this.webhookEvents.updateStatus(event.id, 'processed', manager);
         return true;
       });
       return { outcome: 'succeeded', remoteId: changed ? remote.id : remoteId };
@@ -178,14 +172,14 @@ export class DealRefreshService {
   }
 
   private async findManagedDeal(remote: RemoteDeal, remoteId: string): Promise<DealEntity | null> {
-    const repository = this.dataSource.getRepository(DealEntity);
-    const linked = await repository.findOne({
-      where: { portalKey: process.env.BITRIX_PORTAL_KEY ?? 'mock-portal', bitrixDealId: remoteId },
-    });
+    const linked = await this.deals.findByPortalRemote(
+      process.env.BITRIX_PORTAL_KEY ?? 'mock-portal',
+      remoteId,
+    );
     if (linked) return linked;
     const match = remote.marker?.match(/^aasc-tiktok\/deal\/([0-9a-f-]{36})$/i);
     if (!match) return null;
-    const local = await repository.findOne({ where: { id: match[1] } });
+    const local = await this.deals.findById(match[1] ?? '');
     return local ?? null;
   }
 
@@ -259,29 +253,28 @@ export class DealRefreshService {
     event: WebhookEventEntity | null,
     context: OperationContext,
   ): Promise<OperationOutcome> {
-    const deal = await this.dataSource.getRepository(DealEntity).findOne({
-      where: { portalKey: process.env.BITRIX_PORTAL_KEY ?? 'mock-portal', bitrixDealId: remoteId },
-    });
+    const deal = await this.deals.findByPortalRemote(
+      process.env.BITRIX_PORTAL_KEY ?? 'mock-portal',
+      remoteId,
+    );
     if (!deal) {
       if (event)
-        await this.dataSource
-          .getRepository(WebhookEventEntity)
-          .update(event.id, { status: 'ignored' });
+        await this.webhookEvents.updateStatus(event.id, 'ignored', this.dataSource.manager);
       return { outcome: 'succeeded', remoteId };
     }
     if (deal.stageDeletedAt) {
       if (event)
-        await this.dataSource
-          .getRepository(WebhookEventEntity)
-          .update(event.id, { status: 'processed' });
+        await this.webhookEvents.updateStatus(event.id, 'processed', this.dataSource.manager);
       return { outcome: 'succeeded', remoteId };
     }
     await context.assertOwnership();
     await this.dataSource.transaction(async (manager) => {
       const observedAt = new Date();
-      await manager
-        .getRepository(DealEntity)
-        .update(deal.id, { stageDeletedAt: observedAt, version: () => 'version + 1' });
+      await this.deals.update(
+        deal.id,
+        { stageDeletedAt: observedAt, version: () => 'version + 1' },
+        manager,
+      );
       const inserted = await this.history.record(
         {
           dealId: deal.id,
@@ -298,15 +291,8 @@ export class DealRefreshService {
         },
         manager,
       );
-      if (inserted)
-        await manager
-          .createQueryBuilder()
-          .update(AnalyticsRevisionEntity)
-          .set({ revision: () => 'revision + 1' })
-          .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-          .execute();
-      if (event)
-        await manager.getRepository(WebhookEventEntity).update(event.id, { status: 'processed' });
+      if (inserted) await this.analyticsRevisions.increment(manager);
+      if (event) await this.webhookEvents.updateStatus(event.id, 'processed', manager);
     });
     return { outcome: 'succeeded', remoteId };
   }

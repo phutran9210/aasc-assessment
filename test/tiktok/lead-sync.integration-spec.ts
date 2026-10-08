@@ -17,6 +17,10 @@ import { BitrixCrmGateway } from '@modules/crm-integration/gateways/bitrix-crm.g
 import { RemoteReconciliationService } from '@modules/crm-integration/services/remote-reconciliation.service.js';
 import { TimelineService } from '@modules/crm-integration/services/timeline.service.js';
 import { LeadSyncService } from '@modules/crm-integration/services/lead-sync.service.js';
+import { LeadRepository } from '@modules/crm-integration/repositories/lead.repository.js';
+import { SubmissionRepository } from '@modules/crm-integration/repositories/submission.repository.js';
+import { ConfigurationRepository } from '@modules/crm-integration/repositories/configuration.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import type { CrmGateway } from '@modules/crm-integration/ports/crm-gateway.port.js';
 import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
 import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
@@ -87,6 +91,10 @@ describe('Bitrix lead synchronization', () => {
     );
     syncService = new LeadSyncService(
       infrastructure.database.dataSource,
+      new LeadRepository(),
+      new SubmissionRepository(),
+      new ConfigurationRepository(infrastructure.database.dataSource),
+      new AnalyticsRevisionRepository(),
       gateway,
       reconciliation,
       operations,
@@ -180,6 +188,10 @@ describe('Bitrix lead synchronization', () => {
       Promise.reject(new Error('mock duplicate service unavailable'));
     const service = new LeadSyncService(
       infrastructure.database.dataSource,
+      new LeadRepository(),
+      new SubmissionRepository(),
+      new ConfigurationRepository(infrastructure.database.dataSource),
+      new AnalyticsRevisionRepository(),
       failingGateway,
       new RemoteReconciliationService(gateway),
       operations,

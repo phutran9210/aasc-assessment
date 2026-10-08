@@ -25,6 +25,7 @@ import { BitrixDealWebhookController } from './controllers/bitrix-deal-webhook.c
 import { BitrixDealInbox } from './services/bitrix-deal-inbox.service.js';
 import { DealRefreshService } from './services/deal-refresh.service.js';
 import { DealHistoryRepository } from './repositories/deal-history.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
 import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';
 import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
@@ -34,6 +35,7 @@ import { LeadsController } from './controllers/leads.controller.js';
 import { DealsController } from './controllers/deals.controller.js';
 import { OperationsController } from './controllers/operations.controller.js';
 import { IntegrationReadService } from './services/integration-read.service.js';
+import { IntegrationReadRepository } from './repositories/integration-read.repository.js';
 import { OperationControlService } from './services/operation-control.service.js';
 import { ConversionFeedbackService } from '../tiktok/services/conversion-feedback.service.js';
 import { MockTiktokAdapter } from '../tiktok/adapters/mock-tiktok.adapter.js';
@@ -100,6 +102,11 @@ export class CrmIntegrationModule {
         DealHistoryRepository,
         IntegrationReadService,
         {
+          provide: IntegrationReadRepository,
+          inject: [getDataSourceToken('tiktok')],
+          useFactory: (dataSource: DataSource) => new IntegrationReadRepository(dataSource),
+        },
+        {
           provide: OperationControlService,
           inject: [
             getDataSourceToken('tiktok'),
@@ -163,19 +170,38 @@ export class CrmIntegrationModule {
             getDataSourceToken('tiktok'),
             CRM_GATEWAY,
             DealHistoryRepository,
+            DealRepository,
+            OperationRepository,
+            WebhookEventRepository,
+            AnalyticsRevisionRepository,
             ConversionFeedbackService,
           ],
           useFactory: (
             ds: DataSource,
             gateway: CrmGateway,
             history: DealHistoryRepository,
+            deals: DealRepository,
+            operations: OperationRepository,
+            events: WebhookEventRepository,
+            analyticsRevisions: AnalyticsRevisionRepository,
             feedback: ConversionFeedbackService,
-          ) => new DealRefreshService(ds, gateway, history, feedback),
+          ) =>
+            new DealRefreshService(
+              ds,
+              gateway,
+              history,
+              deals,
+              operations,
+              events,
+              analyticsRevisions,
+              feedback,
+            ),
         },
         RemoteReconciliationService,
         AssignmentCursorRepository,
         AssignmentService,
         DealRepository,
+        AnalyticsRevisionRepository,
         {
           provide: TimelineService,
           inject: [

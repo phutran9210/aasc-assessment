@@ -1,10 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import type { EntityManager } from 'typeorm';
+import type { DeepPartial, EntityManager } from 'typeorm';
 
 import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
 
 @Injectable()
 export class LeadIdentityRepository {
+  save(
+    input: DeepPartial<LeadIdentityEntity>,
+    manager: EntityManager,
+  ): Promise<LeadIdentityEntity> {
+    return manager.getRepository(LeadIdentityEntity).save(input);
+  }
+
   findByValues(
     advertiserId: string,
     identities: Array<{ type: 'email' | 'phone'; value: string }>,

@@ -9,6 +9,14 @@ import type { EnsureOperationInput } from '../types/operation.types.js';
 
 @Injectable()
 export class OperationRepository {
+  findById(id: string, tx: EntityManager): Promise<OperationEntity | null> {
+    return tx.getRepository(OperationEntity).findOne({ where: { id } });
+  }
+
+  findByKey(operationKey: string, tx: EntityManager): Promise<OperationEntity | null> {
+    return tx.getRepository(OperationEntity).findOne({ where: { operationKey } });
+  }
+
   async ensure(input: EnsureOperationInput, tx: EntityManager): Promise<OperationEntity> {
     const normalized = {
       operationKey: input.operationKey,

@@ -7,6 +7,21 @@ import type { WebhookEventInput } from '../types/operation.types.js';
 
 @Injectable()
 export class WebhookEventRepository {
+  findById(id: string, tx: EntityManager): Promise<WebhookEventEntity | null> {
+    return tx.getRepository(WebhookEventEntity).findOne({ where: { id } });
+  }
+
+  updateStatus(
+    id: string,
+    status: string,
+    tx: EntityManager,
+    errorCode?: string | null,
+  ): Promise<unknown> {
+    return tx
+      .getRepository(WebhookEventEntity)
+      .update(id, errorCode === undefined ? { status } : { status, errorCode });
+  }
+
   async accept(
     input: WebhookEventInput,
     tx: EntityManager,

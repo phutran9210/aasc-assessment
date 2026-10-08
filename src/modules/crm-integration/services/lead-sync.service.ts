@@ -8,13 +8,14 @@ import {
 import type { DataSource, EntityManager } from 'typeorm';
 
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
-import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
-import { ConfigurationEntity } from '../entities/configuration.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
-import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
+import { LeadRepository } from '../repositories/lead.repository.js';
+import { SubmissionRepository } from '../repositories/submission.repository.js';
+import { ConfigurationRepository } from '../repositories/configuration.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { applyMapping } from '../domain/apply-mapping.js';
 import { buildLeadDiff } from '../domain/crm-lead-diff.js';
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
@@ -54,6 +55,10 @@ const FALLBACK_MAPPING: CompiledMapping = {
 export class LeadSyncService {
   constructor(
     private readonly dataSource: DataSource,
+    private readonly leads: LeadRepository,
+    private readonly submissions: SubmissionRepository,
+    private readonly configurations: ConfigurationRepository,
+    private readonly analyticsRevisions: AnalyticsRevisionRepository,
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly reconciliation: RemoteReconciliationService,
     private readonly operations: OperationRepository,
@@ -78,9 +83,7 @@ export class LeadSyncService {
     }
     try {
       await context.assertOwnership();
-      const lead = await this.dataSource
-        .getRepository(LeadEntity)
-        .findOne({ where: { id: leadId } });
+      const lead = await this.leads.findById(leadId, this.dataSource.manager);
       if (!lead) return { outcome: 'quarantined', errorCode: 'LEAD_NOT_FOUND' };
       if (targetVersion < lead.version && lead.syncStatus !== 'reconcile_required') {
         if (lead.syncStatus !== 'synced') await this.enqueueLatestIfMissing(lead, context);
@@ -112,10 +115,7 @@ export class LeadSyncService {
         return { outcome: 'succeeded' };
       }
 
-      const submission = await this.dataSource.getRepository(SubmissionEntity).findOne({
-        where: { leadId: lead.id },
-        order: { occurredAt: 'DESC' },
-      });
+      const submission = await this.submissions.findLatestForLead(lead.id, this.dataSource.manager);
       if (!submission) return { outcome: 'quarantined', errorCode: 'LEAD_SUBMISSION_MISSING' };
       const normalized = toNormalizedLead(lead, submission, this.region);
       const compiled = await this.mapping(context.revisions.mapping ?? 0);
@@ -215,9 +215,7 @@ export class LeadSyncService {
 
   private async mapping(revision: number): Promise<CompiledMapping> {
     if (!revision) return FALLBACK_MAPPING;
-    const config = await this.dataSource.getRepository(ConfigurationEntity).findOne({
-      where: { key: 'mapping', revision },
-    });
+    const config = await this.configurations.findRevision('mapping', revision);
     const compiled = config?.value.compiled;
     if (
       compiled &&
@@ -237,11 +235,7 @@ export class LeadSyncService {
     context: OperationContext,
   ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      const repository = manager.getRepository(LeadEntity);
-      const lead = await repository.findOne({
-        where: { id: snapshot.id },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const lead = await this.leads.findByIdForUpdate(snapshot.id, manager);
       if (!lead) return;
       lead.bitrixLeadId = remote.id;
       lead.lastWrittenFields = lastWrittenFields;
@@ -256,13 +250,8 @@ export class LeadSyncService {
           syncedAt: new Date().toISOString(),
         },
       };
-      await repository.save(lead);
-      await manager
-        .createQueryBuilder()
-        .update(AnalyticsRevisionEntity)
-        .set({ revision: () => 'revision + 1' })
-        .where('id = :id', { id: '00000000-0000-7000-8000-000000000001' })
-        .execute();
+      await this.leads.save(lead, manager);
+      await this.analyticsRevisions.increment(manager);
       await this.timeline.append(
         {
           leadId: lead.id,
@@ -291,9 +280,7 @@ export class LeadSyncService {
     manager: EntityManager,
   ): Promise<void> {
     const operationKey = `bitrix-lead-sync/${lead.id}/${lead.version}`;
-    const existing = await manager
-      .getRepository(OperationEntity)
-      .findOne({ where: { operationKey } });
+    const existing = await this.operations.findByKey(operationKey, manager);
     if (existing) return;
     const operation = await this.operations.ensure(
       {
@@ -338,10 +325,11 @@ export class LeadSyncService {
         manager,
       );
       await this.outbox.append(operation.id, QUEUE_NAMES.bitrixLeadSync, availableAt, manager);
-      await manager.getRepository(LeadEntity).update(lead.id, {
-        syncStatus: 'reconcile_required',
-        lastErrorCode: 'CRM_CREATE_AMBIGUOUS',
-      });
+      await this.leads.update(
+        lead.id,
+        { syncStatus: 'reconcile_required', lastErrorCode: 'CRM_CREATE_AMBIGUOUS' },
+        manager,
+      );
     });
     return { outcome: 'reconcile_required', errorCode: 'CRM_CREATE_AMBIGUOUS' };
   }
@@ -351,9 +339,11 @@ export class LeadSyncService {
     syncStatus: LeadEntity['syncStatus'],
     errorCode: string,
   ): Promise<void> {
-    await this.dataSource
-      .getRepository(LeadEntity)
-      .update(leadId, { syncStatus, lastErrorCode: errorCode });
+    await this.leads.update(
+      leadId,
+      { syncStatus, lastErrorCode: errorCode },
+      this.dataSource.manager,
+    );
   }
 
   private retryOutcome(error: unknown, fallbackCode: string): OperationOutcome {

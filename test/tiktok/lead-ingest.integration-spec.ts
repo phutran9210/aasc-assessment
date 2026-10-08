@@ -3,6 +3,9 @@ import { createHash, randomUUID } from 'node:crypto';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import { ConfigurationRepository } from '@modules/crm-integration/repositories/configuration.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import { LeadIdentityEntity } from '@modules/crm-integration/entities/lead-identity.entity.js';
 import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
 import { SubmissionEntity } from '@modules/crm-integration/entities/submission.entity.js';
@@ -27,6 +30,9 @@ describe('TikTok lead ingestion', () => {
       new SubmissionRepository(),
       new OperationRepository(),
       new OutboxRepository(),
+      new WebhookEventRepository(),
+      new ConfigurationRepository(infrastructure.database.dataSource),
+      new AnalyticsRevisionRepository(),
       'portal-test',
       'VN',
     );

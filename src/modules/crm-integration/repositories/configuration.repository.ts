@@ -78,6 +78,14 @@ export class ConfigurationRepository implements ConfigurationRevisionReader {
     const heads = await manager.getRepository(ConfigurationHeadEntity).find();
     return Object.fromEntries(heads.map((head) => [head.key, head.revision]));
   }
+
+  findRevision(
+    key: string,
+    revision: number,
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<ConfigurationEntity | null> {
+    return manager.getRepository(ConfigurationEntity).findOne({ where: { key, revision } });
+  }
 }
 
 function unpack(entity: ConfigurationEntity): StoredConfiguration {

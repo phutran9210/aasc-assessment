@@ -13,6 +13,9 @@ import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js'
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { DealRepository } from '@modules/crm-integration/repositories/deal.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
 import type { OperationContext } from '@core/queue/types/worker.types.js';
 import type { CrmGateway, RemoteDeal } from '@modules/crm-integration/ports/crm-gateway.port.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
@@ -43,6 +46,10 @@ describe('Bitrix deal event reconciliation', () => {
       infrastructure.database.dataSource,
       gateway,
       new DealHistoryRepository(),
+      new DealRepository(infrastructure.database.dataSource),
+      new OperationRepository(),
+      new WebhookEventRepository(),
+      new AnalyticsRevisionRepository(),
     );
     polls = new DealPollService(
       infrastructure.database.dataSource,
