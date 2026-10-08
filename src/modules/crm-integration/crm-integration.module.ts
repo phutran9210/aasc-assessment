@@ -29,6 +29,11 @@ import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-s
 import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
 import { BitrixApiService } from '../bitrix/services/bitrix-api.service.js';
 import { DealPollService } from './services/deal-poll.service.js';
+import { LeadsController } from './controllers/leads.controller.js';
+import { DealsController } from './controllers/deals.controller.js';
+import { OperationsController } from './controllers/operations.controller.js';
+import { IntegrationReadService } from './services/integration-read.service.js';
+import { OperationControlService } from './services/operation-control.service.js';
 
 export type CrmIntegrationModuleOptions = {
   imports?: Array<Type<unknown> | DynamicModule>;
@@ -41,7 +46,14 @@ export class CrmIntegrationModule {
     return {
       module: CrmIntegrationModule,
       imports: [TiktokDatabaseModule, IntegrationAuthModule, ...(options.imports ?? [])],
-      controllers: [ConfigurationController, LeadConversionController, BitrixDealWebhookController],
+      controllers: [
+        ConfigurationController,
+        LeadConversionController,
+        BitrixDealWebhookController,
+        LeadsController,
+        DealsController,
+        OperationsController,
+      ],
       providers: [
         {
           provide: ConfigurationRepository,
@@ -55,6 +67,31 @@ export class CrmIntegrationModule {
         OutboxRepository,
         WebhookEventRepository,
         DealHistoryRepository,
+        IntegrationReadService,
+        {
+          provide: OperationControlService,
+          inject: [
+            getDataSourceToken('tiktok'),
+            OutboxRepository,
+            ConfigurationRepository,
+            CRM_GATEWAY,
+            RemoteReconciliationService,
+          ],
+          useFactory: (
+            dataSource: DataSource,
+            outbox: OutboxRepository,
+            configurations: ConfigurationRepository,
+            gateway: CrmGateway,
+            reconciliation: RemoteReconciliationService,
+          ) =>
+            new OperationControlService(
+              dataSource,
+              outbox,
+              configurations,
+              gateway,
+              reconciliation,
+            ),
+        },
         {
           provide: DealPollService,
           inject: [

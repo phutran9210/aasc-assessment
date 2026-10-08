@@ -170,6 +170,31 @@ describe('Lead conversion API', () => {
       .expect(409);
   });
 
+  it('rejects reuse of an actor and lead scoped idempotency key with a different request body', async () => {
+    const leadId = await saveSyncedLead();
+    await storeRules();
+    const path = `/api/v1/leads/${leadId}/convert-to-deal`;
+    await request(testApp.app.getHttpServer())
+      .post(path)
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .set('Idempotency-Key', 'manual-convert-request-1')
+      .send({ comment: 'first request' })
+      .expect(202);
+    await request(testApp.app.getHttpServer())
+      .post(path)
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .set('Idempotency-Key', 'manual-convert-request-1')
+      .send({ comment: 'different request' })
+      .expect(409);
+  });
+
+  it('requires local lead route IDs to be UUIDs', async () => {
+    await request(testApp.app.getHttpServer())
+      .post('/api/v1/leads/tiktok%3Aopaque-id/convert-to-deal')
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .expect(400);
+  });
+
   async function saveSyncedLead(): Promise<string> {
     const id = uuidv7();
     const gateway = testApp.app.get<CrmGateway>(CRM_GATEWAY);

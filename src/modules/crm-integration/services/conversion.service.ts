@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   ConflictException,
   Inject,
@@ -58,6 +60,7 @@ export class ConversionService {
     trigger: 'rule' | 'manual',
     actorId?: string,
     idempotencyKey?: string,
+    requestBody: Record<string, unknown> = {},
   ): Promise<ConversionReceipt | null> {
     const snapshot = await this.dataSource
       .getRepository(LeadEntity)
@@ -105,7 +108,26 @@ export class ConversionService {
           throw new ConflictException('Existing conversion requires operator reconciliation');
         const operation = await manager.getRepository(OperationEntity).findOne({
           where: { operationKey: `convert/${leadId}` },
+          lock: { mode: 'pessimistic_write' },
         });
+        if (operation && idempotencyKey && actorId) {
+          const scopeKey = idempotencyScopeKey(leadId, actorId, idempotencyKey);
+          const bodyFingerprint = bodyHash(requestBody);
+          const prior = operation.payload.idempotencyKeys?.[scopeKey];
+          if (prior && prior.bodyHash !== bodyFingerprint) {
+            throw new ConflictException('Idempotency key was reused with a different request body');
+          }
+          if (!prior) {
+            operation.payload = {
+              ...operation.payload,
+              idempotencyKeys: {
+                ...operation.payload.idempotencyKeys,
+                [scopeKey]: { bodyHash: bodyFingerprint },
+              },
+            };
+            await manager.getRepository(OperationEntity).save(operation);
+          }
+        }
         if (deal.conversionStatus === 'completed' && deal.bitrixDealId)
           return {
             receipt: {
@@ -165,7 +187,19 @@ export class ConversionService {
           kind: OPERATION_KINDS.bitrixDealConvert,
           aggregateId: leadId,
           targetVersion: lead.version,
-          payload: { leadId, dealId: deal.id },
+          payload: {
+            leadId,
+            dealId: deal.id,
+            ...(idempotencyKey && actorId
+              ? {
+                  idempotencyKeys: {
+                    [idempotencyScopeKey(leadId, actorId, idempotencyKey)]: {
+                      bodyHash: bodyHash(requestBody),
+                    },
+                  },
+                }
+              : {}),
+          },
           configRevisions: { rules: config.entity.revision },
           actorId: actorId ?? null,
         },
@@ -232,6 +266,10 @@ export class ConversionService {
           remote = linked[0] ?? null;
         }
         if (!remote) {
+          if (deal.conversionStatus === 'creating_deal') {
+            await this.updateDeal(deal.id, { conversionStatus: 'reconcile_required' });
+            return { outcome: 'reconcile_required', errorCode: 'DEAL_CREATE_ALREADY_ATTEMPTED' };
+          }
           await context.assertOwnership();
           await this.updateDeal(deal.id, { conversionStatus: 'creating_deal' });
           try {
@@ -399,4 +437,23 @@ function ruleContext(
       event_name: submission?.engagement.eventName,
     },
   };
+}
+function idempotencyScopeKey(leadId: string, actorId: string, key: string): string {
+  return createHash('sha256').update(`${leadId}\0${actorId}\0${key}`).digest('hex');
+}
+
+function bodyHash(body: Record<string, unknown>): string {
+  return createHash('sha256')
+    .update(JSON.stringify(sortObject(body)))
+    .digest('hex');
+}
+
+function sortObject(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortObject);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, sortObject(item)]),
+  );
 }

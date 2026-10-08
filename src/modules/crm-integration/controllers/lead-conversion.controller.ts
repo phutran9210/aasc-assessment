@@ -1,6 +1,7 @@
 import {
   Controller,
   ConflictException,
+  Body,
   Headers,
   HttpCode,
   HttpStatus,
@@ -33,6 +34,7 @@ export class LeadConversionController {
   async convert(
     @Param('id', new ParseUUIDPipe({ version: '7' })) leadId: string,
     @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: Record<string, unknown> | undefined,
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
@@ -41,6 +43,7 @@ export class LeadConversionController {
       'manual',
       request.user.sub,
       idempotencyKey,
+      body ?? {},
     );
     if (!receipt) throw new ConflictException('Manual conversion did not produce an operation');
     response.status(receipt.status === 'completed' ? HttpStatus.OK : HttpStatus.ACCEPTED);

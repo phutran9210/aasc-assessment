@@ -22,7 +22,11 @@ export class TiktokIngestHandler implements OperationHandler {
     });
     const eventId = operation?.payload.eventId;
     if (!eventId) return { outcome: 'quarantined', errorCode: 'EVENT_ID_MISSING' };
-    const result = await this.ingest.process(eventId, context);
+    const result = await this.ingest.process(
+      eventId,
+      context,
+      operation?.payload.resolvedTargetLeadId,
+    );
     if (result.outcome === 'quarantined') return result;
     return { outcome: 'succeeded' };
   }

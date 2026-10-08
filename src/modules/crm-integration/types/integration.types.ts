@@ -76,4 +76,7 @@ export type OperationPayload = {
   errorCode?: string;
   targetVersion?: number;
   revisions?: RevisionSet;
+  remoteAbsenceConfirmed?: boolean;
+  resolvedTargetLeadId?: UUID;
+  idempotencyKeys?: Record<string, { bodyHash: string }>;
 };

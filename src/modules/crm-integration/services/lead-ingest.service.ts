@@ -51,7 +51,11 @@ export class LeadIngestService {
     private readonly region = 'VN',
   ) {}
 
-  async process(eventId: string, context: OperationContext): Promise<IngestOutcome> {
+  async process(
+    eventId: string,
+    context: OperationContext,
+    resolvedTargetLeadId?: string,
+  ): Promise<IngestOutcome> {
     await context.assertOwnership();
     return this.dataSource.transaction(async (manager) => {
       const event = await manager
@@ -144,7 +148,7 @@ export class LeadIngestService {
             manager,
           );
           const leadIds = [...new Set(found.map((identity) => identity.leadId))];
-          if (leadIds.length > 1) {
+          if (leadIds.length > 1 && !resolvedTargetLeadId) {
             await manager.getRepository(WebhookEventEntity).update(event.id, {
               status: 'quarantined',
               errorCode: 'IDENTITY_CONFLICT',
@@ -153,7 +157,18 @@ export class LeadIngestService {
           }
 
           const repo = manager.getRepository(LeadEntity);
-          let lead = leadIds.length ? await repo.findOne({ where: { id: leadIds[0] } }) : null;
+          let lead = resolvedTargetLeadId
+            ? await repo.findOne({ where: { id: resolvedTargetLeadId } })
+            : leadIds.length
+              ? await repo.findOne({ where: { id: leadIds[0] } })
+              : null;
+          if (resolvedTargetLeadId && (!lead || lead.advertiserId !== normalized.advertiserId)) {
+            await manager.getRepository(WebhookEventEntity).update(event.id, {
+              status: 'quarantined',
+              errorCode: 'IDENTITY_TARGET_SCOPE_MISMATCH',
+            });
+            return { outcome: 'quarantined', errorCode: 'IDENTITY_TARGET_SCOPE_MISMATCH' };
+          }
           const occurredAt = new Date(normalized.occurredAt ?? event.receivedAt.toISOString());
           const submissionId = uuidv7();
           const submission = this.createSubmission(
