@@ -59,6 +59,17 @@ export class AggregateLeaseRepository {
     const rows = returnedRows<{ lease_key: string }>(result);
     return rows.length === 1;
   }
+
+  async isOwner(lease: AggregateLease): Promise<boolean> {
+    const rows = await this.dataSource.query<{ owned: boolean }[]>(
+      `SELECT EXISTS (
+         SELECT 1 FROM ${this.table}
+         WHERE lease_key = $1 AND owner_token = $2 AND expires_at > NOW()
+       ) AS owned`,
+      [lease.key, lease.ownerToken],
+    );
+    return rows[0]?.owned === true;
+  }
 }
 
 function returnedRows<T>(result: unknown): T[] {
