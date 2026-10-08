@@ -17,7 +17,7 @@ export function encodeBatchCommand(method: string, params: Record<string, unknow
         walk(`${key}[${encodeURIComponent(name)}]`, item);
       }
     } else {
-      pairs.push(`${key}=${encodeURIComponent(String(value as string | number | boolean))}`);
+      pairs.push(`${key}=${encodeURIComponent(value as string | number | boolean)}`);
     }
   };
 
