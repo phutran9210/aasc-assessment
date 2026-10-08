@@ -11,13 +11,13 @@ export type {
   BitrixInstallationSnapshot,
   RefreshLease,
 } from './types/bitrix-installation-snapshot.type.js';
-export type { BitrixCallOptions, BitrixResult } from './services/bitrix-api.service.js';
+export type { BitrixCallOptions, BitrixResult } from './types/bitrix-api.types.js';
 export { BitrixApiService } from './services/bitrix-api.service.js';
 export type {
   BitrixBatchCommand,
   BitrixBatchError,
   BitrixBatchOutcome,
-} from './services/bitrix-batch.service.js';
+} from './types/bitrix-batch.types.js';
 export { BitrixBatchService } from './services/bitrix-batch.service.js';
 export {
   BitrixHttpError,

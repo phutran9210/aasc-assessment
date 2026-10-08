@@ -3,7 +3,7 @@ import { Controller, Get, UseGuards, UsePipes, ValidationPipe, Req, Query } from
 import { IntegrationJwtGuard } from '@modules/integration-auth/guards/integration-jwt.guard.js';
 import { IntegrationRolesGuard } from '@modules/integration-auth/guards/roles.guard.js';
 import { Roles } from '@modules/integration-auth/decorators/roles.decorator.js';
-import type { AuthenticatedRequest } from '@modules/integration-auth/types/authenticated-request.type.js';
+import type { AuthenticatedRequest } from '@modules/integration-auth/types/index.js';
 import { LeadQueryDto } from '../dto/lead-query.dto.js';
 import { IntegrationReadService } from '../services/integration-read.service.js';
 

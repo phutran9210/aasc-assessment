@@ -56,3 +56,10 @@ export const RETRYABLE_OPERATION_KINDS = [
   OPERATION_KINDS.tiktokFeedback,
   OPERATION_KINDS.crmTimeline,
 ] as const;
+
+export function retryQueueForOperation(
+  kind: string,
+): (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES] | undefined {
+  if (!(RETRYABLE_OPERATION_KINDS as readonly string[]).includes(kind)) return undefined;
+  return OPERATION_QUEUE[kind as (typeof RETRYABLE_OPERATION_KINDS)[number]];
+}

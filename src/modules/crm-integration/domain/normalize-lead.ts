@@ -1,4 +1,4 @@
-import type { ProviderLead } from '@modules/tiktok/ports/tiktok-lead-provider.port.js';
+import type { ProviderLead } from '@modules/tiktok/types/index.js';
 import type {
   NormalizationResult,
   NormalizationWarning,

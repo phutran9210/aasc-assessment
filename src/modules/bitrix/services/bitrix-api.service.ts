@@ -22,25 +22,14 @@ import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.po
 import type { BitrixInstallationStore } from '../ports/bitrix-installation-store.port.js';
 import { BITRIX_REQUEST_LIMITER } from '../ports/bitrix-request-limiter.port.js';
 import type { BitrixRequestLimiter } from '../ports/bitrix-request-limiter.port.js';
+import type { BitrixCallOptions, BitrixResult } from '../types/bitrix-api.types.js';
+export type { BitrixCallOptions, BitrixResult } from '../types/bitrix-api.types.js';
 import {
   BitrixHttpError,
   BitrixHttpTransport,
   isTransientBitrixError,
 } from './bitrix-http-transport.service.js';
 import { BitrixOAuthService } from './bitrix-oauth.service.js';
-
-export type BitrixResult<T> = { result: T; total?: number };
-
-export type BitrixCallOptions = {
-  /** Also retry timeouts, network failures and 5xx. Only safe for calls that change nothing. */
-  retryTransient?: boolean;
-  /** Retries for transient failures; defaults to the rate-limit retry count. */
-  maxRetries?: number;
-  /** Overrides the default request timeout, for long calls such as `batch`. */
-  timeoutMs?: number;
-  /** Disable internal QUERY_LIMIT_EXCEEDED retries when an outer worker owns retry policy. */
-  retryRateLimit?: boolean;
-};
 
 /** Generic gateway to the Bitrix24 REST API used by the feature modules. */
 @Injectable()

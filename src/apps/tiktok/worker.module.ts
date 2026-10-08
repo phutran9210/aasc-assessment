@@ -46,7 +46,7 @@ import { DealPollSchedulerService } from '@modules/crm-integration/services/deal
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
 import { FeedbackHandler } from '@modules/tiktok/workers/feedback.handler.js';
 import { TIKTOK_FEEDBACK_PROVIDER } from '@modules/tiktok/ports/tiktok-feedback-provider.port.js';
-import type { TiktokFeedbackProvider } from '@modules/tiktok/ports/tiktok-feedback-provider.port.js';
+import type { TiktokFeedbackProvider } from '@modules/tiktok/types/index.js';
 import { MockTiktokAdapter } from '@modules/tiktok/adapters/mock-tiktok.adapter.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');

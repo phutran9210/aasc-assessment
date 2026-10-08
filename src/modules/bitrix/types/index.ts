@@ -1,3 +1,10 @@
+export type { BitrixCallOptions, BitrixResult } from './bitrix-api.types.js';
+export type {
+  BitrixBatchCommand,
+  BitrixBatchError,
+  BitrixBatchOutcome,
+} from './bitrix-batch.types.js';
+
 export type BitrixTokenSet = {
   memberId: string;
   domain: string;

@@ -5,13 +5,9 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
-import {
-  OPERATION_QUEUE,
-  RETRYABLE_OPERATION_KINDS,
-  QUEUE_NAMES,
-} from '@core/queue/constants/operation.constants.js';
+import { QUEUE_NAMES, retryQueueForOperation } from '@core/queue/constants/operation.constants.js';
 import type { QueueName } from '@core/queue/types/operation.types.js';
-import type { Actor } from '@modules/integration-auth/types/actor.type.js';
+import type { Actor } from '@modules/integration-auth/types/index.js';
 import { AuditEventEntity } from '../entities/audit-event.entity.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
@@ -479,10 +475,11 @@ export class OperationControlService {
 }
 
 function queueFor(kind: string): QueueName {
-  if (!(RETRYABLE_OPERATION_KINDS as readonly string[]).includes(kind)) {
+  const queue = retryQueueForOperation(kind);
+  if (!queue) {
     throw new ConflictException('Operation kind cannot be retried');
   }
-  return OPERATION_QUEUE[kind as (typeof RETRYABLE_OPERATION_KINDS)[number]];
+  return queue;
 }
 
 function auditState(operation: OperationEntity): Record<string, unknown> {

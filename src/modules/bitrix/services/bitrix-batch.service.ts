@@ -3,15 +3,18 @@ import { Injectable } from '@nestjs/common';
 import { BITRIX_BATCH } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
 import { encodeBatchCommand } from '../utils/batch-command.encoder.js';
+import type {
+  BitrixBatchCommand,
+  BitrixBatchError,
+  BitrixBatchOutcome,
+} from '../types/bitrix-batch.types.js';
+export type {
+  BitrixBatchCommand,
+  BitrixBatchError,
+  BitrixBatchOutcome,
+} from '../types/bitrix-batch.types.js';
 import { BitrixApiService } from './bitrix-api.service.js';
-import type { BitrixCallOptions } from './bitrix-api.service.js';
-
-export type BitrixBatchCommand = { key: string; method: string; params: Record<string, unknown> };
-export type BitrixBatchError = { code: string; message: string };
-export type BitrixBatchOutcome = {
-  results: Map<string, unknown>;
-  errors: Map<string, BitrixBatchError>;
-};
+import type { BitrixCallOptions } from '../types/bitrix-api.types.js';
 
 type BatchPayload = { result?: unknown; result_error?: unknown };
 

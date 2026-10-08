@@ -1,4 +1,6 @@
-export type OperationFailureKind = 'transient' | 'rate_limit' | 'mutation_timeout' | 'validation';
+import type { OperationFailureKind, RetryDecision } from '../types/retry-policy.types.js';
+
+export type { OperationFailureKind, RetryDecision } from '../types/retry-policy.types.js';
 
 export class OperationFailure extends Error {
   constructor(
@@ -10,12 +12,6 @@ export class OperationFailure extends Error {
     this.name = 'OperationFailure';
   }
 }
-
-export type RetryDecision =
-  | { outcome: 'retry_wait'; nextAttemptAt: Date; errorCode: string }
-  | { outcome: 'reconcile_required'; errorCode: string }
-  | { outcome: 'quarantined'; errorCode: string }
-  | { outcome: 'dead_letter'; errorCode: string };
 
 export class RetryPolicy {
   private readonly maxAttempts: number;
