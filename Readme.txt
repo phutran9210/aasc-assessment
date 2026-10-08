@@ -1041,8 +1041,9 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
 
       Chế độ BITRIX24_WEBHOOK_URL đã chạy thật ngày 08/10/2026 với một incoming webhook
       quyền CRM: chạy thử, cập nhật một lead, chạy lại (skipped) và nhận sự kiện real-time.
-      Sự kiện vẫn đến qua đăng ký event.bind của ứng dụng đã cài; outgoing webhook tạo tay
-      cùng BITRIX24_OUTGOING_TOKEN thì chưa thử.
+      Outgoing webhook tạo tay cùng BITRIX24_OUTGOING_TOKEN cũng đã chạy thật: mỗi lần đổi
+      một lead, Bitrix24 gửi hai sự kiện (của ứng dụng đã cài và của outgoing webhook), cả
+      hai được chấp nhận và lead chỉ được kéo về một lần; token lạ bị trả 403.
 
       Google OAuth đã chạy thật ngày 08/10/2026: cấp quyền qua /google/oauth/authorize, đọc
       và ghi Sheet bằng refresh token, rồi chạy trọn chiều đi, kéo về và real-time.
