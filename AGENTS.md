@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This NestJS 12 TypeScript application keeps runtime code under `src/`: shared utilities in `src/common/`, infrastructure in `src/core/`, configuration in `src/config/`, and feature modules in `src/modules/` (`auth`, `user`, `task`, `caro`, `line98`, `bitrix`, `contact`, `jotform`, `google-sheets`, and `lead-sync`). CLI entry points live in `src/cli/`; the default lead mapping is `config/mapping.json` and sample sheets are in `samples/`. Keep each feature's controllers, services, repositories, DTOs, entities, gateways, and tests together. Unit tests use `src/**/__tests__/*.spec.ts`; end to end tests are in `test/`. Browser assets are in `public/`, exercises in `scripts/fibonacci/`, and documents in `docs/`.
+This NestJS 12 TypeScript application keeps runtime code under `src/`: shared utilities in `src/common/`, infrastructure in `src/core/`, configuration in `src/config/`, and feature modules in `src/modules/` (`auth`, `user`, `task`, `caro`, `line98`, `bitrix`, `contact`, `jotform`, `google-sheets`, and `lead-sync`). CLI entry points live in `src/cli/`; the default lead mapping is `config/mapping.json` and sample sheets are in `samples/`. Keep each feature's controllers, services, repositories, DTOs, entities, gateways, and tests together. Unit tests use `src/**/__tests__/*.spec.ts`; end to end tests are in `test/`. Browser assets are in `public/`, exercises in `scripts/fibonacci/`, user guides in `huong-dan/`, and working documents in `docs/` (not committed).
 
 ## Build, Test, and Development Commands
 
