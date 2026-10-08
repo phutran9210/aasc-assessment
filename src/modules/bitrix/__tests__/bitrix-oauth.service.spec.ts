@@ -1,10 +1,11 @@
 import { ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
-import { bitrixConfig } from '@config/index.js';
-
-import { BitrixInstallationRepository } from '../repositories/bitrix-installation.repository.js';
+import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
+import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
+import { BITRIX_OAUTH_STATE_STORE } from '../ports/bitrix-oauth-state-store.port.js';
 import { BitrixHttpTransport } from '../services/bitrix-http-transport.service.js';
+import { MemoryOAuthStateStore } from '../services/memory-oauth-state-store.js';
 import { BitrixOAuthService } from '../services/bitrix-oauth.service.js';
 import type { BitrixInstallEvent } from '../types/index.js';
 
@@ -41,19 +42,27 @@ describe('BitrixOAuthService', () => {
     releaseRefreshLock: jest.fn(),
   };
   let service: BitrixOAuthService;
+  let stateStore: MemoryOAuthStateStore;
+  const lease = {
+    installationId: 'id-1',
+    ownerToken: 'lease-1',
+    expiresAt: new Date(Date.now() + 60_000),
+  };
 
   beforeEach(async () => {
     jest.resetAllMocks();
-    repository.acquireRefreshLock.mockResolvedValue(true);
+    repository.acquireRefreshLock.mockResolvedValue(lease);
     repository.replaceTokens.mockResolvedValue(true);
+    stateStore = new MemoryOAuthStateStore();
     jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     const moduleRef = await Test.createTestingModule({
       providers: [
         BitrixOAuthService,
         { provide: BitrixHttpTransport, useValue: transport },
-        { provide: BitrixInstallationRepository, useValue: repository },
+        { provide: BITRIX_INSTALLATION_STORE, useValue: repository },
+        { provide: BITRIX_OAUTH_STATE_STORE, useValue: stateStore },
         {
-          provide: bitrixConfig.KEY,
+          provide: BITRIX_CONFIG,
           useValue: {
             clientId: 'client-id',
             clientSecret: 'client-secret',
@@ -209,7 +218,7 @@ describe('BitrixOAuthService', () => {
     });
     await expect(service.getAccessToken()).resolves.toBe('new-access');
     expect(repository.replaceTokens).toHaveBeenCalledWith(
-      'id-1',
+      lease,
       'old-refresh',
       expect.objectContaining({ accessToken: 'new-access', refreshToken: 'new-refresh' }),
     );
@@ -234,7 +243,7 @@ describe('BitrixOAuthService', () => {
     await service.getAccessToken();
 
     expect(repository.replaceTokens).toHaveBeenCalledWith(
-      undefined,
+      lease,
       'old-refresh',
       expect.objectContaining({ domain: 'portal.bitrix24.com', scope: 'crm' }),
     );
@@ -301,7 +310,7 @@ describe('BitrixOAuthService', () => {
     });
 
     it('should wait for another process holding the lock instead of refreshing twice', async () => {
-      repository.acquireRefreshLock.mockResolvedValue(false);
+      repository.acquireRefreshLock.mockResolvedValue(null);
       repository.findCurrent
         .mockResolvedValueOnce(stored())
         .mockResolvedValue(stored({ accessToken: 'other-access', refreshToken: 'other-refresh' }));
@@ -311,7 +320,7 @@ describe('BitrixOAuthService', () => {
     });
 
     it('should take over when the other process releases the lock without refreshing', async () => {
-      repository.acquireRefreshLock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+      repository.acquireRefreshLock.mockResolvedValueOnce(null).mockResolvedValueOnce(lease);
       repository.findCurrent.mockResolvedValue(stored());
       transport.getJson.mockResolvedValue(refreshed);
 

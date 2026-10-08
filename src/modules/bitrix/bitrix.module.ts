@@ -1,27 +1,38 @@
 import { AppConfigModule } from '@config/index.js';
+import { bitrixConfig } from '@config/index.js';
 import { DatabaseModule } from '@core/database/index.js';
 
 import { Module } from '@nestjs/common';
 
 import { BitrixInstallController } from './controllers/bitrix-install.controller.js';
+import { BitrixCoreModule, BITRIX_CONFIG } from './bitrix-core.module.js';
 import { BitrixInstallationRepository } from './repositories/bitrix-installation.repository.js';
-import { BitrixApiService } from './services/bitrix-api.service.js';
-import { BitrixBatchService } from './services/bitrix-batch.service.js';
-import { BitrixHttpTransport } from './services/bitrix-http-transport.service.js';
-import { BitrixOAuthService } from './services/bitrix-oauth.service.js';
 import { BitrixRateLimiter } from './services/bitrix-rate-limiter.service.js';
+import { MemoryOAuthStateStore } from './services/memory-oauth-state-store.js';
+import { BITRIX_INSTALLATION_STORE } from './ports/bitrix-installation-store.port.js';
+import { BITRIX_OAUTH_STATE_STORE } from './ports/bitrix-oauth-state-store.port.js';
+import { BITRIX_REQUEST_LIMITER } from './ports/bitrix-request-limiter.port.js';
 
 @Module({
-  imports: [AppConfigModule, DatabaseModule],
-  controllers: [BitrixInstallController],
-  providers: [
-    BitrixInstallationRepository,
-    BitrixHttpTransport,
-    BitrixRateLimiter,
-    BitrixOAuthService,
-    BitrixApiService,
-    BitrixBatchService,
+  imports: [
+    BitrixCoreModule.register({
+      imports: [AppConfigModule, DatabaseModule],
+      providers: [
+        BitrixInstallationRepository,
+        BitrixRateLimiter,
+        MemoryOAuthStateStore,
+        { provide: BITRIX_INSTALLATION_STORE, useExisting: BitrixInstallationRepository },
+        { provide: BITRIX_REQUEST_LIMITER, useExisting: BitrixRateLimiter },
+        { provide: BITRIX_OAUTH_STATE_STORE, useExisting: MemoryOAuthStateStore },
+        {
+          provide: BITRIX_CONFIG,
+          inject: [bitrixConfig.KEY],
+          useFactory: (config: unknown) => config,
+        },
+      ],
+    }),
   ],
-  exports: [BitrixApiService, BitrixBatchService],
+  controllers: [BitrixInstallController],
+  exports: [BitrixCoreModule],
 })
 export class BitrixModule {}

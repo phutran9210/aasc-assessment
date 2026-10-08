@@ -1,10 +1,10 @@
-import { bitrixConfig } from '@config/index.js';
 import type { BitrixConfig } from '@config/index.js';
 
 import { Inject, Injectable } from '@nestjs/common';
 
 import { BITRIX_TIME_LIMIT_ERROR } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
+import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
 import type { BitrixRestEnvelope } from '../types/index.js';
 
 /** A failed Bitrix24 call: carries the Bitrix error code, the HTTP status and a timeout flag. */
@@ -37,7 +37,7 @@ export function isTransientBitrixError(error: unknown): boolean {
  */
 @Injectable()
 export class BitrixHttpTransport {
-  constructor(@Inject(bitrixConfig.KEY) private readonly config: BitrixConfig) {}
+  constructor(@Inject(BITRIX_CONFIG) private readonly config: BitrixConfig) {}
 
   /** GET used for the token endpoint of the authorization server. */
   async getJson<T>(url: string): Promise<T> {

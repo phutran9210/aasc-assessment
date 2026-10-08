@@ -48,7 +48,7 @@ describe('BitrixRateLimiter', () => {
   });
 
   it('should make callers wait after Bitrix24 itself reports the limit', async () => {
-    limiter.saturate();
+    await limiter.saturate();
 
     await expect(settlesWithin(limiter.acquire(), 0)).resolves.toBe(false);
   });

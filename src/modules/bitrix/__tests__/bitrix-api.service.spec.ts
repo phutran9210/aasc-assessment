@@ -1,9 +1,9 @@
-import { bitrixConfig } from '@config/index.js';
-
 import { BadGatewayException, GatewayTimeoutException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
-import { BitrixInstallationRepository } from '../repositories/bitrix-installation.repository.js';
+import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
+import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
+import { BITRIX_REQUEST_LIMITER } from '../ports/bitrix-request-limiter.port.js';
 import { BitrixApiService } from '../services/bitrix-api.service.js';
 import { BitrixHttpError, BitrixHttpTransport } from '../services/bitrix-http-transport.service.js';
 import { BitrixOAuthService } from '../services/bitrix-oauth.service.js';
@@ -24,11 +24,11 @@ describe('BitrixApiService', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         BitrixApiService,
-        BitrixRateLimiter,
-        { provide: BitrixInstallationRepository, useValue: repository },
+        { provide: BITRIX_REQUEST_LIMITER, useValue: new BitrixRateLimiter() },
+        { provide: BITRIX_INSTALLATION_STORE, useValue: repository },
         { provide: BitrixOAuthService, useValue: oauth },
         { provide: BitrixHttpTransport, useValue: transport },
-        { provide: bitrixConfig.KEY, useValue: { webhookUrl } },
+        { provide: BITRIX_CONFIG, useValue: { webhookUrl } },
       ],
     }).compile();
     return moduleRef.get(BitrixApiService);
@@ -105,6 +105,16 @@ describe('BitrixApiService', () => {
       await expect(call).resolves.toEqual({ id: 1 });
       expect(transport.postRest).toHaveBeenCalledTimes(3);
       expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('does not retry rate limits when the caller owns retry policy', async () => {
+      const failure = limited();
+      transport.postRest.mockRejectedValueOnce(failure);
+
+      await expect(service.callRaw('crm.item.list', {}, { retryRateLimit: false })).rejects.toBe(
+        failure,
+      );
+      expect(transport.postRest).toHaveBeenCalledTimes(1);
     });
 
     it('answers 429 when the limit is still exceeded after the last retry', async () => {

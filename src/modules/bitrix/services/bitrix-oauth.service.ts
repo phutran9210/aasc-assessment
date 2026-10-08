@@ -1,4 +1,3 @@
-import { bitrixConfig } from '@config/index.js';
 import type { BitrixConfig } from '@config/index.js';
 import { Temporal, nowIso, nowMs } from '@common/utils/index.js';
 
@@ -10,9 +9,16 @@ import {
 } from '@nestjs/common';
 
 import { BITRIX_EVENT_NAMES, BITRIX_REFRESH_LOCK, BITRIX_REST } from '../constants/index.js';
-import type { BitrixInstallation } from '../entities/bitrix-installation.entity.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
-import { BitrixInstallationRepository } from '../repositories/bitrix-installation.repository.js';
+import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
+import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
+import type { BitrixInstallationStore } from '../ports/bitrix-installation-store.port.js';
+import { BITRIX_OAUTH_STATE_STORE } from '../ports/bitrix-oauth-state-store.port.js';
+import type { OAuthStateStore } from '../ports/bitrix-oauth-state-store.port.js';
+import type {
+  BitrixInstallationSnapshot,
+  RefreshLease,
+} from '../types/bitrix-installation-snapshot.type.js';
 import { BitrixHttpError, BitrixHttpTransport } from './bitrix-http-transport.service.js';
 import type { BitrixInstallEvent, BitrixRestEnvelope, BitrixTokenSet } from '../types/index.js';
 
@@ -31,13 +37,13 @@ type OAuthTokenResponse = {
 /** Obtains, stores and refreshes the OAuth 2.0 token pair of the installed application. */
 @Injectable()
 export class BitrixOAuthService {
-  private readonly states = new Map<string, number>();
   private refreshPromise: Promise<string> | undefined;
 
   constructor(
     private readonly transport: BitrixHttpTransport,
-    private readonly repository: BitrixInstallationRepository,
-    @Inject(bitrixConfig.KEY) private readonly config: BitrixConfig,
+    @Inject(BITRIX_INSTALLATION_STORE) private readonly repository: BitrixInstallationStore,
+    @Inject(BITRIX_OAUTH_STATE_STORE) private readonly stateStore: OAuthStateStore,
+    @Inject(BITRIX_CONFIG) private readonly config: BitrixConfig,
   ) {}
 
   /**
@@ -77,22 +83,21 @@ export class BitrixOAuthService {
   }
 
   /** Builds the consent URL and remembers a one-time `state` to protect the callback (CSRF). */
-  createAuthorizationUrl(): Promise<string> {
+  async createAuthorizationUrl(): Promise<string> {
     if (!this.config.clientId || !this.config.portalDomain) {
       throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.CONFIG);
     }
-    const state = crypto.randomUUID();
-    this.states.set(state, nowMs() + this.config.stateTtlSeconds * 1000);
+    const state = await this.stateStore.issue(this.config.stateTtlSeconds * 1000);
     const url = new URL(`https://${this.config.portalDomain}/oauth/authorize/`);
     url.searchParams.set('client_id', this.config.clientId);
     url.searchParams.set('state', state);
-    return Promise.resolve(url.toString());
+    return url.toString();
   }
 
   /** Second half of the full OAuth flow: checks `state`, exchanges `code`, stores the tokens. */
   async completeAuthorization(code: string, state: string): Promise<void> {
     if (!code) throw new BadRequestException(BITRIX_MESSAGES.ERROR.CODE_REQUIRED);
-    if (!this.consumeState(state))
+    if (!(await this.stateStore.consume(state)))
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.STATE_INVALID);
     const token = await this.exchange({ grant_type: 'authorization_code', code });
     await this.repository.saveTokens(this.toTokenSet(token, null));
@@ -131,12 +136,12 @@ export class BitrixOAuthService {
         throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.INSTALLATION_REQUIRED);
       if (this.isAlreadyRefreshed(current, rejectedToken)) return current.accessToken;
 
-      const locked = await this.repository.acquireRefreshLock(
+      const lease = await this.repository.acquireRefreshLock(
         current.id,
         current.refreshToken,
         BITRIX_REFRESH_LOCK.LEASE_MS,
       );
-      if (locked) return this.refreshWithLock(current);
+      if (lease) return this.refreshWithLock(current, lease);
 
       // Another process is refreshing: wait for its result instead of spending the same
       // refresh token twice. If it gives up, the next round takes the lock over.
@@ -147,7 +152,10 @@ export class BitrixOAuthService {
     }
   }
 
-  private async refreshWithLock(current: BitrixInstallation): Promise<string> {
+  private async refreshWithLock(
+    current: BitrixInstallationSnapshot,
+    lease: RefreshLease,
+  ): Promise<string> {
     let token: OAuthTokenResponse;
     try {
       token = await this.exchange({
@@ -155,7 +163,7 @@ export class BitrixOAuthService {
         refresh_token: current.refreshToken,
       });
     } catch (error) {
-      await this.repository.releaseRefreshLock(current.id);
+      await this.repository.releaseRefreshLock(lease);
       if (error instanceof BitrixHttpError) {
         throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.REFRESH_FAILED);
       }
@@ -163,7 +171,7 @@ export class BitrixOAuthService {
     }
 
     // A refresh answers with scope "app", so the scope granted at install time is kept.
-    const stored = await this.repository.replaceTokens(current.id, current.refreshToken, {
+    const stored = await this.repository.replaceTokens(lease, current.refreshToken, {
       ...this.toTokenSet(token, current.applicationToken),
       scope: current.scope,
     });
@@ -175,12 +183,12 @@ export class BitrixOAuthService {
     return latest.accessToken;
   }
 
-  private isAlreadyRefreshed(current: BitrixInstallation, rejectedToken?: string): boolean {
+  private isAlreadyRefreshed(current: BitrixInstallationSnapshot, rejectedToken?: string): boolean {
     if (rejectedToken !== undefined) return current.accessToken !== rejectedToken;
     return !this.isNearExpiry(current);
   }
 
-  private isNearExpiry(current: BitrixInstallation): boolean {
+  private isNearExpiry(current: BitrixInstallationSnapshot): boolean {
     const expiresAt = Temporal.Instant.from(current.accessTokenExpiresAt.toISOString());
     const threshold = Temporal.Instant.from(nowIso()).add({
       seconds: this.config.refreshSkewSeconds,
@@ -222,12 +230,6 @@ export class BitrixOAuthService {
       applicationToken,
       expiresIn: token.expires_in,
     };
-  }
-
-  private consumeState(state: string): boolean {
-    const expiresAt = this.states.get(state);
-    this.states.delete(state);
-    return expiresAt !== undefined && expiresAt > nowMs();
   }
 
   private validateAuth(auth: BitrixInstallEvent['auth']): void {

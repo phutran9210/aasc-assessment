@@ -1,7 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 
 import { backoffDelayMs, sleep } from '@common/utils/index.js';
-import { bitrixConfig } from '@config/index.js';
 import type { BitrixConfig } from '@config/index.js';
 
 import {
@@ -18,14 +17,17 @@ import {
 
 import { BITRIX_RATE_LIMIT } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
-import { BitrixInstallationRepository } from '../repositories/bitrix-installation.repository.js';
+import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
+import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
+import type { BitrixInstallationStore } from '../ports/bitrix-installation-store.port.js';
+import { BITRIX_REQUEST_LIMITER } from '../ports/bitrix-request-limiter.port.js';
+import type { BitrixRequestLimiter } from '../ports/bitrix-request-limiter.port.js';
 import {
   BitrixHttpError,
   BitrixHttpTransport,
   isTransientBitrixError,
 } from './bitrix-http-transport.service.js';
 import { BitrixOAuthService } from './bitrix-oauth.service.js';
-import { BitrixRateLimiter } from './bitrix-rate-limiter.service.js';
 
 export type BitrixResult<T> = { result: T; total?: number };
 
@@ -36,6 +38,8 @@ export type BitrixCallOptions = {
   maxRetries?: number;
   /** Overrides the default request timeout, for long calls such as `batch`. */
   timeoutMs?: number;
+  /** Disable internal QUERY_LIMIT_EXCEEDED retries when an outer worker owns retry policy. */
+  retryRateLimit?: boolean;
 };
 
 /** Generic gateway to the Bitrix24 REST API used by the feature modules. */
@@ -44,11 +48,12 @@ export class BitrixApiService {
   private readonly logger = new Logger(BitrixApiService.name);
 
   constructor(
-    private readonly installationRepository: BitrixInstallationRepository,
+    @Inject(BITRIX_INSTALLATION_STORE)
+    private readonly installationRepository: BitrixInstallationStore,
     private readonly oauthService: BitrixOAuthService,
     private readonly transport: BitrixHttpTransport,
-    private readonly rateLimiter: BitrixRateLimiter,
-    @Inject(bitrixConfig.KEY) private readonly config: Pick<BitrixConfig, 'webhookUrl'>,
+    @Inject(BITRIX_REQUEST_LIMITER) private readonly rateLimiter: BitrixRequestLimiter,
+    @Inject(BITRIX_CONFIG) private readonly config: Pick<BitrixConfig, 'webhookUrl'>,
   ) {}
 
   /** `webhook` when BITRIX24_WEBHOOK_URL is set, otherwise the installed OAuth application. */
@@ -150,7 +155,9 @@ export class BitrixApiService {
         return await this.call<T>(endpoint, method, payload, token, options.timeoutMs);
       } catch (error) {
         const limited = this.isRateLimited(error);
-        if (limited) this.rateLimiter.saturate();
+        if (limited) await this.rateLimiter.saturate();
+
+        if (limited && options.retryRateLimit === false) throw error;
 
         const transient = !limited && options.retryTransient && isTransientBitrixError(error);
         if (!limited && !transient) throw error;

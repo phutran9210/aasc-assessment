@@ -4,6 +4,7 @@ import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 
 import { BITRIX_RATE_LIMIT } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
+import type { BitrixRequestLimiter } from '../ports/bitrix-request-limiter.port.js';
 
 /**
  * Client-side mirror of the Bitrix24 leaky bucket (a counter that grows by one per request and
@@ -14,7 +15,7 @@ import { BITRIX_MESSAGES } from '../messages/index.js';
  * retry in BitrixApiService stays as the safety net.
  */
 @Injectable()
-export class BitrixRateLimiter {
+export class BitrixRateLimiter implements BitrixRequestLimiter {
   private level = 0;
   private updatedAt = nowMs();
 
@@ -32,9 +33,10 @@ export class BitrixRateLimiter {
   }
 
   /** Bitrix24 reported the limit: treat the bucket as full so the next calls slow down. */
-  saturate(): void {
+  saturate(): Promise<void> {
     this.drain();
     this.level = Math.max(this.level, BITRIX_RATE_LIMIT.BURST);
+    return Promise.resolve();
   }
 
   private drain(): void {
