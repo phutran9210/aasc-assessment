@@ -365,6 +365,8 @@ Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 14 lần (1 `crm.sett
 | Google OAuth                         | Cấp quyền, đọc và ghi Sheet bằng refresh token, chạy trọn cả hai chiều                                                                                     |
 | Incoming webhook                     | Chạy thử, cập nhật lead, chạy lại và real-time đều đạt                                                                                                     |
 | Outgoing webhook                     | Sự kiện của webhook ra và của ứng dụng đã cài cùng được chấp nhận; lead được kéo về một lần; token lạ bị trả 403                                           |
+| Lead tạo trong Bitrix24              | Outgoing webhook gửi `ONCRMLEADADD`; sau khoảng 4 giây lead thành hàng mới kèm Lead ID; lần chạy chiều đi sau đó `skipped`, không có lead trùng            |
+| Cột `"pull": true`                   | Đổi công ty và ngân sách của lead trong Bitrix24: hai ô của hàng đổi theo; lần chạy chiều đi sau đó `skipped`                                              |
 
 Chưa kiểm trên hệ thống thật: việc thử lại khi gặp rate limit và timeout của Bitrix24. Portal có trả `QUERY_LIMIT_EXCEEDED` khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp, nên nhánh này mới có test tự động.
 
