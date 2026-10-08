@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "sheet": { "headerRow": 1 },
+  "titleTemplate": "{Tên khách hàng} - {Công ty}",
+  "defaults": { "currencyId": "VND", "stageId": "NEW", "assignedById": 1 },
+  "dedupe": { "keys": ["email", "phone"], "requireAtLeastOne": true },
+  "fields": [
+    { "column": "Tên khách hàng", "field": "name", "type": "string", "required": true },
+    { "column": "Email", "field": "email", "type": "email" },
+    { "column": "Số điện thoại", "field": "phone", "type": "phone" },
+    { "column": "Công ty", "field": "companyTitle", "type": "string" },
+    { "column": "Nguồn lead (UTM Source)", "field": "utmSource", "type": "string" },
+    { "column": "Ngân sách dự kiến", "field": "opportunity", "type": "number" },
+    {
+      "column": "Trạng thái",
+      "field": "stageId",
+      "type": "enum",
+      "values": {
+        "Mới": "NEW",
+        "Đang liên hệ": "IN_PROCESS",
+        "Đã xử lý": "PROCESSED",
+        "Không đạt": "JUNK"
+      },
+      "onUnknown": "error"
+    },
+    { "column": "Người phụ trách", "field": "assignedById", "type": "user", "values": {} },
+    { "column": "Ghi chú", "field": "comments", "type": "string" }
+  ]
+}

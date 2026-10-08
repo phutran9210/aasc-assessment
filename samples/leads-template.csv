@@ -1,0 +1,6 @@
+Tên khách hàng,Email,Số điện thoại,Công ty,Nguồn lead (UTM Source),Ngân sách dự kiến,Trạng thái,Người phụ trách,Ghi chú
+Nguyễn Văn An,an.nguyen@example.com,0901234567,Công ty TNHH An Phát,facebook,15000000,Mới,,Quan tâm gói doanh nghiệp
+Trần Thị Bình,binh.tran@example.com,0912 345 678,Bình Minh JSC,google,"1.500.000 ₫",Đang liên hệ,,Hẹn gọi lại thứ Sáu
+Lê Hoàng Cường,,+84 933 222 111,Cường Thịnh,zalo,25tr,Mới,,Chỉ có số điện thoại
+Phạm Thu Dung,dung.pham@example.com,,Dung Hòa Group,referral,,Đã xử lý,,Chỉ có email
+Hoàng Minh Em,em.hoang@example,0987654321,Minh Em Co.,facebook,abc,Mới,,Hàng cố ý sai email và ngân sách để thử TC4
