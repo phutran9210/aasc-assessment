@@ -9,7 +9,7 @@ import {
 import type { ExecutionContext, RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 
-import type { TiktokAppConfig } from '../../../config/tiktok-app/env.validation.js';
+import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
 import { parseWebhookEnvelope, type VerifiedEvent } from '../domain/webhook-envelope.js';
 import { verifyMockSignature } from '../domain/mock-signature.js';
 

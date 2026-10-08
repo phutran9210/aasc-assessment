@@ -2,14 +2,14 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
-import type { Actor } from '../../integration-auth/types/actor.type.js';
+import type { Actor } from '@modules/integration-auth/types/actor.type.js';
 import type { DealQueryDto } from '../dto/deal-query.dto.js';
 import type { LeadQueryDto } from '../dto/lead-query.dto.js';
 import type { OperationQueryDto } from '../dto/operation-query.dto.js';
 import type { DealDto, LeadDto, OperationDto, Page } from '../dto/integration-response.dto.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 
 @Injectable()
 export class IntegrationReadService {

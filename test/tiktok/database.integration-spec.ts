@@ -1,7 +1,7 @@
 import { createTestDatabase } from './utils/test-database.js';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
-import { runMigrations } from '../../src/apps/tiktok/database/migration-runner.js';
-import { IntegrationUserEntity } from '../../src/modules/integration-auth/entities/integration-user.entity.js';
+import { runMigrations } from '@/apps/tiktok/database/migration-runner.js';
+import { IntegrationUserEntity } from '@modules/integration-auth/entities/integration-user.entity.js';
 
 class Failing1791417602000 implements MigrationInterface {
   name = 'Failing1791417602000';

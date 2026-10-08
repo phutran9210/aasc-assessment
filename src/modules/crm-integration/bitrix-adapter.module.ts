@@ -4,10 +4,10 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 import type { Redis } from 'ioredis';
 import type { DataSource } from 'typeorm';
 
-import { TiktokRedisModule } from '../../core/queue/redis.module.js';
-import { REDIS_CONNECTION_FACTORY } from '../../config/tiktok-app/redis.config.js';
-import type { RedisConnectionFactory } from '../../core/queue/redis-connection.js';
-import type { BitrixConfig } from '../../config/index.js';
+import { TiktokRedisModule } from '@core/queue/redis.module.js';
+import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
+import type { RedisConnectionFactory } from '@core/queue/redis-connection.js';
+import type { BitrixConfig } from '@config/index.js';
 import { BitrixCoreModule } from '../bitrix/bitrix-core.module.js';
 import { BITRIX_CONFIG } from '../bitrix/ports/bitrix-config.port.js';
 import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';

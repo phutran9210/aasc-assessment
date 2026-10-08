@@ -5,7 +5,7 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import type { DataSource } from 'typeorm';
 
-import { IntegrationUserEntity } from '../../src/modules/integration-auth/entities/integration-user.entity.js';
+import { IntegrationUserEntity } from '@modules/integration-auth/entities/integration-user.entity.js';
 import { createTestApp } from './utils/create-test-app.js';
 import type { TestApp } from './utils/create-test-app.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';

@@ -1,6 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
 
 @Entity({ name: 'integration_report_row_error' })
 @Index('uq_integration_report_row_error', ['reportJobId', 'rowNumber'], { unique: true })

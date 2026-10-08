@@ -3,15 +3,15 @@ import { createHash } from 'node:crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
-import type { OperationContext, OperationOutcome } from '../../../core/queue/types/worker.types.js';
-import { WebhookEventEntity } from '../../../core/queue/entities/webhook-event.entity.js';
-import { AnalyticsRevisionEntity } from '../../integration-analytics/entities/analytics-revision.entity.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, CrmMetadata, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { DealHistoryRepository } from '../repositories/deal-history.repository.js';
-import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
+import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
 
 @Injectable()
 export class DealRefreshService {

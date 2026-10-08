@@ -4,8 +4,8 @@ import { Pool } from 'pg';
 import type { DataSource } from 'typeorm';
 import type { MigrationInterface } from 'typeorm';
 
-import { validateTiktokEnv } from '../../../src/config/tiktok-app/env.validation.js';
-import { buildTiktokDataSource } from '../../../src/apps/tiktok/database/data-source.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
+import { buildTiktokDataSource } from '@/apps/tiktok/database/data-source.js';
 
 export type TestDatabase = {
   dataSource: DataSource;

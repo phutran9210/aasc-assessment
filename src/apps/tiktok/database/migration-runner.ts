@@ -2,7 +2,7 @@ import 'reflect-metadata';
 
 import { Logger } from '@nestjs/common';
 
-import { validateTiktokEnv } from '../../../config/tiktok-app/env.validation.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { buildTiktokDataSource } from './data-source.js';
 
 const logger = new Logger('TikTokMigrationRunner');

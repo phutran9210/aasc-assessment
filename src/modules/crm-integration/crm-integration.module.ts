@@ -3,7 +3,7 @@ import type { DynamicModule, Provider, Type } from '@nestjs/common';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
-import { TiktokDatabaseModule } from '../../apps/tiktok/database/database.module.js';
+import { TiktokDatabaseModule } from '@/apps/tiktok/database/database.module.js';
 import { IntegrationAuthModule } from '../integration-auth/integration-auth.module.js';
 import { BitrixCrmGateway } from './gateways/bitrix-crm.gateway.js';
 import { CRM_GATEWAY } from './ports/crm-gateway.port.js';
@@ -15,8 +15,8 @@ import { AssignmentService } from './services/assignment.service.js';
 import { ConversionService } from './services/conversion.service.js';
 import { AssignmentCursorRepository } from './repositories/assignment-cursor.repository.js';
 import { DealRepository } from './repositories/deal.repository.js';
-import { OperationRepository } from '../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../core/queue/repositories/outbox.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { RemoteReconciliationService } from './services/remote-reconciliation.service.js';
 import { TimelineService } from './services/timeline.service.js';
 import type { CrmGateway } from './ports/crm-gateway.port.js';
@@ -24,7 +24,7 @@ import { BitrixDealWebhookController } from './controllers/bitrix-deal-webhook.c
 import { BitrixDealInbox } from './services/bitrix-deal-inbox.service.js';
 import { DealRefreshService } from './services/deal-refresh.service.js';
 import { DealHistoryRepository } from './repositories/deal-history.repository.js';
-import { WebhookEventRepository } from '../../core/queue/repositories/webhook-event.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
 import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';
 import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
 import { BitrixApiService } from '../bitrix/services/bitrix-api.service.js';

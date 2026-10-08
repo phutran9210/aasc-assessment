@@ -1,5 +1,5 @@
 import { LeadSyncHandler } from '../workers/lead-sync.handler.js';
-import type { OperationContext } from '../../../core/queue/types/worker.types.js';
+import type { OperationContext } from '@core/queue/types/worker.types.js';
 
 describe('LeadSyncHandler', () => {
   it('requests auto-conversion after a successful Lead sync', async () => {

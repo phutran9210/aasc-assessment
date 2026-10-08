@@ -5,12 +5,12 @@ import bcrypt from 'bcrypt';
 import { Inject, Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
-import { validateTiktokEnv } from '../../../config/tiktok-app/env.validation.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { IntegrationUserRepository } from '../repositories/integration-user.repository.js';
 import type { IntegrationUserEntity } from '../entities/integration-user.entity.js';
 import type { LoginDto, LoginResponse } from '../dto/login.dto.js';
 import type { Actor, IntegrationRole } from '../types/actor.type.js';
-import { INTEGRATION_ROLES } from '../types/actor.type.js';
+import { INTEGRATION_ROLES } from '../constants/integration-role.constants.js';
 import { SessionService } from './session.service.js';
 
 export const INTEGRATION_AUTH_CONFIG = Symbol('INTEGRATION_AUTH_CONFIG');
@@ -102,6 +102,11 @@ export class IntegrationAuthService {
     const claims = await this.verifyToken(token);
     if (!claims.sid) throw new UnauthorizedException('Invalid token');
     await this.sessions.revoke(claims.sid);
+  }
+
+  async logoutAuthorizationHeader(authorization: string | undefined): Promise<void> {
+    const [scheme, token] = authorization?.trim().split(/\s+/, 2) ?? [];
+    await this.logout(scheme?.toLowerCase() === 'bearer' ? token : undefined);
   }
 
   private async verifyToken(token: string | undefined): Promise<IntegrationJwtClaims> {

@@ -1,4 +1,4 @@
-import type { CellValue, NormalizeResult } from '../../types/index.js';
+import type { CellValue, NormalizeResult } from '@modules/lead-sync/types/index.js';
 
 /** Trimmed text with every run of whitespace (including line breaks) reduced to one space. */
 export function cleanText(cell: CellValue): string {

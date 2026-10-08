@@ -4,10 +4,10 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import type { OperationContext, OperationOutcome } from '../../../core/queue/types/worker.types.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
 import { ProviderHttpError } from '../adapters/mock-tiktok.adapter.js';
 import { buildFeedback, type FeedbackMilestone } from '../domain/feedback-payload.js';
 import { TIKTOK_FEEDBACK_PROVIDER } from '../ports/tiktok-feedback-provider.port.js';
@@ -15,12 +15,12 @@ import type {
   EventResult,
   TiktokFeedbackProvider,
 } from '../ports/tiktok-feedback-provider.port.js';
-import { FeedbackLedgerEntity } from '../../crm-integration/entities/feedback-ledger.entity.js';
-import { LeadEntity } from '../../crm-integration/entities/lead.entity.js';
-import { SubmissionEntity } from '../../crm-integration/entities/submission.entity.js';
-import { ConfigurationRepository } from '../../crm-integration/repositories/configuration.repository.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../../crm-integration/types/integration.types.js';
-import type { FeedbackPolicy } from '../../crm-integration/types/rule.types.js';
+import { FeedbackLedgerEntity } from '@modules/crm-integration/entities/feedback-ledger.entity.js';
+import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
+import { SubmissionEntity } from '@modules/crm-integration/entities/submission.entity.js';
+import { ConfigurationRepository } from '@modules/crm-integration/repositories/configuration.repository.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import type { FeedbackPolicy } from '@modules/crm-integration/types/rule.types.js';
 
 @Injectable()
 export class ConversionFeedbackService {

@@ -4,7 +4,7 @@ import type {
   RemoteLead,
   TimelineEntry,
   TimelineInput,
-} from '../../crm-integration/ports/crm-gateway.port.js';
+} from '@modules/crm-integration/ports/crm-gateway.port.js';
 
 export type ProviderFault =
   | 'persist_then_timeout'

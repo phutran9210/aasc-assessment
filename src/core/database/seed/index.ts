@@ -12,7 +12,7 @@ import { NestFactory } from '@nestjs/core';
 
 import { DataSource } from 'typeorm';
 
-import { AppModule } from '../../../app.module.js';
+import { AppModule } from '@/app.module.js';
 import { parseSeedCount } from './seed.util.js';
 
 async function main(): Promise<void> {

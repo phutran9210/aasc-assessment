@@ -3,17 +3,16 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, UnauthorizedException, Injectable, Inject } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
-import { BitrixApiService } from '../../bitrix/services/bitrix-api.service.js';
-import { BITRIX_INSTALLATION_STORE } from '../../bitrix/ports/bitrix-installation-store.port.js';
-import type { BitrixInstallationStore } from '../../bitrix/ports/bitrix-installation-store.port.js';
-import { validateTiktokEnv } from '../../../config/tiktok-app/env.validation.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import { WebhookEventRepository } from '../../../core/queue/repositories/webhook-event.repository.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
+import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
+import { BITRIX_INSTALLATION_STORE } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
+import type { BitrixInstallationStore } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { parseBitrixDealEvent } from '../domain/bitrix-event-envelope.js';
-
-export type InboxReceipt = { eventId: string; operationId: string; duplicate: boolean };
+import type { BitrixInboxReceipt } from '../types/bitrix-inbox-receipt.type.js';
 
 @Injectable()
 export class BitrixDealInbox {
@@ -29,7 +28,7 @@ export class BitrixDealInbox {
   async receive(
     raw: unknown,
     headers: Record<string, string | string[] | undefined>,
-  ): Promise<InboxReceipt> {
+  ): Promise<BitrixInboxReceipt> {
     let envelope: ReturnType<typeof parseBitrixDealEvent>;
     try {
       envelope = parseBitrixDealEvent(raw);

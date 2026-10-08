@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { normalizeEmail, normalizePhone } from '../../crm-integration/domain/normalize-contact.js';
-import type { FeedbackPolicy } from '../../crm-integration/types/rule.types.js';
+import {
+  normalizeEmail,
+  normalizePhone,
+} from '@modules/crm-integration/domain/normalize-contact.js';
+import type { FeedbackPolicy } from '@modules/crm-integration/types/rule.types.js';
 import type { FeedbackEvent } from '../ports/tiktok-feedback-provider.port.js';
 
 export type FeedbackMilestone = 'lead_qualified' | 'deal_created' | 'deal_won';

@@ -1,8 +1,8 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
-import { TIKTOK_TABLE_NAMES } from '../../../apps/tiktok/database/table-names.js';
-import type { FeedbackMilestone } from '../../tiktok/domain/feedback-payload.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
+import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
+import type { FeedbackMilestone } from '@modules/tiktok/domain/feedback-payload.js';
 
 @Entity({ name: TIKTOK_TABLE_NAMES.feedbackLedger })
 @Index('uq_integration_feedback_milestone', ['advertiserId', 'leadId', 'milestone'], {

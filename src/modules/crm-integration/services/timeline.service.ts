@@ -3,11 +3,11 @@ import { IsNull } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import type { OperationContext, OperationOutcome } from '../../../core/queue/types/worker.types.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import { OutboxEntity } from '../../../core/queue/entities/outbox.entity.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
+import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { TimelineEntity } from '../entities/timeline.entity.js';
 import type { TimelineInput } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';

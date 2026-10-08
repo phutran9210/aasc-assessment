@@ -1,14 +1,14 @@
 import { Controller, Get, Module, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 
-import type { Actor } from '../../../src/modules/integration-auth/types/actor.type.js';
-import { IntegrationAuthModule } from '../../../src/modules/integration-auth/integration-auth.module.js';
-import { Roles } from '../../../src/modules/integration-auth/decorators/roles.decorator.js';
-import { IntegrationJwtGuard } from '../../../src/modules/integration-auth/guards/integration-jwt.guard.js';
-import { IntegrationRolesGuard } from '../../../src/modules/integration-auth/guards/roles.guard.js';
-import { TiktokAppModule } from '../../../src/apps/tiktok/app.module.js';
-import { BitrixAdapterModule } from '../../../src/modules/crm-integration/bitrix-adapter.module.js';
-import type { BitrixConfig } from '../../../src/config/bitrix.config.js';
+import type { Actor } from '@modules/integration-auth/types/actor.type.js';
+import { IntegrationAuthModule } from '@modules/integration-auth/integration-auth.module.js';
+import { Roles } from '@modules/integration-auth/decorators/roles.decorator.js';
+import { IntegrationJwtGuard } from '@modules/integration-auth/guards/integration-jwt.guard.js';
+import { IntegrationRolesGuard } from '@modules/integration-auth/guards/roles.guard.js';
+import { TiktokAppModule } from '@/apps/tiktok/app.module.js';
+import { BitrixAdapterModule } from '@modules/crm-integration/bitrix-adapter.module.js';
+import type { BitrixConfig } from '@config/bitrix.config.js';
 
 const bitrixConfig: BitrixConfig = {
   clientId: 'test-client-id',

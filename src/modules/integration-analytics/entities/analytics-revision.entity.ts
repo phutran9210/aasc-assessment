@@ -1,6 +1,6 @@
 import { Column, Entity } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
 
 @Entity({ name: 'integration_analytics_revision' })
 export class AnalyticsRevisionEntity extends IntegrationBaseEntity {

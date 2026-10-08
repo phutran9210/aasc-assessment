@@ -1,21 +1,15 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
-import { compileMapping, type CompiledMapping } from '../domain/mapping-compiler.js';
+import { compileMapping } from '../domain/mapping-compiler.js';
+import type { CompiledMapping } from '../domain/mapping-compiler.js';
 import { mappingSchema } from '../schemas/mapping.schema.js';
 import { rulesSchema } from '../schemas/rules.schema.js';
-import type { RevisionSet } from '../types/integration.types.js';
+import type { RevisionSet } from '@core/queue/types/operation.types.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
-
-export type VersionedConfig = {
-  key: string;
-  revision: number;
-  etag: string;
-  value: Record<string, unknown>;
-  compiled?: CompiledMapping | null;
-};
+import type { VersionedConfig } from '../types/versioned-config.type.js';
 
 @Injectable()
 export class ConfigurationService {
@@ -34,6 +28,15 @@ export class ConfigurationService {
       value: active.value,
       compiled: active.compiled,
     };
+  }
+
+  async replaceFromIfMatch(
+    key: string,
+    value: unknown,
+    ifMatch: string | undefined,
+    actorId: string,
+  ): Promise<VersionedConfig> {
+    return this.replace(key, value, parseIfMatch(ifMatch), actorId);
   }
 
   async replace(
@@ -91,6 +94,16 @@ export class ConfigurationService {
       throw new BadRequestException('Configuration key is invalid');
     }
   }
+}
+
+function parseIfMatch(value: string | undefined): number {
+  if (!value) throw new HttpException('If-Match is required', HttpStatus.PRECONDITION_REQUIRED);
+  const match = /^"(0|[1-9]\d*)"$/.exec(value.trim());
+  if (!match) throw new HttpException('If-Match is invalid', HttpStatus.BAD_REQUEST);
+  const revision = Number(match[1]);
+  if (!Number.isSafeInteger(revision))
+    throw new HttpException('If-Match is invalid', HttpStatus.BAD_REQUEST);
+  return revision;
 }
 
 function validateRulesMetadata(

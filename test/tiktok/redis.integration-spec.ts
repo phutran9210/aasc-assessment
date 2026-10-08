@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Queue } from 'bullmq';
 
-import { RedisConnectionFactory } from '../../src/core/queue/redis-connection.js';
+import { RedisConnectionFactory } from '@core/queue/redis-connection.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 
 describe('TikTok Redis and isolated test infrastructure', () => {

@@ -1,9 +1,38 @@
 import type {
-  OperationKind,
-  OperationPayload,
-  QueueName,
-  RevisionSet,
-} from '../../../modules/crm-integration/types/integration.types.js';
+  OPERATION_KINDS,
+  OPERATION_STATUSES,
+  QUEUE_NAMES,
+} from '../constants/operation.constants.js';
+
+type UUID = string;
+
+export type OperationKind = (typeof OPERATION_KINDS)[keyof typeof OPERATION_KINDS];
+export type OperationStatus = (typeof OPERATION_STATUSES)[keyof typeof OPERATION_STATUSES];
+export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
+
+export type RevisionSet = {
+  mapping: number;
+  rules: number;
+  scoring: number;
+};
+
+export type OperationPayload = {
+  eventId?: UUID;
+  feedbackLedgerId?: UUID;
+  leadId?: UUID;
+  dealId?: UUID;
+  remoteId?: string;
+  reportJobId?: UUID;
+  sourceOperationId?: UUID;
+  timelineId?: UUID;
+  reconciliationAttempt?: number;
+  errorCode?: string;
+  targetVersion?: number;
+  revisions?: RevisionSet;
+  remoteAbsenceConfirmed?: boolean;
+  resolvedTargetLeadId?: UUID;
+  idempotencyKeys?: Record<string, { bodyHash: string }>;
+};
 
 export type WebhookEventInput = {
   provider: 'tiktok' | 'bitrix24';

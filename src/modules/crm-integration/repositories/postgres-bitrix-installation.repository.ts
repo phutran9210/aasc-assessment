@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import type { DataSource } from 'typeorm';
 
-import type { BitrixInstallationStore } from '../../../modules/bitrix/ports/bitrix-installation-store.port.js';
+import type { BitrixInstallationStore } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
 import type {
   BitrixInstallationSnapshot,
   RefreshLease,
-} from '../../../modules/bitrix/types/bitrix-installation-snapshot.type.js';
-import type { BitrixTokenSet } from '../../../modules/bitrix/types/index.js';
+} from '@modules/bitrix/types/bitrix-installation-snapshot.type.js';
+import type { BitrixTokenSet } from '@modules/bitrix/types/index.js';
 import { BitrixInstallationEntity } from '../entities/bitrix-installation.entity.js';
 
 /** PostgreSQL-backed installation store scoped to one configured portal key. */

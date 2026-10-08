@@ -1,12 +1,4 @@
-import {
-  Controller,
-  HttpCode,
-  HttpStatus,
-  ServiceUnavailableException,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 
@@ -24,7 +16,6 @@ export class TiktokWebhookController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(TiktokSignatureGuard)
   receive(@Req() request: VerifiedWebhookRequest) {
-    if (!request.rawBody) throw new ServiceUnavailableException('TikTok raw body is unavailable');
     return this.inbox.receive(request.verifiedTiktokEvent, request.rawBody);
   }
 }

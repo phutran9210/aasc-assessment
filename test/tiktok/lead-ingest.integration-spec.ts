@@ -1,16 +1,16 @@
 import { createHash, randomUUID } from 'node:crypto';
 
-import { WebhookEventEntity } from '../../src/core/queue/entities/webhook-event.entity.js';
-import { OperationRepository } from '../../src/core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../src/core/queue/repositories/outbox.repository.js';
-import { LeadIdentityEntity } from '../../src/modules/crm-integration/entities/lead-identity.entity.js';
-import { LeadEntity } from '../../src/modules/crm-integration/entities/lead.entity.js';
-import { SubmissionEntity } from '../../src/modules/crm-integration/entities/submission.entity.js';
-import { LeadIdentityRepository } from '../../src/modules/crm-integration/repositories/lead-identity.repository.js';
-import { LeadRepository } from '../../src/modules/crm-integration/repositories/lead.repository.js';
-import { SubmissionRepository } from '../../src/modules/crm-integration/repositories/submission.repository.js';
-import { LeadIngestService } from '../../src/modules/crm-integration/services/lead-ingest.service.js';
-import type { OperationContext } from '../../src/core/queue/types/worker.types.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { LeadIdentityEntity } from '@modules/crm-integration/entities/lead-identity.entity.js';
+import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
+import { SubmissionEntity } from '@modules/crm-integration/entities/submission.entity.js';
+import { LeadIdentityRepository } from '@modules/crm-integration/repositories/lead-identity.repository.js';
+import { LeadRepository } from '@modules/crm-integration/repositories/lead.repository.js';
+import { SubmissionRepository } from '@modules/crm-integration/repositories/submission.repository.js';
+import { LeadIngestService } from '@modules/crm-integration/services/lead-ingest.service.js';
+import type { OperationContext } from '@core/queue/types/worker.types.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 import type { TestInfrastructure } from './utils/test-infrastructure.js';
 

@@ -9,17 +9,13 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { BadRequestException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import type { Response } from 'express';
 
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard.js';
 
-import { BITRIX_MESSAGES } from '../messages/index.js';
 import { BitrixOAuthService } from '../services/bitrix-oauth.service.js';
-import type { BitrixInstallEvent } from '../types/index.js';
-import { normalizeInstallPayload } from '../utils/normalize-install-payload.js';
 
 /** Entry points of the Bitrix24 OAuth 2.0 flow, all under `/install`. */
 @ApiTags('Bitrix24')
@@ -34,11 +30,7 @@ export class BitrixInstallController {
   @Post()
   @HttpCode(HttpStatus.OK)
   async install(@Body() body: Record<string, unknown>): Promise<{ status: string }> {
-    const payload = normalizeInstallPayload(body);
-    if (!isCompleteAuth(payload.auth) || !payload.event) {
-      throw new BadRequestException(BITRIX_MESSAGES.ERROR.INSTALL_PAYLOAD_INVALID);
-    }
-    await this.oauthService.handleInstallEvent(payload);
+    await this.oauthService.install(body);
     return { status: 'ok' };
   }
 
@@ -56,24 +48,7 @@ export class BitrixInstallController {
     @Query('code') code?: string,
     @Query('state') state?: string,
   ): Promise<{ status: string }> {
-    if (!code || !state)
-      throw new BadRequestException(BITRIX_MESSAGES.ERROR.CODE_AND_STATE_REQUIRED);
     await this.oauthService.completeAuthorization(code, state);
     return { status: 'ok' };
   }
-}
-
-/** True when the event carries every field needed to store and later refresh the tokens. */
-function isCompleteAuth(auth: BitrixInstallEvent['auth']): boolean {
-  return Boolean(
-    auth &&
-    auth.domain &&
-    auth.scope &&
-    auth.access_token &&
-    auth.refresh_token &&
-    auth.server_endpoint &&
-    auth.client_endpoint &&
-    auth.member_id &&
-    Number.isFinite(auth.expires_in),
-  );
 }

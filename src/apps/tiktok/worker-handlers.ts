@@ -1,13 +1,10 @@
-import type {
-  OperationHandler,
-  OperationHandlerRegistry,
-} from '../../core/queue/types/worker.types.js';
-import type { TiktokIngestHandler } from '../../modules/crm-integration/workers/tiktok-ingest.handler.js';
-import type { LeadSyncHandler } from '../../modules/crm-integration/workers/lead-sync.handler.js';
-import type { TimelineHandler } from '../../modules/crm-integration/workers/timeline.handler.js';
-import type { ConversionHandler } from '../../modules/crm-integration/workers/conversion.handler.js';
-import type { DealRefreshHandler } from '../../modules/crm-integration/workers/deal-refresh.handler.js';
-import type { FeedbackHandler } from '../../modules/tiktok/workers/feedback.handler.js';
+import type { OperationHandler, OperationHandlerRegistry } from '@core/queue/types/worker.types.js';
+import type { TiktokIngestHandler } from '@modules/crm-integration/workers/tiktok-ingest.handler.js';
+import type { LeadSyncHandler } from '@modules/crm-integration/workers/lead-sync.handler.js';
+import type { TimelineHandler } from '@modules/crm-integration/workers/timeline.handler.js';
+import type { ConversionHandler } from '@modules/crm-integration/workers/conversion.handler.js';
+import type { DealRefreshHandler } from '@modules/crm-integration/workers/deal-refresh.handler.js';
+import type { FeedbackHandler } from '@modules/tiktok/workers/feedback.handler.js';
 
 export function createTiktokWorkerHandlers(
   ingest: TiktokIngestHandler,

@@ -6,7 +6,7 @@ import { IsNull } from 'typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 
 import { OutboxEntity } from '../entities/outbox.entity.js';
-import type { QueueName } from '../../../modules/crm-integration/types/integration.types.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
 
 type QueueRegistry = ReadonlyMap<QueueName, Queue>;
 type LeasedOutboxRow = OutboxEntity & { leaseOwner: string };

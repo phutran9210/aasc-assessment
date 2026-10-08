@@ -5,7 +5,7 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 import { Queue } from 'bullmq';
 import type { DataSource } from 'typeorm';
 
-import { REDIS_CONNECTION_FACTORY } from '../../config/tiktok-app/redis.config.js';
+import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
 import { TiktokRedisModule } from './redis.module.js';
 import type { RedisConnectionFactory } from './redis-connection.js';
 import { AggregateLeaseRepository } from './repositories/aggregate-lease.repository.js';
@@ -13,8 +13,8 @@ import { OperationRepository } from './repositories/operation.repository.js';
 import { OutboxRepository } from './repositories/outbox.repository.js';
 import { WebhookEventRepository } from './repositories/webhook-event.repository.js';
 import { OutboxDispatcherService } from './services/outbox-dispatcher.service.js';
-import { QUEUE_NAMES } from '../../modules/crm-integration/types/integration.types.js';
-import type { QueueName } from '../../modules/crm-integration/types/integration.types.js';
+import { QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
 
 export const QUEUE_REGISTRY = Symbol('QUEUE_REGISTRY');
 

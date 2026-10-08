@@ -9,6 +9,7 @@ import { BitrixOAuthService } from '../services/bitrix-oauth.service.js';
 describe('BitrixInstallController', () => {
   const oauth = {
     handleInstallEvent: jest.fn(),
+    install: jest.fn(),
     createAuthorizationUrl: jest.fn(),
     completeAuthorization: jest.fn(),
   };
@@ -27,14 +28,15 @@ describe('BitrixInstallController', () => {
     controller = moduleRef.get(BitrixInstallController);
   });
 
-  it('should return 400 when install event auth is incomplete', async () => {
-    await expect(controller.install({ event: 'ONAPPINSTALL', auth: {} })).rejects.toThrow();
+  it('delegates the install payload to the OAuth service', async () => {
+    const body = { event: 'ONAPPINSTALL', auth: {} };
+    oauth.install.mockResolvedValue(undefined);
+    await expect(controller.install(body)).resolves.toEqual({ status: 'ok' });
+    expect(oauth.install).toHaveBeenCalledWith(body);
   });
 
-  it('should accept a form-encoded install event', async () => {
-    oauth.handleInstallEvent.mockResolvedValue(undefined);
-
-    await controller.install({
+  it('forwards a form-encoded install event unchanged', async () => {
+    const body = {
       event: 'ONAPPINSTALL',
       ts: '1',
       'data[VERSION]': '1',
@@ -51,39 +53,15 @@ describe('BitrixInstallController', () => {
       'auth[client_endpoint]': 'https://portal.bitrix24.com/rest/',
       'auth[member_id]': 'm',
       'auth[application_token]': 'app',
-    });
-    expect(oauth.handleInstallEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ event: 'ONAPPINSTALL' }),
-    );
+    };
+    oauth.install.mockResolvedValue(undefined);
+    await controller.install(body);
+    expect(oauth.install).toHaveBeenCalledWith(body);
   });
 
-  it('should accept a form-encoded install event already nested by the body parser', async () => {
-    oauth.handleInstallEvent.mockResolvedValue(undefined);
-
-    await controller.install({
-      event: 'ONAPPINSTALL',
-      ts: '1',
-      data: { VERSION: '1', ACTIVE: 'Y', INSTALLED: 'Y', LANGUAGE_ID: 'vn' },
-      auth: {
-        domain: 'portal.bitrix24.com',
-        scope: 'crm',
-        access_token: 'access',
-        refresh_token: 'refresh',
-        expires_in: '3600',
-        server_endpoint: 'https://oauth.bitrix.info/rest/',
-        status: 'L',
-        client_endpoint: 'https://portal.bitrix24.com/rest/',
-        member_id: 'm',
-        application_token: 'app',
-      },
-    });
-    expect(oauth.handleInstallEvent).toHaveBeenCalledWith(
-      expect.objectContaining({ auth: expect.objectContaining({ expires_in: 3600 }) }),
-    );
-  });
-
-  it('should return 400 when OAuth callback has no code', async () => {
-    await expect(controller.callback(undefined, undefined)).rejects.toThrow();
+  it('delegates OAuth callback validation to the service', async () => {
+    await controller.callback(undefined, undefined);
+    expect(oauth.completeAuthorization).toHaveBeenCalledWith(undefined, undefined);
   });
 
   it('should redirect to Bitrix24 when authorize is requested with JWT', async () => {

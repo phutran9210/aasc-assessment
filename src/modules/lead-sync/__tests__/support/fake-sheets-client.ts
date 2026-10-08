@@ -6,7 +6,7 @@ import type {
   ValueRender,
 } from '@modules/google-sheets/index.js';
 
-import { columnIndex } from '../../domain/a1.js';
+import { columnIndex } from '@modules/lead-sync/domain/a1.js';
 
 const RANGE = /^'(?:[^']|'')*'(?:!([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?)?$/;
 

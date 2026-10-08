@@ -4,8 +4,8 @@ import { v7 as uuidv7 } from 'uuid';
 
 import { OperationEntity } from '../entities/operation.entity.js';
 import { OutboxEntity } from '../entities/outbox.entity.js';
-import { QUEUE_NAMES } from '../../../modules/crm-integration/types/integration.types.js';
-import type { QueueName } from '../../../modules/crm-integration/types/integration.types.js';
+import { QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
 
 const ALLOWED_QUEUES = new Set<string>(Object.values(QUEUE_NAMES));
 

@@ -1,6 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
 
 @Entity({ name: 'integration_report_job' })
 @Index('ix_integration_report_job_owner_created', ['requesterId', 'createdAt'])

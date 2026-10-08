@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { buildFeedback, type FeedbackInput } from '../domain/feedback-payload.js';
-import type { FeedbackPolicy } from '../../crm-integration/types/rule.types.js';
+import type { FeedbackPolicy } from '@modules/crm-integration/types/rule.types.js';
 
 const policy: FeedbackPolicy = {
   enabled: true,

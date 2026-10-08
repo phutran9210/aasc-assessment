@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 import type { Redis } from 'ioredis';
 
-import { ensureRedisConnected } from '../../../core/queue/ensure-redis-connected.js';
-import type { OAuthStateStore } from '../../../modules/bitrix/ports/bitrix-oauth-state-store.port.js';
+import { ensureRedisConnected } from '@core/queue/ensure-redis-connected.js';
+import type { OAuthStateStore } from '@modules/bitrix/ports/bitrix-oauth-state-store.port.js';
 
 const CONSUME_STATE_SCRIPT = `
 local value = redis.call('GET', KEYS[1])

@@ -3,10 +3,10 @@ import { JwtModule } from '@nestjs/jwt';
 import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
-import { validateTiktokEnv } from '../../config/tiktok-app/env.validation.js';
-import { REDIS_CONNECTION_FACTORY } from '../../config/tiktok-app/redis.config.js';
-import { TiktokRedisModule } from '../../core/queue/redis.module.js';
-import type { RedisConnectionFactory } from '../../core/queue/redis-connection.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
+import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
+import { TiktokRedisModule } from '@core/queue/redis.module.js';
+import type { RedisConnectionFactory } from '@core/queue/redis-connection.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { IntegrationUserRepository } from './repositories/integration-user.repository.js';
 import {

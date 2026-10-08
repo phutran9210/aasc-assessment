@@ -1,5 +1,5 @@
 import { normalizeLead } from '../domain/normalize-lead.js';
-import type { ProviderLead } from '../../tiktok/ports/tiktok-lead-provider.port.js';
+import type { ProviderLead } from '@modules/tiktok/ports/tiktok-lead-provider.port.js';
 
 const vnFixture: ProviderLead = {
   id: 'lead-source-001',

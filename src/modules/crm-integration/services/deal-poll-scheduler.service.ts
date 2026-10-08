@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 
-import { validateTiktokEnv } from '../../../config/tiktok-app/env.validation.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { DealPollService } from './deal-poll.service.js';
 
 const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;

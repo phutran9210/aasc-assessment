@@ -7,11 +7,7 @@ import type {
   TimelineEntry,
 } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
-
-export type ReconcileResult<T> =
-  | { status: 'found'; value: T }
-  | { status: 'not_found' }
-  | { status: 'ambiguous'; candidates: T[] };
+import type { ReconcileResult } from '../types/reconcile-result.type.js';
 
 @Injectable()
 export class RemoteReconciliationService {

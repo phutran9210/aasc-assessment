@@ -27,7 +27,6 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
   async logout(@Headers('authorization') authorization?: string): Promise<void> {
-    const [scheme, token] = authorization?.split(' ') ?? [];
-    await this.auth.logout(scheme === 'Bearer' ? token : undefined);
+    await this.auth.logoutAuthorizationHeader(authorization);
   }
 }

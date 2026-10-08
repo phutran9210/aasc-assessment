@@ -1,8 +1,8 @@
 import type { LeadSyncCountry } from '@config/index.js';
 
-import { COUNTRY_PHONE_RULES } from '../../constants/index.js';
-import { LEAD_SYNC_MESSAGES } from '../../messages/index.js';
-import type { CellValue, NormalizeResult } from '../../types/index.js';
+import { COUNTRY_PHONE_RULES } from '@modules/lead-sync/constants/index.js';
+import { LEAD_SYNC_MESSAGES } from '@modules/lead-sync/messages/index.js';
+import type { CellValue, NormalizeResult } from '@modules/lead-sync/types/index.js';
 
 const E164_MIN_DIGITS = 8;
 const E164_MAX_DIGITS = 15;

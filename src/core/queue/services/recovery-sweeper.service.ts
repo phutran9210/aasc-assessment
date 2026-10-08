@@ -4,25 +4,7 @@ import type { DataSource, EntityManager } from 'typeorm';
 import { OperationEntity } from '../entities/operation.entity.js';
 import { OutboxEntity } from '../entities/outbox.entity.js';
 import { OutboxRepository } from '../repositories/outbox.repository.js';
-import { QUEUE_NAMES } from '../../../modules/crm-integration/types/integration.types.js';
-import type {
-  OperationKind,
-  QueueName,
-} from '../../../modules/crm-integration/types/integration.types.js';
-
-const OPERATION_QUEUE: Record<OperationKind, QueueName> = {
-  tiktok_ingest: QUEUE_NAMES.tiktokIngest,
-  bitrix_lead_sync: QUEUE_NAMES.bitrixLeadSync,
-  crm_timeline: QUEUE_NAMES.bitrixLeadSync,
-  bitrix_deal_convert: QUEUE_NAMES.bitrixDealConvert,
-  bitrix_deal_refresh: QUEUE_NAMES.bitrixDealRefresh,
-  tiktok_feedback: QUEUE_NAMES.tiktokFeedback,
-  integration_report: QUEUE_NAMES.integrationReport,
-  integration_notification: QUEUE_NAMES.integrationNotification,
-  integration_dlq: QUEUE_NAMES.integrationDlq,
-  historical_lead_import: QUEUE_NAMES.tiktokIngest,
-  campaign_cost_import: QUEUE_NAMES.integrationReport,
-};
+import { OPERATION_QUEUE } from '@core/queue/constants/operation.constants.js';
 
 @Injectable()
 export class RecoverySweeperService {

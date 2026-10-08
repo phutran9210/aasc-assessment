@@ -3,25 +3,16 @@ import { IsNull, Not } from 'typeorm';
 import type { DataSource } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import { OutboxEntity } from '../../../core/queue/entities/outbox.entity.js';
-import { validateTiktokEnv } from '../../../config/tiktok-app/env.validation.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { DealPollCheckpointEntity } from '../entities/deal-poll-checkpoint.entity.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
-
-export type PollSummary = {
-  mode: 'incremental' | 'full';
-  scanned: number;
-  queued: number;
-  ignored: number;
-  complete: boolean;
-  skippedLocked: boolean;
-  watermark: Date | null;
-};
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import type { PollSummary } from '../types/deal-poll-summary.type.js';
 
 const PAGE_SIZE = 50;
 const OVERLAP_MS = 10 * 60 * 1000;

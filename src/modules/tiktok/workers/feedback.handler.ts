@@ -4,7 +4,7 @@ import type {
   OperationContext,
   OperationHandler,
   OperationOutcome,
-} from '../../../core/queue/types/worker.types.js';
+} from '@core/queue/types/worker.types.js';
 import { ConversionFeedbackService } from '../services/conversion-feedback.service.js';
 
 @Injectable()

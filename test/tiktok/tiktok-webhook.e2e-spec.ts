@@ -8,11 +8,11 @@ import { createTestApp } from './utils/create-test-app.js';
 import type { TestApp } from './utils/create-test-app.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 import type { TestInfrastructure } from './utils/test-infrastructure.js';
-import { WebhookEventEntity } from '../../src/core/queue/entities/webhook-event.entity.js';
-import { OperationEntity } from '../../src/core/queue/entities/operation.entity.js';
-import { OutboxEntity } from '../../src/core/queue/entities/outbox.entity.js';
-import { REDIS_CONNECTION_FACTORY } from '../../src/config/tiktok-app/redis.config.js';
-import type { RedisConnectionFactory } from '../../src/core/queue/redis-connection.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
+import type { RedisConnectionFactory } from '@core/queue/redis-connection.js';
 
 const ADVERTISER = 'webhook-advertiser-test';
 const SECRET = 'webhook-test-secret-minimum-length';

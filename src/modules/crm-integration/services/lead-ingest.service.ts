@@ -4,11 +4,11 @@ import { Injectable } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import type { OperationContext } from '../../../core/queue/types/worker.types.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import { WebhookEventEntity } from '../../../core/queue/entities/webhook-event.entity.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
+import type { OperationContext } from '@core/queue/types/worker.types.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
@@ -21,14 +21,9 @@ import { mergeLead } from '../domain/merge-lead.js';
 import { scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { ScorePolicy } from '../types/rule.types.js';
-import { AnalyticsRevisionEntity } from '../../integration-analytics/entities/analytics-revision.entity.js';
-import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
-
-export type IngestOutcome =
-  | { outcome: 'succeeded'; leadId: string; version: number }
-  | { outcome: 'quarantined'; errorCode: string }
-  | { outcome: 'awaiting_link'; submissionId: string; nextAttemptAt: Date | null }
-  | { outcome: 'unmatched'; submissionId: string };
+import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
+import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import type { IngestOutcome } from '../types/ingest-outcome.type.js';
 
 const DEFAULT_SCORE_POLICY: ScorePolicy = {
   weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },

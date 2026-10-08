@@ -10,28 +10,25 @@ import {
 import type { DataSource } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import type { OperationContext, OperationOutcome } from '../../../core/queue/types/worker.types.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
-import { AnalyticsRevisionEntity } from '../../integration-analytics/entities/analytics-revision.entity.js';
+import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
 import { evaluateRules } from '../domain/rule-engine.js';
 import { AssignmentService } from './assignment.service.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
+import type { ConversionReceipt } from '../types/conversion-receipt.type.js';
 import { TimelineService } from './timeline.service.js';
-import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
+import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { AssignmentPolicy, RulesConfig } from '../types/rule.types.js';
-
-export type ConversionReceipt =
-  | { status: 'pending'; operationId: string; dealId: string }
-  | { status: 'completed'; dealId: string; bitrixDealId: string };
 
 const LEAD_SUCCESS_STAGE = 'CONVERTED';
 const MARKER_PREFIX = 'aasc-tiktok/deal/';
@@ -218,6 +215,17 @@ export class ConversionService {
       };
     });
     return assignee.receipt;
+  }
+
+  async requestManual(
+    leadId: string,
+    actorId: string,
+    idempotencyKey: string | undefined,
+    requestBody: Record<string, unknown>,
+  ): Promise<ConversionReceipt> {
+    const receipt = await this.request(leadId, 'manual', actorId, idempotencyKey, requestBody);
+    if (!receipt) throw new ConflictException('Manual conversion did not produce an operation');
+    return receipt;
   }
 
   async execute(operationId: string, context: OperationContext): Promise<OperationOutcome> {

@@ -1,7 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { Type } from '@nestjs/common';
 
-import { createTiktokApp } from '../../../src/apps/tiktok/bootstrap.js';
+import { createTiktokApp } from '@/apps/tiktok/bootstrap.js';
 
 export type TestApp = {
   app: INestApplication;

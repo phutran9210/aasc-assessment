@@ -130,22 +130,19 @@ describe('BitrixOAuthService', () => {
   });
 
   it('should not let any other portal take over the installation', async () => {
-    transport.postRest.mockResolvedValue({ result: { CODE: 'client-id' } });
-    repository.saveTokens.mockResolvedValue({});
+    await expect(
+      service.handleInstallEvent({
+        ...EVENT,
+        auth: {
+          ...AUTH,
+          domain: 'stranger.bitrix24.com',
+          client_endpoint: 'https://stranger.bitrix24.com/rest/',
+        },
+      }),
+    ).rejects.toThrow();
 
-    await service.handleInstallEvent({
-      ...EVENT,
-      auth: {
-        ...AUTH,
-        domain: 'stranger.bitrix24.com',
-        client_endpoint: 'https://stranger.bitrix24.com/rest/',
-      },
-    });
-
-    expect(repository.saveTokens).toHaveBeenCalledWith(
-      expect.objectContaining({ domain: 'stranger.bitrix24.com' }),
-      { allowPortalChange: false },
-    );
+    expect(transport.postRest).not.toHaveBeenCalled();
+    expect(repository.saveTokens).not.toHaveBeenCalled();
   });
 
   it('should reject an unsupported event without saving tokens', async () => {

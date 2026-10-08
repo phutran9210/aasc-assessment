@@ -1,23 +1,20 @@
 import { randomUUID } from 'node:crypto';
 
-import { DealEntity } from '../../src/modules/crm-integration/entities/deal.entity.js';
-import { DealHistoryEntity } from '../../src/modules/crm-integration/entities/deal-history.entity.js';
-import { DealPollCheckpointEntity } from '../../src/modules/crm-integration/entities/deal-poll-checkpoint.entity.js';
-import { LeadEntity } from '../../src/modules/crm-integration/entities/lead.entity.js';
-import { DealHistoryRepository } from '../../src/modules/crm-integration/repositories/deal-history.repository.js';
-import { DealRefreshService } from '../../src/modules/crm-integration/services/deal-refresh.service.js';
-import { DealPollService } from '../../src/modules/crm-integration/services/deal-poll.service.js';
-import { AggregateLeaseRepository } from '../../src/core/queue/repositories/aggregate-lease.repository.js';
-import { OperationRepository } from '../../src/core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../src/core/queue/repositories/outbox.repository.js';
-import { OperationEntity } from '../../src/core/queue/entities/operation.entity.js';
-import { OutboxEntity } from '../../src/core/queue/entities/outbox.entity.js';
-import { WebhookEventEntity } from '../../src/core/queue/entities/webhook-event.entity.js';
-import type { OperationContext } from '../../src/core/queue/types/worker.types.js';
-import type {
-  CrmGateway,
-  RemoteDeal,
-} from '../../src/modules/crm-integration/ports/crm-gateway.port.js';
+import { DealEntity } from '@modules/crm-integration/entities/deal.entity.js';
+import { DealHistoryEntity } from '@modules/crm-integration/entities/deal-history.entity.js';
+import { DealPollCheckpointEntity } from '@modules/crm-integration/entities/deal-poll-checkpoint.entity.js';
+import { LeadEntity } from '@modules/crm-integration/entities/lead.entity.js';
+import { DealHistoryRepository } from '@modules/crm-integration/repositories/deal-history.repository.js';
+import { DealRefreshService } from '@modules/crm-integration/services/deal-refresh.service.js';
+import { DealPollService } from '@modules/crm-integration/services/deal-poll.service.js';
+import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import type { OperationContext } from '@core/queue/types/worker.types.js';
+import type { CrmGateway, RemoteDeal } from '@modules/crm-integration/ports/crm-gateway.port.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 import type { TestInfrastructure } from './utils/test-infrastructure.js';
 

@@ -1,7 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 
-import { REDIS_CONNECTION_FACTORY } from '../../config/tiktok-app/redis.config.js';
-import { validateTiktokEnv } from '../../config/tiktok-app/env.validation.js';
+import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { RedisConnectionFactory } from './redis-connection.js';
 
 @Global()

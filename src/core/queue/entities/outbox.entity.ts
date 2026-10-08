@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
-import { TIKTOK_TABLE_NAMES } from '../../../apps/tiktok/database/table-names.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
+import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 
 @Entity({ name: TIKTOK_TABLE_NAMES.outbox })
 @Index('uq_integration_outbox_job_key', ['jobKey'], { unique: true })

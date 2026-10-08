@@ -3,9 +3,9 @@ import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 
-import type { QueueName } from '../../../modules/crm-integration/types/integration.types.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
 import type { RedisConnectionFactory } from '../redis-connection.js';
-import { QUEUE_NAMES } from '../../../modules/crm-integration/types/integration.types.js';
+import { QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { OperationRunnerService } from './operation-runner.service.js';
 import { OutboxDispatcherService } from './outbox-dispatcher.service.js';
 import { RecoverySweeperService } from './recovery-sweeper.service.js';

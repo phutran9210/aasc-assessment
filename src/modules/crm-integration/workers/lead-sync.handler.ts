@@ -1,12 +1,12 @@
 import { Injectable, Optional } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import type {
   OperationContext,
   OperationHandler,
   OperationOutcome,
-} from '../../../core/queue/types/worker.types.js';
+} from '@core/queue/types/worker.types.js';
 import { LeadSyncService } from '../services/lead-sync.service.js';
 import { ConversionService } from '../services/conversion.service.js';
 

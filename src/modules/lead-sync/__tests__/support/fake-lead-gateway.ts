@@ -3,7 +3,7 @@ import type {
   DuplicateQuery,
   LeadWriteOp,
   LeadWriteResult,
-} from '../../types/index.js';
+} from '@modules/lead-sync/types/index.js';
 
 type FakeLead = {
   id: number;

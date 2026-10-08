@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,24 +11,14 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { BitrixOAuthService } from '../../../modules/bitrix/services/bitrix-oauth.service.js';
-import {
-  normalizeInstallPayload,
-  validateBitrixInstallEvent,
-} from '../../../modules/bitrix/utils/normalize-install-payload.js';
-import { Inject } from '@nestjs/common';
-import type { BitrixConfig } from '../../../config/index.js';
-import { Roles } from '../../integration-auth/decorators/roles.decorator.js';
-import { IntegrationJwtGuard } from '../../integration-auth/guards/integration-jwt.guard.js';
-import { IntegrationRolesGuard } from '../../integration-auth/guards/roles.guard.js';
-import { BITRIX_ADAPTER_CONFIG } from '../tokens.js';
+import { BitrixOAuthService } from '@modules/bitrix/services/bitrix-oauth.service.js';
+import { Roles } from '@modules/integration-auth/decorators/roles.decorator.js';
+import { IntegrationJwtGuard } from '@modules/integration-auth/guards/integration-jwt.guard.js';
+import { IntegrationRolesGuard } from '@modules/integration-auth/guards/roles.guard.js';
 
 @Controller('install')
 export class TiktokBitrixInstallController {
-  constructor(
-    private readonly oauthService: BitrixOAuthService,
-    @Inject(BITRIX_ADAPTER_CONFIG) private readonly config: BitrixConfig,
-  ) {}
+  constructor(private readonly oauthService: BitrixOAuthService) {}
 
   @Get('authorize')
   @UseGuards(IntegrationJwtGuard, IntegrationRolesGuard)
@@ -44,7 +33,6 @@ export class TiktokBitrixInstallController {
     @Query('code') code?: string,
     @Query('state') state?: string,
   ): Promise<{ status: string }> {
-    if (!code || !state) throw new BadRequestException('Bitrix OAuth code and state are required');
     await this.oauthService.completeAuthorization(code, state);
     return { status: 'ok' };
   }
@@ -52,11 +40,7 @@ export class TiktokBitrixInstallController {
   @Post()
   @HttpCode(HttpStatus.OK)
   async install(@Body() body: Record<string, unknown>): Promise<{ status: string }> {
-    const event = normalizeInstallPayload(body);
-    if (!validateBitrixInstallEvent(event, this.config.portalDomain)) {
-      throw new BadRequestException('Bitrix install endpoint is not allowed');
-    }
-    await this.oauthService.handleInstallEvent(event);
+    await this.oauthService.install(body);
     return { status: 'ok' };
   }
 }

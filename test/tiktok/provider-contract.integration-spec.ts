@@ -1,17 +1,17 @@
 import { Test } from '@nestjs/testing';
 
-import { BitrixCoreModule, BITRIX_CONFIG } from '../../src/modules/bitrix/bitrix-core.module.js';
-import { BITRIX_INSTALLATION_STORE } from '../../src/modules/bitrix/ports/bitrix-installation-store.port.js';
-import { BITRIX_OAUTH_STATE_STORE } from '../../src/modules/bitrix/ports/bitrix-oauth-state-store.port.js';
-import { BITRIX_REQUEST_LIMITER } from '../../src/modules/bitrix/ports/bitrix-request-limiter.port.js';
-import { BitrixCrmGateway } from '../../src/modules/crm-integration/gateways/bitrix-crm.gateway.js';
+import { BitrixCoreModule, BITRIX_CONFIG } from '@modules/bitrix/bitrix-core.module.js';
+import { BITRIX_INSTALLATION_STORE } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
+import { BITRIX_OAUTH_STATE_STORE } from '@modules/bitrix/ports/bitrix-oauth-state-store.port.js';
+import { BITRIX_REQUEST_LIMITER } from '@modules/bitrix/ports/bitrix-request-limiter.port.js';
+import { BitrixCrmGateway } from '@modules/crm-integration/gateways/bitrix-crm.gateway.js';
 import {
   createMockWebhookSignature,
   MockTiktokAdapter,
-} from '../../src/modules/tiktok/adapters/mock-tiktok.adapter.js';
-import { ProviderServer } from '../../src/modules/tiktok/testing/provider-server.js';
-import { BitrixStore } from '../../src/modules/tiktok/testing/bitrix-store.js';
-import { TiktokStore } from '../../src/modules/tiktok/testing/tiktok-store.js';
+} from '@modules/tiktok/adapters/mock-tiktok.adapter.js';
+import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
+import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
+import { TiktokStore } from '@modules/tiktok/testing/tiktok-store.js';
 
 let server: ProviderServer;
 let crmStore: BitrixStore;

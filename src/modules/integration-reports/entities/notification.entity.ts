@@ -1,6 +1,6 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
 
 @Entity({ name: 'integration_notification' })
 @Index('uq_integration_notification_dedup_key', ['dedupKey'], { unique: true })

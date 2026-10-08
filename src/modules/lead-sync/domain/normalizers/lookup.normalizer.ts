@@ -1,5 +1,5 @@
-import { LEAD_SYNC_MESSAGES } from '../../messages/index.js';
-import type { CellValue, MappingField, NormalizeResult } from '../../types/index.js';
+import { LEAD_SYNC_MESSAGES } from '@modules/lead-sync/messages/index.js';
+import type { CellValue, MappingField, NormalizeResult } from '@modules/lead-sync/types/index.js';
 import { cleanText } from './text.normalizer.js';
 
 const fold = (text: string): string => text.trim().toLocaleLowerCase('vi');

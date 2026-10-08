@@ -1,6 +1,6 @@
-import { BitrixStore } from '../../../modules/tiktok/testing/bitrix-store.js';
-import { ProviderServer } from '../../../modules/tiktok/testing/provider-server.js';
-import { TiktokStore } from '../../../modules/tiktok/testing/tiktok-store.js';
+import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
+import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
+import { TiktokStore } from '@modules/tiktok/testing/tiktok-store.js';
 
 function portFromEnvironment(value: string | undefined): number {
   if (value === undefined) return 3002;

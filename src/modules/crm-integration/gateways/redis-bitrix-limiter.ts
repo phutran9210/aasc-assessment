@@ -1,10 +1,10 @@
-import { sleep } from '../../../common/utils/index.js';
-import { ensureRedisConnected } from '../../../core/queue/ensure-redis-connected.js';
+import { sleep } from '@common/utils/index.js';
+import { ensureRedisConnected } from '@core/queue/ensure-redis-connected.js';
 import type { Redis } from 'ioredis';
 
 import { HttpException, HttpStatus } from '@nestjs/common';
 
-import type { BitrixRequestLimiter } from '../../../modules/bitrix/ports/bitrix-request-limiter.port.js';
+import type { BitrixRequestLimiter } from '@modules/bitrix/ports/bitrix-request-limiter.port.js';
 
 const RESERVE_SLOT_SCRIPT = `
 local now = tonumber(ARGV[1])

@@ -1,5 +1,5 @@
-import { LEAD_SYNC_MESSAGES } from '../../messages/index.js';
-import type { CellValue, NormalizeResult } from '../../types/index.js';
+import { LEAD_SYNC_MESSAGES } from '@modules/lead-sync/messages/index.js';
+import type { CellValue, NormalizeResult } from '@modules/lead-sync/types/index.js';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const EMAIL_MAX_LENGTH = 254;

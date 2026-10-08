@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
-import { TIKTOK_TABLE_NAMES } from '../../../apps/tiktok/database/table-names.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
+import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 
 @Entity({ name: TIKTOK_TABLE_NAMES.auditEvent })
 @Index('ix_integration_audit_scope_created', ['scopeKey', 'createdAt'])

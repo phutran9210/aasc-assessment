@@ -3,16 +3,20 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import type { DataSource, EntityManager } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import type { QueueName } from '../types/integration.types.js';
-import { QUEUE_NAMES } from '../types/integration.types.js';
-import type { Actor } from '../../integration-auth/types/actor.type.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import {
+  OPERATION_QUEUE,
+  RETRYABLE_OPERATION_KINDS,
+  QUEUE_NAMES,
+} from '@core/queue/constants/operation.constants.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
+import type { Actor } from '@modules/integration-auth/types/actor.type.js';
 import { AuditEventEntity } from '../entities/audit-event.entity.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
-import { WebhookEventEntity } from '../../../core/queue/entities/webhook-event.entity.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
@@ -475,17 +479,10 @@ export class OperationControlService {
 }
 
 function queueFor(kind: string): QueueName {
-  const queues: Record<string, QueueName> = {
-    tiktok_ingest: QUEUE_NAMES.tiktokIngest,
-    bitrix_lead_sync: QUEUE_NAMES.bitrixLeadSync,
-    bitrix_deal_convert: QUEUE_NAMES.bitrixDealConvert,
-    bitrix_deal_refresh: QUEUE_NAMES.bitrixDealRefresh,
-    tiktok_feedback: QUEUE_NAMES.tiktokFeedback,
-    crm_timeline: QUEUE_NAMES.bitrixLeadSync,
-  };
-  const queue = queues[kind];
-  if (!queue) throw new ConflictException('Operation kind cannot be retried');
-  return queue;
+  if (!(RETRYABLE_OPERATION_KINDS as readonly string[]).includes(kind)) {
+    throw new ConflictException('Operation kind cannot be retried');
+  }
+  return OPERATION_QUEUE[kind as (typeof RETRYABLE_OPERATION_KINDS)[number]];
 }
 
 function auditState(operation: OperationEntity): Record<string, unknown> {

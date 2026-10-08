@@ -2,21 +2,18 @@ import { randomUUID } from 'node:crypto';
 
 import { NestFactory } from '@nestjs/core';
 
-import { AggregateLeaseRepository } from '../../src/core/queue/repositories/aggregate-lease.repository.js';
-import { OperationRepository } from '../../src/core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../src/core/queue/repositories/outbox.repository.js';
-import { OperationRunnerService } from '../../src/core/queue/services/operation-runner.service.js';
-import { RecoverySweeperService } from '../../src/core/queue/services/recovery-sweeper.service.js';
-import {
-  OperationFailure,
-  RetryPolicy,
-} from '../../src/core/queue/services/retry-policy.service.js';
-import { OperationEntity } from '../../src/core/queue/entities/operation.entity.js';
-import { OutboxEntity } from '../../src/core/queue/entities/outbox.entity.js';
-import type { OperationHandlerRegistry } from '../../src/core/queue/types/worker.types.js';
-import { QUEUE_NAMES } from '../../src/modules/crm-integration/types/integration.types.js';
+import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OperationRunnerService } from '@core/queue/services/operation-runner.service.js';
+import { RecoverySweeperService } from '@core/queue/services/recovery-sweeper.service.js';
+import { OperationFailure, RetryPolicy } from '@core/queue/services/retry-policy.service.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import type { OperationHandlerRegistry } from '@core/queue/types/worker.types.js';
+import { QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
-import { TiktokWorkerModule } from '../../src/apps/tiktok/worker.module.js';
+import { TiktokWorkerModule } from '@/apps/tiktok/worker.module.js';
 
 const originalEnvironment = new Map(
   [

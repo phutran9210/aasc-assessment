@@ -1,6 +1,5 @@
 import {
   Controller,
-  ConflictException,
   Body,
   Headers,
   HttpCode,
@@ -13,15 +12,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import type { Request } from 'express';
 
-import { Roles } from '../../integration-auth/decorators/roles.decorator.js';
-import { IntegrationJwtGuard } from '../../integration-auth/guards/integration-jwt.guard.js';
-import { IntegrationRolesGuard } from '../../integration-auth/guards/roles.guard.js';
-import type { Actor } from '../../integration-auth/types/actor.type.js';
+import { Roles } from '@modules/integration-auth/decorators/roles.decorator.js';
+import type { AuthenticatedRequest } from '@modules/integration-auth/types/authenticated-request.type.js';
+import { IntegrationJwtGuard } from '@modules/integration-auth/guards/integration-jwt.guard.js';
+import { IntegrationRolesGuard } from '@modules/integration-auth/guards/roles.guard.js';
 import { ConversionService } from '../services/conversion.service.js';
-
-type AuthenticatedRequest = Request & { user: Actor };
 
 @Controller('api/v1/leads')
 @UseGuards(IntegrationJwtGuard, IntegrationRolesGuard)
@@ -38,14 +34,12 @@ export class LeadConversionController {
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const receipt = await this.conversions.request(
+    const receipt = await this.conversions.requestManual(
       leadId,
-      'manual',
       request.user.sub,
       idempotencyKey,
       body ?? {},
     );
-    if (!receipt) throw new ConflictException('Manual conversion did not produce an operation');
     response.status(receipt.status === 'completed' ? HttpStatus.OK : HttpStatus.ACCEPTED);
     return receipt;
   }

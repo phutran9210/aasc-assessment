@@ -6,7 +6,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import type { Type } from '@nestjs/common';
 
 import { TiktokAppModule } from './app.module.js';
-import { validateTiktokEnv } from '../../config/tiktok-app/env.validation.js';
+import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 
 export async function createTiktokApp(
   rootModule: Type<unknown> = TiktokAppModule,

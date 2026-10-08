@@ -21,7 +21,10 @@ import type {
 } from '../types/bitrix-installation-snapshot.type.js';
 import { BitrixHttpError, BitrixHttpTransport } from './bitrix-http-transport.service.js';
 import type { BitrixInstallEvent, BitrixRestEnvelope, BitrixTokenSet } from '../types/index.js';
-import { validateBitrixInstallEvent } from '../utils/normalize-install-payload.js';
+import {
+  normalizeInstallPayload,
+  validateBitrixInstallEvent,
+} from '../utils/normalize-install-payload.js';
 
 type OAuthTokenResponse = {
   access_token: string;
@@ -83,6 +86,20 @@ export class BitrixOAuthService {
     await this.repository.saveTokens(tokens, { allowPortalChange });
   }
 
+  async install(payload: unknown): Promise<void> {
+    if (!this.config.portalDomain) {
+      throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.CONFIG);
+    }
+    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+      throw new BadRequestException('Bitrix install payload is invalid');
+    }
+    const event = normalizeInstallPayload(payload as Record<string, unknown>);
+    if (!validateBitrixInstallEvent(event, this.config.portalDomain)) {
+      throw new BadRequestException('Bitrix install endpoint is not allowed');
+    }
+    await this.handleInstallEvent(event);
+  }
+
   /** Builds the consent URL and remembers a one-time `state` to protect the callback (CSRF). */
   async createAuthorizationUrl(): Promise<string> {
     if (!this.config.clientId || !this.config.portalDomain) {
@@ -96,8 +113,9 @@ export class BitrixOAuthService {
   }
 
   /** Second half of the full OAuth flow: checks `state`, exchanges `code`, stores the tokens. */
-  async completeAuthorization(code: string, state: string): Promise<void> {
+  async completeAuthorization(code: string | undefined, state: string | undefined): Promise<void> {
     if (!code) throw new BadRequestException(BITRIX_MESSAGES.ERROR.CODE_REQUIRED);
+    if (!state) throw new BadRequestException(BITRIX_MESSAGES.ERROR.STATE_INVALID);
     if (!(await this.stateStore.consume(state)))
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.STATE_INVALID);
     const token = await this.exchange({ grant_type: 'authorization_code', code });
@@ -234,6 +252,9 @@ export class BitrixOAuthService {
   }
 
   private validateAuth(auth: BitrixInstallEvent['auth']): void {
+    if (!this.config.portalDomain) {
+      throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.CONFIG);
+    }
     const required = [
       auth.domain,
       auth.scope,
@@ -250,7 +271,9 @@ export class BitrixOAuthService {
     ) {
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
     }
-    if (!validateBitrixInstallEvent({ event: '', data: {}, ts: '', auth })) {
+    if (
+      !validateBitrixInstallEvent({ event: '', data: {}, ts: '', auth }, this.config.portalDomain)
+    ) {
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
     }
   }

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Redis } from 'ioredis';
 
 import { HttpException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
-import { ensureRedisConnected } from '../../../core/queue/ensure-redis-connected.js';
+import { ensureRedisConnected } from '@core/queue/ensure-redis-connected.js';
 
 type SessionRecord = { subject: string; authVersion: number; roleFingerprint: string };
 

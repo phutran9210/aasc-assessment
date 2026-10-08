@@ -7,14 +7,14 @@ import {
 } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 
-import type { OperationContext, OperationOutcome } from '../../../core/queue/types/worker.types.js';
-import { OperationEntity } from '../../../core/queue/entities/operation.entity.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
+import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { ConfigurationEntity } from '../entities/configuration.entity.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
-import { AnalyticsRevisionEntity } from '../../integration-analytics/entities/analytics-revision.entity.js';
+import { AnalyticsRevisionEntity } from '@modules/integration-analytics/entities/analytics-revision.entity.js';
 import { applyMapping } from '../domain/apply-mapping.js';
 import { buildLeadDiff } from '../domain/crm-lead-diff.js';
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
@@ -22,7 +22,7 @@ import { normalizeEmail, normalizePhone } from '../domain/normalize-contact.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { CrmGateway, RemoteLead } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import { TimelineService } from './timeline.service.js';
 

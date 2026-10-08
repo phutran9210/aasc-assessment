@@ -2,16 +2,16 @@ import { Queue } from 'bullmq';
 import { ConflictException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 
-import { OutboxDispatcherService } from '../../src/core/queue/services/outbox-dispatcher.service.js';
-import { AggregateLeaseRepository } from '../../src/core/queue/repositories/aggregate-lease.repository.js';
-import { OperationRepository } from '../../src/core/queue/repositories/operation.repository.js';
-import { OutboxRepository } from '../../src/core/queue/repositories/outbox.repository.js';
-import { WebhookEventRepository } from '../../src/core/queue/repositories/webhook-event.repository.js';
-import { OperationEntity } from '../../src/core/queue/entities/operation.entity.js';
-import { OutboxEntity } from '../../src/core/queue/entities/outbox.entity.js';
-import { WebhookEventEntity } from '../../src/core/queue/entities/webhook-event.entity.js';
-import type { AggregateLease } from '../../src/core/queue/types/operation.types.js';
-import type { QueueName } from '../../src/modules/crm-integration/types/integration.types.js';
+import { OutboxDispatcherService } from '@core/queue/services/outbox-dispatcher.service.js';
+import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import type { AggregateLease } from '@core/queue/types/operation.types.js';
+import type { QueueName } from '@core/queue/types/operation.types.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 import type { TestInfrastructure } from './utils/test-infrastructure.js';
 

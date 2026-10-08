@@ -1,7 +1,7 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
-import { TIKTOK_TABLE_NAMES } from '../../../apps/tiktok/database/table-names.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
+import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 
 @Entity({ name: TIKTOK_TABLE_NAMES.lead })
 @Index('uq_integration_lead_external_id', ['externalId'], { unique: true })

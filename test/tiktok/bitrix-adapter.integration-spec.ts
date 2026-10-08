@@ -2,11 +2,11 @@ import { randomUUID } from 'node:crypto';
 
 import { Redis } from 'ioredis';
 
-import { PostgresBitrixInstallationRepository } from '../../src/modules/crm-integration/repositories/postgres-bitrix-installation.repository.js';
-import { RedisOAuthStateStore } from '../../src/modules/crm-integration/gateways/redis-oauth-state-store.js';
-import { RedisBitrixLimiter } from '../../src/modules/crm-integration/gateways/redis-bitrix-limiter.js';
+import { PostgresBitrixInstallationRepository } from '@modules/crm-integration/repositories/postgres-bitrix-installation.repository.js';
+import { RedisOAuthStateStore } from '@modules/crm-integration/gateways/redis-oauth-state-store.js';
+import { RedisBitrixLimiter } from '@modules/crm-integration/gateways/redis-bitrix-limiter.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
-import type { RefreshLease } from '../../src/modules/bitrix/types/bitrix-installation-snapshot.type.js';
+import type { RefreshLease } from '@modules/bitrix/types/bitrix-installation-snapshot.type.js';
 
 const TOKEN_SET = {
   memberId: 'member-test-1',

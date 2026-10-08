@@ -4,7 +4,7 @@ import type { AppConfig } from '@config/index.js';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 
-import { AppModule } from '../../src/app.module.js';
+import { AppModule } from '@/app.module.js';
 
 /** Boots the real AppModule with the same setup sequence as `main.ts` (minus `listen`). */
 export async function createTestApp(): Promise<NestExpressApplication> {

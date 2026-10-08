@@ -4,17 +4,16 @@ import { ConflictException, Inject, Injectable, ServiceUnavailableException } fr
 import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
-import type { TiktokAppConfig } from '../../../config/tiktok-app/env.validation.js';
-import { ConfigurationHeadEntity } from '../../crm-integration/entities/configuration-head.entity.js';
-import { OPERATION_KINDS, QUEUE_NAMES } from '../../crm-integration/types/integration.types.js';
-import { WebhookEventEntity } from '../../../core/queue/entities/webhook-event.entity.js';
-import { OutboxRepository } from '../../../core/queue/repositories/outbox.repository.js';
-import { OperationRepository } from '../../../core/queue/repositories/operation.repository.js';
-import { WebhookEventRepository } from '../../../core/queue/repositories/webhook-event.repository.js';
+import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
+import { ConfigurationHeadEntity } from '@modules/crm-integration/entities/configuration-head.entity.js';
+import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
 import type { VerifiedEvent } from '../domain/webhook-envelope.js';
 import { TIKTOK_WEBHOOK_CONFIG } from '../guards/tiktok-signature.guard.js';
-
-export type InboxReceipt = { received: true; eventId: string; duplicate: boolean };
+import type { TiktokInboxReceipt } from '../types/tiktok-inbox-receipt.type.js';
 
 const DISPATCHED_EVENTS = new Set(['lead.generate', 'form.complete', 'user.interaction']);
 
@@ -28,7 +27,8 @@ export class TiktokInboxService {
     @Inject(TIKTOK_WEBHOOK_CONFIG) private readonly config: TiktokAppConfig,
   ) {}
 
-  async receive(event: VerifiedEvent, raw: Buffer): Promise<InboxReceipt> {
+  async receive(event: VerifiedEvent, raw: Buffer | undefined): Promise<TiktokInboxReceipt> {
+    if (!raw) throw new ServiceUnavailableException('TikTok raw body is unavailable');
     if (event.advertiserId !== this.config.advertiserId) {
       throw new ConflictException('TikTok advertiser does not match configured scope');
     }

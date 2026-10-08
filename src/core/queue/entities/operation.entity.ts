@@ -1,13 +1,13 @@
 import { Column, Entity, Index } from 'typeorm';
 
-import { IntegrationBaseEntity } from '../../../apps/tiktok/database/base.entity.js';
-import { TIKTOK_TABLE_NAMES } from '../../../apps/tiktok/database/table-names.js';
+import { IntegrationBaseEntity } from '@/apps/tiktok/database/base.entity.js';
+import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 import type {
   OperationKind,
   OperationPayload,
   OperationStatus,
   RevisionSet,
-} from '../../../modules/crm-integration/types/integration.types.js';
+} from '@core/queue/types/operation.types.js';
 
 @Entity({ name: TIKTOK_TABLE_NAMES.operation })
 @Index('uq_integration_operation_key', ['operationKey'], { unique: true })

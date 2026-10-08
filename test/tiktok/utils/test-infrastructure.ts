@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Redis } from 'ioredis';
 
-import { RedisConnectionFactory } from '../../../src/core/queue/redis-connection.js';
+import { RedisConnectionFactory } from '@core/queue/redis-connection.js';
 import { createTestDatabase } from './test-database.js';
 
 export type TestInfrastructure = {
