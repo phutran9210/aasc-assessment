@@ -830,7 +830,9 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
          duyệt và đồng ý. Google chuyển về /google/oauth/callback; refresh token được lưu
          vào GOOGLE_OAUTH_TOKEN_FILE (mặc định secrets/google-oauth-token.json, quyền 600).
       d) Tài khoản đã đồng ý phải có quyền sửa Sheet; không cần Share cho service account.
-      Luồng OAuth mới được kiểm bằng test tự động, chưa chạy với một OAuth client thật.
+      Khi ứng dụng OAuth còn ở chế độ thử nghiệm, tài khoản đăng nhập phải nằm trong
+      "Test users" của OAuth consent screen, nếu không Google báo 403 access_denied.
+      Redirect URI trong .env phải khớp từng ký tự với URI đã đăng ký, kể cả dấu / cuối.
 
   15.3. Chuẩn bị Bitrix24
 
@@ -1035,7 +1037,15 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
 
       Chưa kiểm trên hệ thống thật: xử lý rate limit và timeout của Bitrix24 (portal có trả
       QUERY_LIMIT_EXCEEDED khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp nên
-      nhánh thử lại mới có test tự động), chế độ BITRIX24_WEBHOOK_URL và Google OAuth.
+      nhánh thử lại mới có test tự động) và chế độ BITRIX24_WEBHOOK_URL.
+
+      Google OAuth đã chạy thật ngày 08/10/2026: cấp quyền qua /google/oauth/authorize, đọc
+      và ghi Sheet bằng refresh token, rồi chạy trọn chiều đi, kéo về và real-time.
+
+      Lưu ý về Bitrix24: sau một đợt gọi dồn dập (khoảng 900 lệnh trong vài giây, do bài thử
+      rate limit), portal trả FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN cho mọi lệnh trong
+      khoảng 20 phút rồi tự hoạt động lại. Lỗi này vì vậy có thể là khóa tạm thời, không
+      nhất thiết do gói dịch vụ.
 
       Hai điều rút ra khi chạy thật:
         - Portal Bitrix24 mới mặc định ở chế độ CRM đơn giản (không dùng Lead): lead vừa tạo
