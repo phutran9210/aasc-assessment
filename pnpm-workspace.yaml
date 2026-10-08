@@ -3,6 +3,7 @@ allowBuilds:
   '@scarf/scarf': false
   bcrypt: true
   better-sqlite3: true
+  msgpackr-extract: false
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - '@googleapis/sheets@18.1.1'
