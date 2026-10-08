@@ -19,6 +19,13 @@ export const leadSyncConfig = registerAs('leadSync', () => {
     retryBaseDelayMs: 500,
     // A run whose heartbeat is older than this is considered dead and may be taken over.
     lockStaleMs: 120_000,
+    // Public base URL of this app (for example the ngrok URL): where Bitrix24 sends lead events.
+    publicUrl: env.APP_PUBLIC_URL,
+    // `application_token` of an outbound webhook created by hand, when the app is not installed.
+    outgoingToken: env.BITRIX24_OUTGOING_TOKEN,
+    // Events of the same few seconds are pulled together in one run.
+    eventDebounceMs: 2000,
+    eventRetryMs: 5000,
   };
 });
 

@@ -124,6 +124,10 @@ describe('SyncRunner', () => {
       batchSize: options.batchSize ?? 25,
       retryBaseDelayMs: 0,
       lockStaleMs: 120_000,
+      publicUrl: undefined,
+      outgoingToken: undefined,
+      eventDebounceMs: 0,
+      eventRetryMs: 0,
     };
     const mapping = options.mapping ?? MAPPING;
     const sheet = new FakeSheetsClient(options.headers ?? BUSINESS, rows);

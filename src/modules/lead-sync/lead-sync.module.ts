@@ -6,10 +6,13 @@ import { GoogleSheetsModule } from '@modules/google-sheets/index.js';
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
+import { LeadSyncEventsController } from './controllers/lead-sync-events.controller.js';
 import { LeadSyncController } from './controllers/lead-sync.controller.js';
 import { BitrixLeadGateway } from './gateways/bitrix-lead.gateway.js';
 import { LeadSyncRunItemRepository } from './repositories/lead-sync-run-item.repository.js';
 import { LeadSyncRunRepository } from './repositories/lead-sync-run.repository.js';
+import { BitrixLeadEvents } from './services/bitrix-lead-events.service.js';
+import { LeadPullback } from './services/lead-pullback.service.js';
 import { LeadSyncReadiness } from './services/lead-sync-readiness.service.js';
 import { LeadSyncStatusService } from './services/lead-sync-status.service.js';
 import { MappingLoader } from './services/mapping-loader.service.js';
@@ -25,7 +28,7 @@ import { SyncScheduler } from './services/sync-scheduler.service.js';
     BitrixModule,
     GoogleSheetsModule,
   ],
-  controllers: [LeadSyncController],
+  controllers: [LeadSyncController, LeadSyncEventsController],
   providers: [
     LeadSyncRunRepository,
     LeadSyncRunItemRepository,
@@ -36,6 +39,8 @@ import { SyncScheduler } from './services/sync-scheduler.service.js';
     SyncRunner,
     SyncScheduler,
     LeadSyncStatusService,
+    LeadPullback,
+    BitrixLeadEvents,
   ],
   exports: [SyncRunner, SyncScheduler],
 })

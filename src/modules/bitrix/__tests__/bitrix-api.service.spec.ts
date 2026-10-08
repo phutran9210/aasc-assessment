@@ -281,4 +281,20 @@ describe('BitrixApiService', () => {
       await expect(service.isConfigured()).resolves.toBe(false);
     });
   });
+
+  describe('verifyApplicationToken', () => {
+    it('accepts only the application token stored at install time', async () => {
+      repository.findCurrent.mockResolvedValue({ applicationToken: 'app-token' });
+
+      await expect(service.verifyApplicationToken('app-token')).resolves.toBe(true);
+      await expect(service.verifyApplicationToken('app-tokeN')).resolves.toBe(false);
+      await expect(service.verifyApplicationToken('')).resolves.toBe(false);
+    });
+
+    it('accepts nothing while the application is not installed', async () => {
+      repository.findCurrent.mockResolvedValue(null);
+
+      await expect(service.verifyApplicationToken('app-token')).resolves.toBe(false);
+    });
+  });
 });

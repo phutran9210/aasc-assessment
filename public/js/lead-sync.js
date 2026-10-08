@@ -16,7 +16,13 @@ const STATUS = {
   failed: ['Thất bại', 'label-danger'],
   aborted: ['Dừng giữa chừng', 'label-warning'],
 };
-const TRIGGER = { schedule: 'Lịch tự động', http: 'Bấm chạy tay', cli: 'Dòng lệnh' };
+const TRIGGER = {
+  schedule: 'Lịch tự động',
+  http: 'Bấm chạy tay',
+  cli: 'Dòng lệnh',
+  webhook: 'Sự kiện Bitrix24 (về Sheet)',
+  pull: 'Kéo từ Bitrix24 về Sheet',
+};
 const ACTION = {
   create: ['Tạo mới', 'label-success'],
   update: ['Cập nhật', 'label-primary'],

@@ -932,6 +932,24 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       - Gửi batch bị timeout: ứng dụng không gửi lại nguyên lệnh mà tìm trùng lại trước,
         nên lead đã được tạo ở lần gọi trước không bị tạo lần hai.
 
+      Đồng bộ hai chiều (LEAD_SYNC_DIRECTION=two-way):
+          Chiều về chỉ gồm các cột có bảng "values" trong mapping (kiểu enum và user), tức
+          Trạng thái và Người phụ trách: mã của Bitrix24 được đổi thành nhãn trong Sheet.
+          Real-time    Đặt APP_PUBLIC_URL, chạy ứng dụng, gọi một lần
+                       POST /lead-sync/bitrix-events/register (kèm JWT). Bitrix24 sẽ gọi
+                       POST <APP_PUBLIC_URL>/lead-sync/bitrix-events mỗi khi lead đổi; các
+                       sự kiện trong 2 giây được gom lại và kéo về trong một lần chạy
+                       (trigger=webhook). Sự kiện được kiểm bằng application_token.
+          Kéo tay      POST /lead-sync/pull (kèm JWT) kéo mọi lead đã liên kết (trigger=pull).
+          Xung đột     Hàng đã bị sửa trong Sheet sau lần đồng bộ cuối (nội dung không còn
+                       khớp Sync Hash) thì Sheet thắng: không ghi đè, lần chạy
+                       Sheet -> Bitrix24 kế tiếp sẽ đẩy giá trị của Sheet lên. Hàng không có
+                       sửa đổi chờ thì nhận giá trị của Bitrix24 và Sync Hash mới, nên thay
+                       đổi không bị dội ngược thành một lần cập nhật.
+          Mã không có nhãn trong mapping (ví dụ giai đoạn CONVERTED) được bỏ qua.
+          Hai chiều dùng chung khóa một-lần-chạy với chiều đi; khi đang bận, sự kiện được
+          thử lại mỗi 5 giây, tối đa 12 lần.
+
   15.9. Xử lý lỗi và giám sát
 
       Loại lỗi                              Ứng dụng làm gì
@@ -1006,8 +1024,18 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
                            giây, 6 lô, 0 lần gặp rate limit. Chạy lại: skipped=150 trong
                            2,6 giây.
 
-      Chưa kiểm trên hệ thống thật: rate limit và timeout của Bitrix24 (không gặp trong các
-      lần chạy trên; mới có test tự động), và chế độ BITRIX24_WEBHOOK_URL.
+        Nhiều giá trị      Thêm email và số điện thoại thứ hai vào một ô: lead nhận thêm hai
+                           giá trị mới, giá trị cũ giữ nguyên; chạy lại skipped.
+        Hai chiều          Đổi giai đoạn của lead trong Bitrix24: sau khoảng 5 giây ô Trạng
+                           thái của hàng đổi theo (trigger=webhook, updated=1); lần chạy
+                           chiều đi ngay sau đó skipped, không dội ngược.
+        Xung đột           Sửa ô Công ty trong Sheet rồi đổi giai đoạn lead trong Bitrix24:
+                           hàng không bị ghi đè (conflicts=1); lần chạy chiều đi đẩy giá trị
+                           của Sheet lên, sự kiện do chính lần chạy đó sinh ra không ghi gì.
+
+      Chưa kiểm trên hệ thống thật: xử lý rate limit và timeout của Bitrix24 (portal có trả
+      QUERY_LIMIT_EXCEEDED khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp nên
+      nhánh thử lại mới có test tự động), chế độ BITRIX24_WEBHOOK_URL và Google OAuth.
 
       Hai điều rút ra khi chạy thật:
         - Portal Bitrix24 mới mặc định ở chế độ CRM đơn giản (không dùng Lead): lead vừa tạo

@@ -4,6 +4,11 @@ export const LEAD_SYNC_MESSAGES = {
       'Chưa kết nối Bitrix24: đặt BITRIX24_WEBHOOK_URL hoặc cài ứng dụng qua /install',
     BITRIX_PLAN_BLOCKED: (code: string): string =>
       `Gói dịch vụ của portal Bitrix24 không cho dùng REST API (${code}): bật dùng thử hoặc nâng gói của portal rồi chạy lại`,
+    TWO_WAY_OFF:
+      'Đồng bộ hai chiều đang tắt: đặt LEAD_SYNC_DIRECTION=two-way để ghi thay đổi từ Bitrix24 về Sheet',
+    PUBLIC_URL_MISSING:
+      'Chưa cấu hình APP_PUBLIC_URL: Bitrix24 cần một địa chỉ công khai (ví dụ URL ngrok) để gửi sự kiện',
+    EVENT_TOKEN_INVALID: 'Sự kiện Bitrix24 có application_token không hợp lệ',
     SIMPLE_CRM_MODE:
       'Bitrix24 đang ở chế độ CRM đơn giản (không dùng Lead): lead mới sẽ bị tự chuyển thành Deal và Contact. Chuyển sang CRM cổ điển trong CRM > Cài đặt > Chế độ CRM rồi chạy lại',
     BUSY: (runId: string | null): string =>

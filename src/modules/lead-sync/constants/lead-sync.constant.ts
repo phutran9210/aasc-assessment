@@ -76,7 +76,8 @@ export const LEAD_SYNC_RUN_STATUS = {
 } as const;
 export type LeadSyncRunStatus = (typeof LEAD_SYNC_RUN_STATUS)[keyof typeof LEAD_SYNC_RUN_STATUS];
 
-export const LEAD_SYNC_TRIGGERS = ['schedule', 'http', 'cli'] as const;
+/** `webhook` and `pull` are Bitrix24 → Sheet runs: after a Bitrix24 event, or asked for by hand. */
+export const LEAD_SYNC_TRIGGERS = ['schedule', 'http', 'cli', 'webhook', 'pull'] as const;
 export type LeadSyncTrigger = (typeof LEAD_SYNC_TRIGGERS)[number];
 
 export const RUN_ITEM_ACTIONS = ['create', 'update', 'fail'] as const;

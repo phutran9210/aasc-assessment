@@ -31,8 +31,12 @@ export type SheetSnapshot = {
   rows: SheetRow[];
 };
 
-/** Cells to write for one row. A column left out keeps its current content. */
-export type RowWrite = { rowNumber: number; cells: Partial<Record<TechnicalColumn, string>> };
+/**
+ * Cells to write for one row, by header text. A column left out keeps its current content. The
+ * normal run writes technical columns only; the Bitrix24 → Sheet pullback also writes the stage
+ * and assignee cells.
+ */
+export type RowWrite = { rowNumber: number; cells: Partial<Record<string, string>> };
 
 /** `drifted` rows were not written: their email or phone no longer matches what was read. */
 export type WriteOutcome = { written: number[]; drifted: number[] };

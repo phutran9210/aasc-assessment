@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import { backoffDelayMs, sleep } from '@common/utils/index.js';
 import { bitrixConfig } from '@config/index.js';
 import type { BitrixConfig } from '@config/index.js';
@@ -58,6 +60,18 @@ export class BitrixApiService {
   async isConfigured(): Promise<boolean> {
     if (this.config.webhookUrl) return true;
     return (await this.installationRepository.findCurrent()) !== null;
+  }
+
+  /**
+   * Whether `token` is the `application_token` Bitrix24 gave this app at install time. Bitrix24
+   * sends it with every event, which is how an event handler knows the caller is the portal.
+   */
+  async verifyApplicationToken(token: string): Promise<boolean> {
+    const expected = (await this.installationRepository.findCurrent())?.applicationToken;
+    if (!expected || !token) return false;
+    const left = Buffer.from(token);
+    const right = Buffer.from(expected);
+    return left.length === right.length && timingSafeEqual(left, right);
   }
 
   /**

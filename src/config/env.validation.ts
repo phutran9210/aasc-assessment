@@ -175,6 +175,8 @@ export const envSchema = z
         .refine(isTimeZone, { message: 'phải là múi giờ IANA, ví dụ Asia/Ho_Chi_Minh' })
         .default('Asia/Ho_Chi_Minh'),
     ),
+    APP_PUBLIC_URL: blankAsUnset(z.url().optional()),
+    BITRIX24_OUTGOING_TOKEN: optionalText,
     LEAD_SYNC_DIRECTION: blankAsUnset(z.enum(LEAD_SYNC_DIRECTIONS).default('sheet-to-bitrix')),
     LEAD_SYNC_DEFAULT_COUNTRY: blankAsUnset(z.enum(LEAD_SYNC_COUNTRIES).default('VN')),
     LEAD_SYNC_MAX_RETRIES: blankAsUnset(z.coerce.number().int().min(0).max(10).default(4)),

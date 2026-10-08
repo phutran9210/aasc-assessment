@@ -19,6 +19,10 @@ const config = (mappingPath: string): LeadSyncConfig => ({
   batchSize: 25,
   retryBaseDelayMs: 0,
   lockStaleMs: 120_000,
+  publicUrl: undefined,
+  outgoingToken: undefined,
+  eventDebounceMs: 0,
+  eventRetryMs: 0,
 });
 
 describe('MappingLoader', () => {

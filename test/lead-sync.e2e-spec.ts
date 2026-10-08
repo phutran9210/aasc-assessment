@@ -283,6 +283,20 @@ describe('Lead sync (e2e)', () => {
     expect(forged.body.message).toMatch(/không hợp lệ hoặc đã hết hạn/);
   });
 
+  it('should keep the Bitrix24 → Sheet entry points closed while two-way sync is off', async () => {
+    await http().post('/lead-sync/pull').expect(401);
+    await http().post('/lead-sync/bitrix-events/register').expect(401);
+
+    const pull = await post('/lead-sync/pull').expect(503);
+    expect(pull.body.message).toMatch(/LEAD_SYNC_DIRECTION=two-way/);
+    // An event is acknowledged but ignored: Bitrix24 retries anything that is not a 200.
+    await http()
+      .post('/lead-sync/bitrix-events')
+      .type('form')
+      .send('event=ONCRMLEADUPDATE&data[FIELDS][ID]=10&auth[application_token]=forged')
+      .expect(200, { received: true });
+  });
+
   it('should answer 404 for an unknown run and 400 for a malformed id', async () => {
     const missing = await get(`/lead-sync/runs/${UNKNOWN_ID}`).expect(404);
     expect(missing.body.message).toBe('Không tìm thấy lần chạy');
