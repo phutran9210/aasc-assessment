@@ -47,6 +47,8 @@ import { TimelineRepository } from '@modules/crm-integration/repositories/timeli
 import { FeedbackRepository } from '@modules/crm-integration/repositories/feedback.repository.js';
 import { DealPollSchedulerService } from '@modules/crm-integration/services/deal-poll-scheduler.service.js';
 import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import { CONVERSION_FEEDBACK } from '@modules/crm-integration/ports/conversion-feedback.port.js';
+import type { ConversionFeedbackScheduler } from '@modules/crm-integration/ports/conversion-feedback.port.js';
 import { FeedbackHandler } from '@modules/tiktok/workers/feedback.handler.js';
 import { TIKTOK_FEEDBACK_PROVIDER } from '@modules/tiktok/ports/tiktok-feedback-provider.port.js';
 import type { TiktokFeedbackProvider } from '@modules/tiktok/types/index.js';
@@ -95,7 +97,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         OperationRepository,
         WebhookEventRepository,
         AnalyticsRevisionRepository,
-        ConversionFeedbackService,
+        CONVERSION_FEEDBACK,
       ],
       useFactory: (
         ds: DataSource,
@@ -105,7 +107,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         operations: OperationRepository,
         events: WebhookEventRepository,
         analyticsRevisions: AnalyticsRevisionRepository,
-        feedback: ConversionFeedbackService,
+        feedback: ConversionFeedbackScheduler,
       ) =>
         new DealRefreshService(
           ds,
@@ -166,6 +168,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         ),
     },
     FeedbackRepository,
+    { provide: CONVERSION_FEEDBACK, useExisting: ConversionFeedbackService },
     FeedbackHandler,
     WebhookEventRepository,
     RemoteReconciliationService,
@@ -203,7 +206,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         WebhookEventRepository,
         ConfigurationRepository,
         AnalyticsRevisionRepository,
-        ConversionFeedbackService,
+        CONVERSION_FEEDBACK,
       ],
       useFactory: (
         dataSource: DataSource,
@@ -215,7 +218,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         webhookEvents: WebhookEventRepository,
         configurations: ConfigurationRepository,
         analyticsRevisions: AnalyticsRevisionRepository,
-        feedback: ConversionFeedbackService,
+        feedback: ConversionFeedbackScheduler,
       ) => {
         const config = validateTiktokEnv(process.env);
         return new LeadIngestService(
@@ -307,7 +310,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         SubmissionRepository,
         DealRepository,
         AnalyticsRevisionRepository,
-        ConversionFeedbackService,
+        CONVERSION_FEEDBACK,
       ],
       useFactory: (
         dataSource: DataSource,
@@ -322,7 +325,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         submissions: SubmissionRepository,
         deals: DealRepository,
         analyticsRevisions: AnalyticsRevisionRepository,
-        feedback: ConversionFeedbackService,
+        feedback: ConversionFeedbackScheduler,
       ) =>
         new ConversionService(
           dataSource,

@@ -13,10 +13,12 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { IntegrationJwtGuard } from '@modules/integration-auth/guards/integration-jwt.guard.js';
-import { IntegrationRolesGuard } from '@modules/integration-auth/guards/roles.guard.js';
-import { Roles } from '@modules/integration-auth/decorators/roles.decorator.js';
-import type { AuthenticatedRequest } from '@modules/integration-auth/types/index.js';
+import {
+  IntegrationJwtGuard,
+  IntegrationRolesGuard,
+  Roles,
+} from '@modules/integration-auth/index.js';
+import type { AuthenticatedRequest } from '@modules/integration-auth/index.js';
 import { OperationQueryDto } from '../dto/operation-query.dto.js';
 import { OperationRetryDto } from '../dto/operation-retry.dto.js';
 import { OperationResolveDto } from '../dto/operation-resolve.dto.js';

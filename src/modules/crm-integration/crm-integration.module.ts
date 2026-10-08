@@ -4,7 +4,7 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
 import { TiktokDatabaseModule } from '@/apps/tiktok/database/database.module.js';
-import { IntegrationAuthModule } from '../integration-auth/integration-auth.module.js';
+import { IntegrationAuthModule } from '@modules/integration-auth/index.js';
 import { BitrixCrmGateway } from './gateways/bitrix-crm.gateway.js';
 import { CRM_GATEWAY } from './ports/crm-gateway.port.js';
 import { ConfigurationController } from './controllers/configuration.controller.js';
@@ -43,6 +43,8 @@ import { IntegrationReadService } from './services/integration-read.service.js';
 import { IntegrationReadRepository } from './repositories/integration-read.repository.js';
 import { OperationControlService } from './services/operation-control.service.js';
 import { ConversionFeedbackService } from '../tiktok/services/conversion-feedback.service.js';
+import { CONVERSION_FEEDBACK } from './ports/conversion-feedback.port.js';
+import type { ConversionFeedbackScheduler } from './ports/conversion-feedback.port.js';
 import { MockTiktokAdapter } from '../tiktok/adapters/mock-tiktok.adapter.js';
 import { TIKTOK_FEEDBACK_PROVIDER } from '../tiktok/ports/tiktok-feedback-provider.port.js';
 import type { TiktokFeedbackProvider } from '../tiktok/ports/tiktok-feedback-provider.port.js';
@@ -112,6 +114,7 @@ export class CrmIntegrationModule {
               feedbackData,
             ),
         },
+        { provide: CONVERSION_FEEDBACK, useExisting: ConversionFeedbackService },
         WebhookEventRepository,
         DealHistoryRepository,
         DealPollRepository,
@@ -204,7 +207,7 @@ export class CrmIntegrationModule {
             OperationRepository,
             WebhookEventRepository,
             AnalyticsRevisionRepository,
-            ConversionFeedbackService,
+            CONVERSION_FEEDBACK,
           ],
           useFactory: (
             ds: DataSource,
@@ -214,7 +217,7 @@ export class CrmIntegrationModule {
             operations: OperationRepository,
             events: WebhookEventRepository,
             analyticsRevisions: AnalyticsRevisionRepository,
-            feedback: ConversionFeedbackService,
+            feedback: ConversionFeedbackScheduler,
           ) =>
             new DealRefreshService(
               ds,
@@ -267,7 +270,7 @@ export class CrmIntegrationModule {
             SubmissionRepository,
             DealRepository,
             AnalyticsRevisionRepository,
-            ConversionFeedbackService,
+            CONVERSION_FEEDBACK,
           ],
           useFactory: (
             dataSource: DataSource,
@@ -282,7 +285,7 @@ export class CrmIntegrationModule {
             submissions: SubmissionRepository,
             deals: DealRepository,
             analyticsRevisions: AnalyticsRevisionRepository,
-            feedback: ConversionFeedbackService,
+            feedback: ConversionFeedbackScheduler,
           ) =>
             new ConversionService(
               dataSource,

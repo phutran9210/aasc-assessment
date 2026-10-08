@@ -22,7 +22,7 @@ import { scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { ScorePolicy } from '../types/rule.types.js';
 import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
-import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
 import type { IngestOutcome } from '../types/ingest-outcome.type.js';
 
 const DEFAULT_SCORE_POLICY: ScorePolicy = {
@@ -48,7 +48,7 @@ export class LeadIngestService {
     private readonly analyticsRevisions: AnalyticsRevisionRepository,
     private readonly portalKey: string,
     private readonly region = 'VN',
-    private readonly feedback?: ConversionFeedbackService,
+    private readonly feedback?: ConversionFeedbackScheduler,
   ) {}
 
   async process(

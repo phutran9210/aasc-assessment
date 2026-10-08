@@ -13,7 +13,7 @@ import type { CrmGateway, CrmMetadata, RemoteDeal } from '../ports/crm-gateway.p
 import { DealEntity } from '../entities/deal.entity.js';
 import { DealRepository } from '../repositories/deal.repository.js';
 import { DealHistoryRepository } from '../repositories/deal-history.repository.js';
-import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
 
 @Injectable()
 export class DealRefreshService {
@@ -28,7 +28,7 @@ export class DealRefreshService {
     private readonly operations: OperationRepository,
     private readonly webhookEvents: WebhookEventRepository,
     private readonly analyticsRevisions: AnalyticsRevisionRepository,
-    private readonly feedback?: ConversionFeedbackService,
+    private readonly feedback?: ConversionFeedbackScheduler,
   ) {}
 
   async refresh(remoteId: string, context: OperationContext): Promise<OperationOutcome> {

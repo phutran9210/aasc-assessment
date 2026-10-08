@@ -23,7 +23,7 @@ import {
 } from './gateways/redis-bitrix-limiter.js';
 import { RedisOAuthStateStore } from './gateways/redis-oauth-state-store.js';
 import { PostgresBitrixInstallationRepository } from './repositories/postgres-bitrix-installation.repository.js';
-import { IntegrationAuthModule } from '../integration-auth/integration-auth.module.js';
+import { IntegrationAuthModule } from '@modules/integration-auth/index.js';
 import { BITRIX_ADAPTER_CONFIG, BITRIX_REDIS_CLIENT } from './tokens.js';
 
 export type BitrixAdapterConfig = {

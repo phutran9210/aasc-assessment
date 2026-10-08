@@ -25,7 +25,7 @@ import type { CrmGateway, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import type { ConversionReceipt } from '../types/conversion-receipt.type.js';
 import { TimelineService } from './timeline.service.js';
-import { ConversionFeedbackService } from '@modules/tiktok/services/conversion-feedback.service.js';
+import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { SubmissionRepository } from '../repositories/submission.repository.js';
 import { DealRepository } from '../repositories/deal.repository.js';
@@ -58,7 +58,7 @@ export class ConversionService {
     private readonly submissions: SubmissionRepository,
     private readonly deals: DealRepository,
     private readonly analyticsRevisions: AnalyticsRevisionRepository,
-    private readonly feedback?: ConversionFeedbackService,
+    private readonly feedback?: ConversionFeedbackScheduler,
   ) {}
 
   async request(

@@ -18,6 +18,7 @@ describe('TikTok app boundary', () => {
       BITRIX_MOCK_EVENT_SECRET: 'mock-bitrix-event-secret-for-tests',
     });
     const { TiktokAppModule } = await import('../app.module.js');
+    const { TiktokWorkerModule } = await import('../worker.module.js');
     const moduleRef = await Test.createTestingModule({ imports: [TiktokAppModule] })
       .overrideProvider(getDataSourceToken('tiktok'))
       .useValue(new DataSource({ type: 'postgres', url: process.env.TIKTOK_DATABASE_URL }))
@@ -32,5 +33,10 @@ describe('TikTok app boundary', () => {
     const importedModuleNames = imports.map((entry) => (entry as { name?: string }).name);
     expect(importedModuleNames).not.toContain('AppModule');
     expect(importedModuleNames).not.toContain('DatabaseModule');
+
+    const workerImports = Reflect.getMetadata('imports', TiktokWorkerModule) as unknown[];
+    const workerModuleNames = workerImports.map((entry) => (entry as { name?: string }).name);
+    expect(workerModuleNames).not.toContain('AppModule');
+    expect(workerModuleNames).not.toContain('DatabaseModule');
   });
 });
