@@ -3,6 +3,7 @@ import type { BitrixConfig } from '@config/index.js';
 
 import { Inject, Injectable } from '@nestjs/common';
 
+import { BITRIX_TIME_LIMIT_ERROR } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
 import type { BitrixRestEnvelope } from '../types/index.js';
 
@@ -17,6 +18,17 @@ export class BitrixHttpError extends Error {
     super(message);
     this.name = 'BitrixHttpError';
   }
+}
+
+/**
+ * True for failures that say nothing about the request itself: a timeout, a network error or a
+ * 5xx answer. The same request may succeed if sent again, but it may also have been executed.
+ */
+export function isTransientBitrixError(error: unknown): boolean {
+  if (!(error instanceof BitrixHttpError)) return false;
+  if (error.code === BITRIX_TIME_LIMIT_ERROR) return false;
+  if (error.timeout || error.status === undefined) return true;
+  return error.status >= 500;
 }
 
 /**
@@ -38,20 +50,25 @@ export class BitrixHttpTransport {
     method: string,
     payload: Record<string, unknown>,
     accessToken?: string,
+    timeoutMs?: number,
   ): Promise<T> {
     const body = accessToken ? { ...payload, auth: accessToken } : payload;
-    return this.request<T>(`${endpoint.replace(/\/$/, '')}/${method}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'application/json' },
-      body: JSON.stringify(body),
-    });
+    return this.request<T>(
+      `${endpoint.replace(/\/$/, '')}/${method}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body),
+      },
+      timeoutMs,
+    );
   }
 
-  private async request<T>(url: string, init?: RequestInit): Promise<T> {
+  private async request<T>(url: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
     try {
       const response = await fetch(url, {
         ...init,
-        signal: AbortSignal.timeout(this.config.timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs ?? this.config.timeoutMs),
       });
       const raw = await response.text();
       let parsed: BitrixRestEnvelope<T>;

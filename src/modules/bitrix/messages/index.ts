@@ -19,5 +19,6 @@ export const BITRIX_MESSAGES = {
     UNREACHABLE: 'Không thể kết nối Bitrix24',
     RESPONSE_INVALID: 'Bitrix24 trả về dữ liệu không hợp lệ',
     RESULT_MISSING: 'Bitrix24 response thiếu result',
+    BATCH_NO_RESULT: 'Bitrix24 không trả kết quả cho lệnh này',
   },
 } as const;

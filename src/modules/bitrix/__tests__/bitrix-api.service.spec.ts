@@ -1,3 +1,5 @@
+import { bitrixConfig } from '@config/index.js';
+
 import { BadGatewayException, GatewayTimeoutException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
@@ -12,15 +14,13 @@ describe('BitrixApiService', () => {
     clientEndpoint: 'https://portal.bitrix24.com/rest/',
     accessToken: 'token',
   };
+  const WEBHOOK = 'https://portal.bitrix24.com/rest/1/abcdef0123456789/';
   const repository = { findCurrent: jest.fn() };
   const oauth = { getAccessToken: jest.fn(), refreshAccessToken: jest.fn() };
   const transport = { postRest: jest.fn() };
   let service: BitrixApiService;
 
-  beforeEach(async () => {
-    jest.resetAllMocks();
-    repository.findCurrent.mockResolvedValue(installation);
-    oauth.getAccessToken.mockResolvedValue('token');
+  const build = async (webhookUrl?: string): Promise<BitrixApiService> => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         BitrixApiService,
@@ -28,9 +28,17 @@ describe('BitrixApiService', () => {
         { provide: BitrixInstallationRepository, useValue: repository },
         { provide: BitrixOAuthService, useValue: oauth },
         { provide: BitrixHttpTransport, useValue: transport },
+        { provide: bitrixConfig.KEY, useValue: { webhookUrl } },
       ],
     }).compile();
-    service = moduleRef.get(BitrixApiService);
+    return moduleRef.get(BitrixApiService);
+  };
+
+  beforeEach(async () => {
+    jest.resetAllMocks();
+    repository.findCurrent.mockResolvedValue(installation);
+    oauth.getAccessToken.mockResolvedValue('token');
+    service = await build();
   });
 
   it('calls the configured Bitrix endpoint with a current token', async () => {
@@ -42,6 +50,7 @@ describe('BitrixApiService', () => {
       'crm.item.get',
       { id: 1 },
       'token',
+      undefined,
     );
   });
 
@@ -132,5 +141,144 @@ describe('BitrixApiService', () => {
     await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBeInstanceOf(
       BadGatewayException,
     );
+  });
+
+  describe('callRaw', () => {
+    it('keeps the Bitrix24 error instead of mapping it to an HTTP error', async () => {
+      const failure = new BitrixHttpError('Invalid value', 'INVALID_ARG_VALUE', 400);
+      transport.postRest.mockRejectedValueOnce(failure);
+
+      await expect(service.callRaw('crm.item.add', {})).rejects.toBe(failure);
+    });
+
+    it('does not retry a timeout unless asked to', async () => {
+      transport.postRest.mockRejectedValue(
+        new BitrixHttpError('timeout', undefined, undefined, true),
+      );
+
+      await expect(service.callRaw('batch', {})).rejects.toMatchObject({ timeout: true });
+      expect(transport.postRest).toHaveBeenCalledTimes(1);
+    });
+
+    it('passes a per-call timeout to the transport', async () => {
+      transport.postRest.mockResolvedValue({ result: {} });
+
+      await service.callRaw('batch', { halt: 0 }, { timeoutMs: 60_000 });
+
+      expect(transport.postRest).toHaveBeenCalledWith(
+        installation.clientEndpoint,
+        'batch',
+        { halt: 0 },
+        'token',
+        60_000,
+      );
+    });
+
+    describe('with retryTransient', () => {
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      it('retries a timeout, a network failure and a 5xx, then succeeds', async () => {
+        transport.postRest
+          .mockRejectedValueOnce(new BitrixHttpError('timeout', undefined, undefined, true))
+          .mockRejectedValueOnce(new BitrixHttpError('unreachable', undefined, undefined))
+          .mockRejectedValueOnce(new BitrixHttpError('boom', 'INTERNAL_SERVER_ERROR', 500))
+          .mockResolvedValueOnce({ result: { fields: {} } });
+
+        const call = service.callRaw(
+          'crm.item.fields',
+          {},
+          { retryTransient: true, maxRetries: 4 },
+        );
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        await expect(call).resolves.toEqual({ result: { fields: {} }, total: undefined });
+        expect(transport.postRest).toHaveBeenCalledTimes(4);
+      });
+
+      it('gives up after maxRetries and throws the last Bitrix24 error', async () => {
+        transport.postRest.mockRejectedValue(new BitrixHttpError('boom', undefined, 502));
+
+        const call = service.callRaw('crm.item.list', {}, { retryTransient: true, maxRetries: 2 });
+        const outcome = expect(call).rejects.toMatchObject({ status: 502 });
+        await jest.advanceTimersByTimeAsync(60_000);
+
+        await outcome;
+        expect(transport.postRest).toHaveBeenCalledTimes(3);
+      });
+
+      it('never retries a rejected request or OPERATION_TIME_LIMIT', async () => {
+        transport.postRest.mockRejectedValueOnce(
+          new BitrixHttpError('bad', 'INVALID_REQUEST', 400),
+        );
+        await expect(
+          service.callRaw('crm.item.list', {}, { retryTransient: true }),
+        ).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
+
+        transport.postRest.mockRejectedValueOnce(
+          new BitrixHttpError('too slow', 'OPERATION_TIME_LIMIT', 503),
+        );
+        await expect(
+          service.callRaw('crm.item.list', {}, { retryTransient: true }),
+        ).rejects.toMatchObject({ code: 'OPERATION_TIME_LIMIT' });
+
+        expect(transport.postRest).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  describe('webhook mode', () => {
+    beforeEach(async () => {
+      service = await build(WEBHOOK);
+    });
+
+    it('calls the webhook URL without a token and without touching the OAuth installation', async () => {
+      transport.postRest.mockResolvedValue({ result: { id: 1 } });
+
+      await expect(service.callBitrixApi('crm.item.get', { id: 1 })).resolves.toEqual({ id: 1 });
+      expect(transport.postRest).toHaveBeenCalledWith(
+        WEBHOOK,
+        'crm.item.get',
+        { id: 1 },
+        undefined,
+        undefined,
+      );
+      expect(repository.findCurrent).not.toHaveBeenCalled();
+      expect(oauth.getAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('does not try to refresh a token when the webhook is rejected', async () => {
+      transport.postRest.mockRejectedValue(new BitrixHttpError('bad', 'INVALID_CREDENTIALS', 401));
+
+      await expect(service.callRaw('crm.item.get', {})).rejects.toMatchObject({
+        code: 'INVALID_CREDENTIALS',
+      });
+      expect(oauth.refreshAccessToken).not.toHaveBeenCalled();
+    });
+
+    it('never puts the webhook URL in the error it reports', async () => {
+      transport.postRest.mockRejectedValue(new BitrixHttpError('upstream', 'E', 500));
+
+      await expect(service.callBitrixApi('crm.item.get', {})).rejects.toMatchObject({
+        message: expect.not.stringContaining('abcdef0123456789'),
+      });
+    });
+  });
+
+  describe('isConfigured / mode', () => {
+    it('reports webhook mode as configured', async () => {
+      const webhook = await build(WEBHOOK);
+
+      expect(webhook.mode).toBe('webhook');
+      await expect(webhook.isConfigured()).resolves.toBe(true);
+    });
+
+    it('reports OAuth mode as configured only once the application is installed', async () => {
+      expect(service.mode).toBe('oauth');
+      await expect(service.isConfigured()).resolves.toBe(true);
+
+      repository.findCurrent.mockResolvedValue(null);
+      await expect(service.isConfigured()).resolves.toBe(false);
+    });
   });
 });

@@ -1,8 +1,13 @@
+import { backoffDelayMs, sleep } from '@common/utils/index.js';
+import { bitrixConfig } from '@config/index.js';
+import type { BitrixConfig } from '@config/index.js';
+
 import {
   BadGatewayException,
   GatewayTimeoutException,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -12,11 +17,24 @@ import {
 import { BITRIX_RATE_LIMIT } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
 import { BitrixInstallationRepository } from '../repositories/bitrix-installation.repository.js';
-import { BitrixHttpError, BitrixHttpTransport } from './bitrix-http-transport.service.js';
+import {
+  BitrixHttpError,
+  BitrixHttpTransport,
+  isTransientBitrixError,
+} from './bitrix-http-transport.service.js';
 import { BitrixOAuthService } from './bitrix-oauth.service.js';
 import { BitrixRateLimiter } from './bitrix-rate-limiter.service.js';
 
-type BitrixResult<T> = { result: T; total?: number };
+export type BitrixResult<T> = { result: T; total?: number };
+
+export type BitrixCallOptions = {
+  /** Also retry timeouts, network failures and 5xx. Only safe for calls that change nothing. */
+  retryTransient?: boolean;
+  /** Retries for transient failures; defaults to the rate-limit retry count. */
+  maxRetries?: number;
+  /** Overrides the default request timeout, for long calls such as `batch`. */
+  timeoutMs?: number;
+};
 
 /** Generic gateway to the Bitrix24 REST API used by the feature modules. */
 @Injectable()
@@ -28,7 +46,19 @@ export class BitrixApiService {
     private readonly oauthService: BitrixOAuthService,
     private readonly transport: BitrixHttpTransport,
     private readonly rateLimiter: BitrixRateLimiter,
+    @Inject(bitrixConfig.KEY) private readonly config: Pick<BitrixConfig, 'webhookUrl'>,
   ) {}
+
+  /** `webhook` when BITRIX24_WEBHOOK_URL is set, otherwise the installed OAuth application. */
+  get mode(): 'webhook' | 'oauth' {
+    return this.config.webhookUrl ? 'webhook' : 'oauth';
+  }
+
+  /** Whether a call can be attempted: a webhook URL, or an installed application. */
+  async isConfigured(): Promise<boolean> {
+    if (this.config.webhookUrl) return true;
+    return (await this.installationRepository.findCurrent()) !== null;
+  }
 
   /**
    * Calls one Bitrix24 REST method (for example `crm.item.list`) with the current access token
@@ -44,58 +74,87 @@ export class BitrixApiService {
     method: string,
     payload: Record<string, unknown>,
   ): Promise<BitrixResult<T>> {
+    try {
+      return await this.callRaw<T>(method, payload);
+    } catch (error) {
+      throw this.mapError(method, error);
+    }
+  }
+
+  /**
+   * Same call, for callers that react to the Bitrix24 error themselves: a failure is thrown as
+   * the original BitrixHttpError (code, status, timeout flag), not as an HTTP error. In webhook
+   * mode the URL carries the credentials, so there is no token to send or refresh.
+   */
+  async callRaw<T>(
+    method: string,
+    payload: Record<string, unknown>,
+    options: BitrixCallOptions = {},
+  ): Promise<BitrixResult<T>> {
+    if (this.config.webhookUrl) {
+      return this.callWithinRateLimit<T>(
+        this.config.webhookUrl,
+        method,
+        payload,
+        undefined,
+        options,
+      );
+    }
+
     const installation = await this.installationRepository.findCurrent();
     if (!installation) {
       throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.NOT_INSTALLED);
     }
 
+    const endpoint = installation.clientEndpoint;
     const accessToken = await this.oauthService.getAccessToken();
     try {
-      return await this.callWithinRateLimit<T>(
-        installation.clientEndpoint,
-        method,
-        payload,
-        accessToken,
-      );
+      return await this.callWithinRateLimit<T>(endpoint, method, payload, accessToken, options);
     } catch (error) {
-      if (!(error instanceof BitrixHttpError) || !this.isExpiredToken(error)) {
-        throw this.mapError(method, error);
-      }
+      if (!(error instanceof BitrixHttpError) || !this.isExpiredToken(error)) throw error;
       const refreshedToken = await this.oauthService.refreshAccessToken(accessToken);
-      try {
-        return await this.callWithinRateLimit<T>(
-          installation.clientEndpoint,
-          method,
-          payload,
-          refreshedToken,
-        );
-      } catch (retryError) {
-        throw this.mapError(method, retryError);
-      }
+      return this.callWithinRateLimit<T>(endpoint, method, payload, refreshedToken, options);
     }
   }
 
   /**
    * Sends one call through the client-side rate limiter. If Bitrix24 still answers
-   * QUERY_LIMIT_EXCEEDED (another process or integration used the budget), back off and retry.
+   * QUERY_LIMIT_EXCEEDED (another process or integration used the budget), back off and retry:
+   * a rate-limited request was not executed, so repeating it is always safe. Timeouts, network
+   * failures and 5xx are retried only when the caller asked for it.
    */
   private async callWithinRateLimit<T>(
     endpoint: string,
     method: string,
     payload: Record<string, unknown>,
-    token: string,
+    token: string | undefined,
+    options: BitrixCallOptions,
   ): Promise<BitrixResult<T>> {
     for (let attempt = 0; ; attempt++) {
       await this.rateLimiter.acquire();
       try {
-        return await this.call<T>(endpoint, method, payload, token);
+        return await this.call<T>(endpoint, method, payload, token, options.timeoutMs);
       } catch (error) {
-        if (!this.isRateLimited(error)) throw error;
-        this.rateLimiter.saturate();
-        if (attempt >= BITRIX_RATE_LIMIT.RETRIES) throw error;
-        const delayMs = BITRIX_RATE_LIMIT.BASE_DELAY_MS * 2 ** attempt;
-        this.logger.warn(`${method} rate limited by Bitrix24, retrying in ${delayMs}ms`);
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        const limited = this.isRateLimited(error);
+        if (limited) this.rateLimiter.saturate();
+
+        const transient = !limited && options.retryTransient && isTransientBitrixError(error);
+        if (!limited && !transient) throw error;
+
+        const retries = limited
+          ? BITRIX_RATE_LIMIT.RETRIES
+          : (options.maxRetries ?? BITRIX_RATE_LIMIT.RETRIES);
+        if (attempt >= retries) throw error;
+
+        const delayMs = limited
+          ? BITRIX_RATE_LIMIT.BASE_DELAY_MS * 2 ** attempt
+          : backoffDelayMs(attempt, BITRIX_RATE_LIMIT.BASE_DELAY_MS);
+        this.logger.warn(
+          limited
+            ? `${method} rate limited by Bitrix24, retrying in ${delayMs}ms`
+            : `${method} failed temporarily, retrying in ${delayMs}ms`,
+        );
+        await sleep(delayMs);
       }
     }
   }
@@ -108,13 +167,15 @@ export class BitrixApiService {
     endpoint: string,
     method: string,
     payload: Record<string, unknown>,
-    token: string,
+    token: string | undefined,
+    timeoutMs: number | undefined,
   ): Promise<BitrixResult<T>> {
     const response = await this.transport.postRest<{ result?: T; total?: number }>(
       endpoint,
       method,
       payload,
       token,
+      timeoutMs,
     );
     if (response.result === undefined) {
       throw new BitrixHttpError(BITRIX_MESSAGES.ERROR.RESULT_MISSING, 'INVALID_RESPONSE', 502);

@@ -27,3 +27,13 @@ export const BITRIX_RATE_LIMIT = {
   RETRIES: 3,
   BASE_DELAY_MS: 500,
 } as const;
+
+// One `batch` call carries at most 50 commands and may run far longer than a single method.
+export const BITRIX_BATCH = {
+  MAX_COMMANDS: 50,
+  TIMEOUT_MS: 60_000,
+} as const;
+
+// Bitrix24 blocks a method for a while after it used too much execution time; retrying at once
+// only extends the block.
+export const BITRIX_TIME_LIMIT_ERROR = 'OPERATION_TIME_LIMIT';
