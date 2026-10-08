@@ -1,0 +1,151 @@
+Tên khách hàng,Email,Số điện thoại,Công ty,Nguồn lead (UTM Source),Ngân sách dự kiến,Trạng thái,Người phụ trách,Ghi chú
+Khách hàng 1,khach1@example.com,0900000001,Công ty 1,facebook,1000000,Mới,,Dữ liệu thử nghiệm 1
+Khách hàng 2,khach2@example.com,0900000002,Công ty 2,google,2000000,Đang liên hệ,,Dữ liệu thử nghiệm 2
+Khách hàng 3,khach3@example.com,0900000003,Công ty 3,zalo,3000000,Đã xử lý,,Dữ liệu thử nghiệm 3
+Khách hàng 4,khach4@example.com,0900000004,Công ty 4,referral,4000000,Mới,,Dữ liệu thử nghiệm 4
+Khách hàng 5,khach5@example.com,0900000005,Công ty 5,website,5000000,Đang liên hệ,,Dữ liệu thử nghiệm 5
+Khách hàng 6,khach6@example.com,0900000006,Công ty 6,facebook,6000000,Đã xử lý,,Dữ liệu thử nghiệm 6
+Khách hàng 7,khach7@example.com,0900000007,Công ty 7,google,7000000,Mới,,Dữ liệu thử nghiệm 7
+Khách hàng 8,khach8@example.com,0900000008,Công ty 8,zalo,8000000,Đang liên hệ,,Dữ liệu thử nghiệm 8
+Khách hàng 9,khach9@example.com,0900000009,Công ty 9,referral,9000000,Đã xử lý,,Dữ liệu thử nghiệm 9
+Khách hàng 10,khach10@example.com,0900000010,Công ty 10,website,10000000,Mới,,Dữ liệu thử nghiệm 10
+Khách hàng 11,khach11@example.com,0900000011,Công ty 11,facebook,11000000,Đang liên hệ,,Dữ liệu thử nghiệm 11
+Khách hàng 12,khach12@example.com,0900000012,Công ty 12,google,12000000,Đã xử lý,,Dữ liệu thử nghiệm 12
+Khách hàng 13,khach13@example.com,0900000013,Công ty 13,zalo,13000000,Mới,,Dữ liệu thử nghiệm 13
+Khách hàng 14,khach14@example.com,0900000014,Công ty 14,referral,14000000,Đang liên hệ,,Dữ liệu thử nghiệm 14
+Khách hàng 15,khach15@example.com,0900000015,Công ty 15,website,15000000,Đã xử lý,,Dữ liệu thử nghiệm 15
+Khách hàng 16,khach16@example.com,0900000016,Công ty 16,facebook,16000000,Mới,,Dữ liệu thử nghiệm 16
+Khách hàng 17,khach17@example.com,0900000017,Công ty 17,google,17000000,Đang liên hệ,,Dữ liệu thử nghiệm 17
+Khách hàng 18,khach18@example.com,0900000018,Công ty 18,zalo,18000000,Đã xử lý,,Dữ liệu thử nghiệm 18
+Khách hàng 19,khach19@example.com,0900000019,Công ty 19,referral,19000000,Mới,,Dữ liệu thử nghiệm 19
+Khách hàng 20,khach20@example.com,0900000020,Công ty 20,website,20000000,Đang liên hệ,,Dữ liệu thử nghiệm 20
+Khách hàng 21,khach21@example.com,0900000021,Công ty 21,facebook,1000000,Đã xử lý,,Dữ liệu thử nghiệm 21
+Khách hàng 22,khach22@example.com,0900000022,Công ty 22,google,2000000,Mới,,Dữ liệu thử nghiệm 22
+Khách hàng 23,khach23@example.com,0900000023,Công ty 23,zalo,3000000,Đang liên hệ,,Dữ liệu thử nghiệm 23
+Khách hàng 24,khach24@example.com,0900000024,Công ty 24,referral,4000000,Đã xử lý,,Dữ liệu thử nghiệm 24
+Khách hàng 25,khach25@example.com,0900000025,Công ty 25,website,5000000,Mới,,Dữ liệu thử nghiệm 25
+Khách hàng 26,khach26@example.com,0900000026,Công ty 26,facebook,6000000,Đang liên hệ,,Dữ liệu thử nghiệm 26
+Khách hàng 27,khach27@example.com,0900000027,Công ty 27,google,7000000,Đã xử lý,,Dữ liệu thử nghiệm 27
+Khách hàng 28,khach28@example.com,0900000028,Công ty 28,zalo,8000000,Mới,,Dữ liệu thử nghiệm 28
+Khách hàng 29,khach29@example.com,0900000029,Công ty 29,referral,9000000,Đang liên hệ,,Dữ liệu thử nghiệm 29
+Khách hàng 30,khach30@example.com,0900000030,Công ty 30,website,10000000,Đã xử lý,,Dữ liệu thử nghiệm 30
+Khách hàng 31,khach31@example.com,0900000031,Công ty 31,facebook,11000000,Mới,,Dữ liệu thử nghiệm 31
+Khách hàng 32,khach32@example.com,0900000032,Công ty 32,google,12000000,Đang liên hệ,,Dữ liệu thử nghiệm 32
+Khách hàng 33,khach33@example.com,0900000033,Công ty 33,zalo,13000000,Đã xử lý,,Dữ liệu thử nghiệm 33
+Khách hàng 34,khach34@example.com,0900000034,Công ty 34,referral,14000000,Mới,,Dữ liệu thử nghiệm 34
+Khách hàng 35,khach35@example.com,0900000035,Công ty 35,website,15000000,Đang liên hệ,,Dữ liệu thử nghiệm 35
+Khách hàng 36,khach36@example.com,0900000036,Công ty 36,facebook,16000000,Đã xử lý,,Dữ liệu thử nghiệm 36
+Khách hàng 37,khach37@example.com,0900000037,Công ty 37,google,17000000,Mới,,Dữ liệu thử nghiệm 37
+Khách hàng 38,khach38@example.com,0900000038,Công ty 38,zalo,18000000,Đang liên hệ,,Dữ liệu thử nghiệm 38
+Khách hàng 39,khach39@example.com,0900000039,Công ty 39,referral,19000000,Đã xử lý,,Dữ liệu thử nghiệm 39
+Khách hàng 40,khach40@example.com,0900000040,Công ty 40,website,20000000,Mới,,Dữ liệu thử nghiệm 40
+Khách hàng 41,khach41@example.com,0900000041,Công ty 41,facebook,1000000,Đang liên hệ,,Dữ liệu thử nghiệm 41
+Khách hàng 42,khach42@example.com,0900000042,Công ty 42,google,2000000,Đã xử lý,,Dữ liệu thử nghiệm 42
+Khách hàng 43,khach43@example.com,0900000043,Công ty 43,zalo,3000000,Mới,,Dữ liệu thử nghiệm 43
+Khách hàng 44,khach44@example.com,0900000044,Công ty 44,referral,4000000,Đang liên hệ,,Dữ liệu thử nghiệm 44
+Khách hàng 45,khach45@example.com,0900000045,Công ty 45,website,5000000,Đã xử lý,,Dữ liệu thử nghiệm 45
+Khách hàng 46,khach46@example.com,0900000046,Công ty 46,facebook,6000000,Mới,,Dữ liệu thử nghiệm 46
+Khách hàng 47,khach47@example.com,0900000047,Công ty 47,google,7000000,Đang liên hệ,,Dữ liệu thử nghiệm 47
+Khách hàng 48,khach48@example.com,0900000048,Công ty 48,zalo,8000000,Đã xử lý,,Dữ liệu thử nghiệm 48
+Khách hàng 49,khach49@example.com,0900000049,Công ty 49,referral,9000000,Mới,,Dữ liệu thử nghiệm 49
+Khách hàng 50,khach50@example.com,0900000050,Công ty 50,website,10000000,Đang liên hệ,,Dữ liệu thử nghiệm 50
+Khách hàng 51,khach51@example.com,0900000051,Công ty 51,facebook,11000000,Đã xử lý,,Dữ liệu thử nghiệm 51
+Khách hàng 52,khach52@example.com,0900000052,Công ty 52,google,12000000,Mới,,Dữ liệu thử nghiệm 52
+Khách hàng 53,khach53@example.com,0900000053,Công ty 53,zalo,13000000,Đang liên hệ,,Dữ liệu thử nghiệm 53
+Khách hàng 54,khach54@example.com,0900000054,Công ty 54,referral,14000000,Đã xử lý,,Dữ liệu thử nghiệm 54
+Khách hàng 55,khach55@example.com,0900000055,Công ty 55,website,15000000,Mới,,Dữ liệu thử nghiệm 55
+Khách hàng 56,khach56@example.com,0900000056,Công ty 56,facebook,16000000,Đang liên hệ,,Dữ liệu thử nghiệm 56
+Khách hàng 57,khach57@example.com,0900000057,Công ty 57,google,17000000,Đã xử lý,,Dữ liệu thử nghiệm 57
+Khách hàng 58,khach58@example.com,0900000058,Công ty 58,zalo,18000000,Mới,,Dữ liệu thử nghiệm 58
+Khách hàng 59,khach59@example.com,0900000059,Công ty 59,referral,19000000,Đang liên hệ,,Dữ liệu thử nghiệm 59
+Khách hàng 60,khach60@example.com,0900000060,Công ty 60,website,20000000,Đã xử lý,,Dữ liệu thử nghiệm 60
+Khách hàng 61,khach61@example.com,0900000061,Công ty 61,facebook,1000000,Mới,,Dữ liệu thử nghiệm 61
+Khách hàng 62,khach62@example.com,0900000062,Công ty 62,google,2000000,Đang liên hệ,,Dữ liệu thử nghiệm 62
+Khách hàng 63,khach63@example.com,0900000063,Công ty 63,zalo,3000000,Đã xử lý,,Dữ liệu thử nghiệm 63
+Khách hàng 64,khach64@example.com,0900000064,Công ty 64,referral,4000000,Mới,,Dữ liệu thử nghiệm 64
+Khách hàng 65,khach65@example.com,0900000065,Công ty 65,website,5000000,Đang liên hệ,,Dữ liệu thử nghiệm 65
+Khách hàng 66,khach66@example.com,0900000066,Công ty 66,facebook,6000000,Đã xử lý,,Dữ liệu thử nghiệm 66
+Khách hàng 67,khach67@example.com,0900000067,Công ty 67,google,7000000,Mới,,Dữ liệu thử nghiệm 67
+Khách hàng 68,khach68@example.com,0900000068,Công ty 68,zalo,8000000,Đang liên hệ,,Dữ liệu thử nghiệm 68
+Khách hàng 69,khach69@example.com,0900000069,Công ty 69,referral,9000000,Đã xử lý,,Dữ liệu thử nghiệm 69
+Khách hàng 70,khach70@example.com,0900000070,Công ty 70,website,10000000,Mới,,Dữ liệu thử nghiệm 70
+Khách hàng 71,khach71@example.com,0900000071,Công ty 71,facebook,11000000,Đang liên hệ,,Dữ liệu thử nghiệm 71
+Khách hàng 72,khach72@example.com,0900000072,Công ty 72,google,12000000,Đã xử lý,,Dữ liệu thử nghiệm 72
+Khách hàng 73,khach73@example.com,0900000073,Công ty 73,zalo,13000000,Mới,,Dữ liệu thử nghiệm 73
+Khách hàng 74,khach74@example.com,0900000074,Công ty 74,referral,14000000,Đang liên hệ,,Dữ liệu thử nghiệm 74
+Khách hàng 75,khach75@example.com,0900000075,Công ty 75,website,15000000,Đã xử lý,,Dữ liệu thử nghiệm 75
+Khách hàng 76,khach76@example.com,0900000076,Công ty 76,facebook,16000000,Mới,,Dữ liệu thử nghiệm 76
+Khách hàng 77,khach77@example.com,0900000077,Công ty 77,google,17000000,Đang liên hệ,,Dữ liệu thử nghiệm 77
+Khách hàng 78,khach78@example.com,0900000078,Công ty 78,zalo,18000000,Đã xử lý,,Dữ liệu thử nghiệm 78
+Khách hàng 79,khach79@example.com,0900000079,Công ty 79,referral,19000000,Mới,,Dữ liệu thử nghiệm 79
+Khách hàng 80,khach80@example.com,0900000080,Công ty 80,website,20000000,Đang liên hệ,,Dữ liệu thử nghiệm 80
+Khách hàng 81,khach81@example.com,0900000081,Công ty 81,facebook,1000000,Đã xử lý,,Dữ liệu thử nghiệm 81
+Khách hàng 82,khach82@example.com,0900000082,Công ty 82,google,2000000,Mới,,Dữ liệu thử nghiệm 82
+Khách hàng 83,khach83@example.com,0900000083,Công ty 83,zalo,3000000,Đang liên hệ,,Dữ liệu thử nghiệm 83
+Khách hàng 84,khach84@example.com,0900000084,Công ty 84,referral,4000000,Đã xử lý,,Dữ liệu thử nghiệm 84
+Khách hàng 85,khach85@example.com,0900000085,Công ty 85,website,5000000,Mới,,Dữ liệu thử nghiệm 85
+Khách hàng 86,khach86@example.com,0900000086,Công ty 86,facebook,6000000,Đang liên hệ,,Dữ liệu thử nghiệm 86
+Khách hàng 87,khach87@example.com,0900000087,Công ty 87,google,7000000,Đã xử lý,,Dữ liệu thử nghiệm 87
+Khách hàng 88,khach88@example.com,0900000088,Công ty 88,zalo,8000000,Mới,,Dữ liệu thử nghiệm 88
+Khách hàng 89,khach89@example.com,0900000089,Công ty 89,referral,9000000,Đang liên hệ,,Dữ liệu thử nghiệm 89
+Khách hàng 90,khach90@example.com,0900000090,Công ty 90,website,10000000,Đã xử lý,,Dữ liệu thử nghiệm 90
+Khách hàng 91,khach91@example.com,0900000091,Công ty 91,facebook,11000000,Mới,,Dữ liệu thử nghiệm 91
+Khách hàng 92,khach92@example.com,0900000092,Công ty 92,google,12000000,Đang liên hệ,,Dữ liệu thử nghiệm 92
+Khách hàng 93,khach93@example.com,0900000093,Công ty 93,zalo,13000000,Đã xử lý,,Dữ liệu thử nghiệm 93
+Khách hàng 94,khach94@example.com,0900000094,Công ty 94,referral,14000000,Mới,,Dữ liệu thử nghiệm 94
+Khách hàng 95,khach95@example.com,0900000095,Công ty 95,website,15000000,Đang liên hệ,,Dữ liệu thử nghiệm 95
+Khách hàng 96,khach96@example.com,0900000096,Công ty 96,facebook,16000000,Đã xử lý,,Dữ liệu thử nghiệm 96
+Khách hàng 97,khach97@example.com,0900000097,Công ty 97,google,17000000,Mới,,Dữ liệu thử nghiệm 97
+Khách hàng 98,khach98@example.com,0900000098,Công ty 98,zalo,18000000,Đang liên hệ,,Dữ liệu thử nghiệm 98
+Khách hàng 99,khach99@example.com,0900000099,Công ty 99,referral,19000000,Đã xử lý,,Dữ liệu thử nghiệm 99
+Khách hàng 100,khach100@example.com,0900000100,Công ty 100,website,20000000,Mới,,Dữ liệu thử nghiệm 100
+Khách hàng 101,khach101@example.com,0900000101,Công ty 101,facebook,1000000,Đang liên hệ,,Dữ liệu thử nghiệm 101
+Khách hàng 102,khach102@example.com,0900000102,Công ty 102,google,2000000,Đã xử lý,,Dữ liệu thử nghiệm 102
+Khách hàng 103,khach103@example.com,0900000103,Công ty 103,zalo,3000000,Mới,,Dữ liệu thử nghiệm 103
+Khách hàng 104,khach104@example.com,0900000104,Công ty 104,referral,4000000,Đang liên hệ,,Dữ liệu thử nghiệm 104
+Khách hàng 105,khach105@example.com,0900000105,Công ty 105,website,5000000,Đã xử lý,,Dữ liệu thử nghiệm 105
+Khách hàng 106,khach106@example.com,0900000106,Công ty 106,facebook,6000000,Mới,,Dữ liệu thử nghiệm 106
+Khách hàng 107,khach107@example.com,0900000107,Công ty 107,google,7000000,Đang liên hệ,,Dữ liệu thử nghiệm 107
+Khách hàng 108,khach108@example.com,0900000108,Công ty 108,zalo,8000000,Đã xử lý,,Dữ liệu thử nghiệm 108
+Khách hàng 109,khach109@example.com,0900000109,Công ty 109,referral,9000000,Mới,,Dữ liệu thử nghiệm 109
+Khách hàng 110,khach110@example.com,0900000110,Công ty 110,website,10000000,Đang liên hệ,,Dữ liệu thử nghiệm 110
+Khách hàng 111,khach111@example.com,0900000111,Công ty 111,facebook,11000000,Đã xử lý,,Dữ liệu thử nghiệm 111
+Khách hàng 112,khach112@example.com,0900000112,Công ty 112,google,12000000,Mới,,Dữ liệu thử nghiệm 112
+Khách hàng 113,khach113@example.com,0900000113,Công ty 113,zalo,13000000,Đang liên hệ,,Dữ liệu thử nghiệm 113
+Khách hàng 114,khach114@example.com,0900000114,Công ty 114,referral,14000000,Đã xử lý,,Dữ liệu thử nghiệm 114
+Khách hàng 115,khach115@example.com,0900000115,Công ty 115,website,15000000,Mới,,Dữ liệu thử nghiệm 115
+Khách hàng 116,khach116@example.com,0900000116,Công ty 116,facebook,16000000,Đang liên hệ,,Dữ liệu thử nghiệm 116
+Khách hàng 117,khach117@example.com,0900000117,Công ty 117,google,17000000,Đã xử lý,,Dữ liệu thử nghiệm 117
+Khách hàng 118,khach118@example.com,0900000118,Công ty 118,zalo,18000000,Mới,,Dữ liệu thử nghiệm 118
+Khách hàng 119,khach119@example.com,0900000119,Công ty 119,referral,19000000,Đang liên hệ,,Dữ liệu thử nghiệm 119
+Khách hàng 120,khach120@example.com,0900000120,Công ty 120,website,20000000,Đã xử lý,,Dữ liệu thử nghiệm 120
+Khách hàng 121,khach121@example.com,0900000121,Công ty 121,facebook,1000000,Mới,,Dữ liệu thử nghiệm 121
+Khách hàng 122,khach122@example.com,0900000122,Công ty 122,google,2000000,Đang liên hệ,,Dữ liệu thử nghiệm 122
+Khách hàng 123,khach123@example.com,0900000123,Công ty 123,zalo,3000000,Đã xử lý,,Dữ liệu thử nghiệm 123
+Khách hàng 124,khach124@example.com,0900000124,Công ty 124,referral,4000000,Mới,,Dữ liệu thử nghiệm 124
+Khách hàng 125,khach125@example.com,0900000125,Công ty 125,website,5000000,Đang liên hệ,,Dữ liệu thử nghiệm 125
+Khách hàng 126,khach126@example.com,0900000126,Công ty 126,facebook,6000000,Đã xử lý,,Dữ liệu thử nghiệm 126
+Khách hàng 127,khach127@example.com,0900000127,Công ty 127,google,7000000,Mới,,Dữ liệu thử nghiệm 127
+Khách hàng 128,khach128@example.com,0900000128,Công ty 128,zalo,8000000,Đang liên hệ,,Dữ liệu thử nghiệm 128
+Khách hàng 129,khach129@example.com,0900000129,Công ty 129,referral,9000000,Đã xử lý,,Dữ liệu thử nghiệm 129
+Khách hàng 130,khach130@example.com,0900000130,Công ty 130,website,10000000,Mới,,Dữ liệu thử nghiệm 130
+Khách hàng 131,khach131@example.com,0900000131,Công ty 131,facebook,11000000,Đang liên hệ,,Dữ liệu thử nghiệm 131
+Khách hàng 132,khach132@example.com,0900000132,Công ty 132,google,12000000,Đã xử lý,,Dữ liệu thử nghiệm 132
+Khách hàng 133,khach133@example.com,0900000133,Công ty 133,zalo,13000000,Mới,,Dữ liệu thử nghiệm 133
+Khách hàng 134,khach134@example.com,0900000134,Công ty 134,referral,14000000,Đang liên hệ,,Dữ liệu thử nghiệm 134
+Khách hàng 135,khach135@example.com,0900000135,Công ty 135,website,15000000,Đã xử lý,,Dữ liệu thử nghiệm 135
+Khách hàng 136,khach136@example.com,0900000136,Công ty 136,facebook,16000000,Mới,,Dữ liệu thử nghiệm 136
+Khách hàng 137,khach137@example.com,0900000137,Công ty 137,google,17000000,Đang liên hệ,,Dữ liệu thử nghiệm 137
+Khách hàng 138,khach138@example.com,0900000138,Công ty 138,zalo,18000000,Đã xử lý,,Dữ liệu thử nghiệm 138
+Khách hàng 139,khach139@example.com,0900000139,Công ty 139,referral,19000000,Mới,,Dữ liệu thử nghiệm 139
+Khách hàng 140,khach140@example.com,0900000140,Công ty 140,website,20000000,Đang liên hệ,,Dữ liệu thử nghiệm 140
+Khách hàng 141,khach141@example.com,0900000141,Công ty 141,facebook,1000000,Đã xử lý,,Dữ liệu thử nghiệm 141
+Khách hàng 142,khach142@example.com,0900000142,Công ty 142,google,2000000,Mới,,Dữ liệu thử nghiệm 142
+Khách hàng 143,khach143@example.com,0900000143,Công ty 143,zalo,3000000,Đang liên hệ,,Dữ liệu thử nghiệm 143
+Khách hàng 144,khach144@example.com,0900000144,Công ty 144,referral,4000000,Đã xử lý,,Dữ liệu thử nghiệm 144
+Khách hàng 145,khach145@example.com,0900000145,Công ty 145,website,5000000,Mới,,Dữ liệu thử nghiệm 145
+Khách hàng 146,khach146@example.com,0900000146,Công ty 146,facebook,6000000,Đang liên hệ,,Dữ liệu thử nghiệm 146
+Khách hàng 147,khach147@example.com,0900000147,Công ty 147,google,7000000,Đã xử lý,,Dữ liệu thử nghiệm 147
+Khách hàng 148,khach148@example.com,0900000148,Công ty 148,zalo,8000000,Mới,,Dữ liệu thử nghiệm 148
+Khách hàng 149,khach149@example.com,0900000149,Công ty 149,referral,9000000,Đang liên hệ,,Dữ liệu thử nghiệm 149
+Khách hàng 150,khach150@example.com,0900000150,Công ty 150,website,10000000,Đã xử lý,,Dữ liệu thử nghiệm 150

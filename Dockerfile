@@ -33,6 +33,8 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY public ./public
+# Default lead mapping; docker-compose mounts ./config over it so it can be edited without a rebuild.
+COPY config ./config
 
 # SQLite lives in /app/data: mount a volume there to keep data between containers.
 RUN mkdir -p data && chown -R node:node /app

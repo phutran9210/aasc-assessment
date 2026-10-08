@@ -789,3 +789,169 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       connection reset, bật VPN (ví dụ Cloudflare WARP: warp-cli connect) trước khi chạy. Khi
       không tới được Jotform, webhook trả 502 và submission được lưu ở trạng thái FAILED để
       POST /jotform/sync xử lý lại sau.
+
+
+15. BÀI D - ĐỒNG BỘ LEAD TỪ GOOGLE SHEETS SANG BITRIX24
+-------------------------------------------------------
+  Team sales nhập khách hàng tiềm năng vào một Google Sheet. Ứng dụng đọc Sheet theo lịch
+  (hoặc khi được yêu cầu), tạo hoặc cập nhật Lead trong Bitrix24, rồi ghi kết quả vào chính
+  hàng đó. Chạy lại bao nhiêu lần cũng không tạo lead trùng.
+
+  15.1. Kiến trúc
+
+      Google Sheet --đọc--> lead-sync (NestJS) --batch: tìm trùng, add/update--> Bitrix24
+           ^                     |
+           +--ghi kết quả--------+--> SQLite: nhật ký lần chạy, khóa "mỗi lúc một lần chạy"
+
+      - Sheet là nơi giữ trạng thái từng hàng (Lead ID, Sync Hash). SQLite chỉ giữ nhật ký.
+      - Mỗi lần chạy xử lý từng lô 25 hàng: tìm trùng -> ghi Bitrix24 -> ghi lại Sheet.
+      - Mã nguồn: src/modules/lead-sync (điều phối, hàm thuần), src/modules/google-sheets
+        (xác thực, gọi Google), src/modules/bitrix (gọi REST, batch, giới hạn tốc độ).
+
+  15.2. Chuẩn bị Google
+
+      a) Vào https://console.cloud.google.com, tạo project, bật "Google Sheets API".
+      b) IAM & Admin -> Service Accounts -> Create service account. Mở service account vừa
+         tạo -> Keys -> Add key -> JSON. Lưu file thành secrets/google-sa.json (thư mục
+         secrets/ không được commit).
+      c) Tạo Google Sheet: File -> Import -> Upload samples/leads-template.csv. Đổi tên tab
+         thành "Leads".
+      d) Bấm Share, dán email của service account (trường client_email trong file JSON),
+         chọn quyền Editor.
+      e) Chép chuỗi giữa /d/ và /edit trong URL của Sheet vào GOOGLE_SHEET_ID.
+
+  15.3. Chuẩn bị Bitrix24
+
+      Cách nhanh (webhook): Bitrix24 -> Developer resources -> Other -> Inbound webhook,
+      chọn quyền CRM (crm) và Users (user), chép URL vào BITRIX24_WEBHOOK_URL. URL này là
+      secret. Khi biến này có giá trị, mọi lời gọi Bitrix24 của ứng dụng (kể cả API Contact
+      ở mục 13) dùng webhook.
+
+      Cách khác (OAuth): để trống BITRIX24_WEBHOOK_URL và cài ứng dụng như mục 13.
+
+  15.4. Cấu hình (.env)
+
+      GOOGLE_SERVICE_ACCOUNT_KEY_FILE=secrets/google-sa.json
+      GOOGLE_SHEET_ID=<id của Sheet>
+      GOOGLE_SHEET_NAME=Leads
+      BITRIX24_WEBHOOK_URL=https://<portal>.bitrix24.com/rest/<user id>/<mã>/
+      LEAD_SYNC_CRON=*/15 * * * *          (để trống là tắt lịch)
+
+      Các biến khác (múi giờ, quốc gia mặc định, số lần retry, thời gian giữ nhật ký) có
+      giá trị mặc định; xem .env.example. Khi không mount được file khóa, dùng
+      GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 (lệnh: base64 -w0 secrets/google-sa.json).
+
+  15.5. Cấu trúc Sheet
+
+      Chín cột do người dùng nhập: Tên khách hàng, Email, Số điện thoại, Công ty,
+      Nguồn lead (UTM Source), Ngân sách dự kiến, Trạng thái, Người phụ trách, Ghi chú.
+
+      Năm cột do ứng dụng tự thêm ở lần chạy đầu:
+          Trạng thái đồng bộ      Chờ xử lý | Đã đồng bộ | Lỗi
+          Lead ID Bitrix24        (cột ẩn)
+          Thời gian đồng bộ cuối  yyyy-MM-dd HH:mm:ss
+          Thông báo lỗi           nêu cột sai và cách sửa
+          Sync Hash               (cột ẩn)
+
+      Cột được tìm theo TÊN TIÊU ĐỀ nên có thể đổi thứ tự cột. Không đổi tên tiêu đề và
+      không sửa hai cột ẩn. Muốn ép đồng bộ lại một hàng: đặt "Trạng thái đồng bộ" thành
+      "Chờ xử lý". Mỗi hàng cần Tên khách hàng và ít nhất Email hoặc Số điện thoại.
+
+  15.6. Mapping (config/mapping.json)
+
+      Mỗi phần tử của "fields" nối một cột với một trường lead:
+          { "column": "Ngân sách dự kiến", "field": "opportunity", "type": "number" }
+
+      Kiểu     Ví dụ đầu vào                         Gửi sang Bitrix24
+      string   "  Nguyễn  Văn An "                   "Nguyễn Văn An"
+      email    "An@Example.com "                     "an@example.com"
+      phone    0901 234 567, 901234567, +84...       "+84901234567"
+      number   1500000, "1.500.000 ₫", "15tr"        1500000, 1500000, 15000000
+      enum     "Đang liên hệ"                        mã trong bảng "values" (IN_PROCESS)
+      user     email hoặc tên người phụ trách        ID trong bảng "values", không có thì
+                                                     dùng defaults.assignedById
+
+      Trường tùy chỉnh khai báo như trường thường với tên gốc, ví dụ
+      { "column": "Kênh ưa thích", "field": "UF_CRM_1700000000", "type": "string" }.
+      "titleTemplate" sinh tiêu đề lead; "defaults" là giá trị gửi kèm mọi hàng.
+      Sửa mapping làm mọi hàng được đồng bộ lại ở lần chạy kế tiếp; nên chạy --dry-run trước.
+      Mã giai đoạn (NEW, IN_PROCESS, ...) xem bằng crm.status.list của portal.
+
+  15.7. Chạy
+
+      pnpm sync:leads                Chạy một lần và chờ kết quả
+      pnpm sync:leads --dry-run      Chạy thử, không ghi gì vào Bitrix24 và Sheet
+      pnpm sync:leads --force        Đồng bộ lại mọi hàng dù không đổi
+      make sync-leads                Tương đương pnpm sync:leads
+
+      Qua HTTP (cần JWT, xem mục 7):
+          POST /lead-sync/runs  {"dryRun": false, "force": false}   -> 202 {"runId": "..."}
+          GET  /lead-sync/runs/<runId>                              -> bộ đếm, các hàng lỗi
+          GET  /lead-sync/runs?page=1&limit=20                      -> lịch sử
+          GET  /lead-sync/status                                    -> lịch, kết nối
+      409 nghĩa là đang có lần chạy khác; 503 nghĩa là chưa cấu hình đủ.
+
+      Theo lịch: đặt LEAD_SYNC_CRON rồi chạy server (pnpm start:dev hoặc Docker).
+
+      Docker: docker compose up -d --build. File khóa đặt ở ./secrets, mapping ở ./config
+      (hai thư mục được mount vào container). Chạy tay trong container:
+          docker compose run --rm app node dist/cli/lead-sync.js --dry-run
+
+  15.8. Chống trùng và idempotency
+
+      - Hàng chưa có Lead ID luôn được tìm trùng trước (crm.duplicate.findbycomm theo
+        email, rồi số điện thoại). Tìm thấy thì cập nhật lead đó, không thì tạo mới.
+      - Hàng đã có Lead ID chỉ được gửi lại khi nội dung đổi (so Sync Hash).
+      - Hai hàng trỏ tới cùng một lead: hàng trên được xử lý, hàng dưới nhận
+        "Trùng với hàng N".
+      - Gửi batch bị timeout: ứng dụng không gửi lại nguyên lệnh mà tìm trùng lại trước,
+        nên lead đã được tạo ở lần gọi trước không bị tạo lần hai.
+
+  15.9. Xử lý lỗi và giám sát
+
+      Loại lỗi                              Ứng dụng làm gì
+      Dữ liệu một hàng sai                  Hàng đó: Lỗi + lý do. Bỏ qua cho tới khi sửa.
+      Bitrix24 từ chối một hàng             Như trên; các hàng khác vẫn đồng bộ.
+      Rate limit, timeout, 5xx              Thử lại có backoff (LEAD_SYNC_MAX_RETRIES).
+                                            Hết lượt: cả lô 25 hàng ghi Lỗi tạm thời và
+                                            được thử lại ở lần chạy sau.
+      OPERATION_TIME_LIMIT                  Dừng lần chạy (aborted), hàng còn lại: Chờ xử lý.
+      Sai khóa, Sheet chưa share, mapping sai   Lần chạy kết thúc failed kèm việc cần làm.
+
+      Log của server có một dòng mở đầu, một dòng mỗi lô, một dòng tổng kết:
+          Lead sync <runId> finished: total=120 created=30 updated=10 skipped=78 failed=2 duration=14.2s
+      và một dòng error cho mỗi hàng lỗi (số hàng, bước, mã lỗi, thông báo). Log và nhật ký
+      không chứa email, số điện thoại hay tên khách hàng. Nhật ký trong SQLite giữ
+      LEAD_SYNC_LOG_RETENTION_DAYS ngày (mặc định 30).
+
+      Sự cố thường gặp:
+        "Google từ chối truy cập"          Chưa share Sheet quyền Editor cho service account.
+        "không có worksheet tên ..."       Sai GOOGLE_SHEET_NAME.
+        "Sheet không có cột ..."           Tiêu đề cột trong Sheet khác với mapping.json.
+        "Bitrix24 không có trường lead"    Sai tên trường trong mapping; xem crm.item.fields.
+        "Lead không còn tồn tại"           Lead bị xóa bên Bitrix24; xóa ô Lead ID để tạo lại.
+        Nên đặt lịch ngoài giờ nhập liệu cao điểm: sắp xếp hoặc chèn hàng trong lúc đang
+        chạy làm các hàng đó bị hoãn sang lần chạy sau.
+
+  15.10. Kịch bản kiểm thử
+
+      TC1 Tạo lead mới     Thêm một hàng, chạy pnpm sync:leads. Lead xuất hiện trong
+                           Bitrix24; hàng có Lead ID, "Đã đồng bộ", thời gian.
+      TC2 Cập nhật         Sửa Ngân sách, chạy lại: lead được cập nhật. Chạy lần nữa:
+                           skipped tăng, không có lệnh ghi.
+      TC3 Trùng lặp        Tạo sẵn lead trong Bitrix24, thêm hàng cùng email: lead cũ được
+                           cập nhật, không có lead mới. Hai hàng cùng email: hàng dưới Lỗi.
+      TC4 Lỗi API          Đặt sai BITRIX24_WEBHOOK_URL: lần chạy failed, không hàng nào
+                           bị đổi. Ngắt mạng giữa chừng: lô đang chạy ghi Lỗi tạm thời.
+      Hiệu năng            Import samples/leads-150.csv, chạy đồng bộ.
+
+      Kiểm thử tự động: pnpm test (TC1-TC4 trong sync-runner.service.spec.ts, dùng Sheet và
+      Bitrix24 giả), pnpm test:e2e (HTTP: 202, 409, 401, 503), pnpm test:cov (ngưỡng 70%
+      cho lead-sync và google-sheets; hiện đạt 90,9% và 99,2% dòng).
+
+      Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 13 lần (1 crm.item.fields + 6 batch
+      tìm trùng + 6 batch ghi), Google 9 lần đọc và 8 lần ghi. Lần chạy lại không có thay
+      đổi: Bitrix24 1 lần, Google 3 lần đọc.
+
+      Kết quả chạy thật 150 hàng: <thời gian> giây, <số> lần gặp rate limit.
+      Video demo: <liên kết>.

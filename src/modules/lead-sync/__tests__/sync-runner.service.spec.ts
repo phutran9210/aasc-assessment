@@ -718,6 +718,47 @@ describe('SyncRunner', () => {
     );
   });
 
+  describe('performance: 150 rows', () => {
+    it('should make exactly 1 + 2 × batches Bitrix24 calls and 3 + batches Sheet reads', async () => {
+      const { run, sheet, gateway } = harness(leads(150));
+      const batches = 150 / 25;
+      const startedAt = Date.now();
+
+      const result = await run();
+
+      expect(result.status).toBe('succeeded');
+      expect(counters(result)).toEqual({
+        total: 150,
+        created: 150,
+        updated: 0,
+        skipped: 0,
+        failed: 0,
+      });
+      // Bitrix24: one crm.item.fields, then one duplicate search and one write per batch.
+      expect(gateway.calls).toEqual({ fields: 1, find: batches, get: 0, write: batches });
+      expect(gateway.findSizes).toEqual(Array(batches).fill(50));
+      expect(gateway.writeSizes).toEqual(Array(batches).fill(25));
+      // Google: metadata + two renderings, then one key-column check per batch.
+      expect(sheet.calls.read).toBe(3 + batches);
+      // Google: hide columns + header row (first run only), then one result write per batch.
+      expect(sheet.calls.write).toBe(2 + batches);
+      expect(Date.now() - startedAt).toBeLessThan(5000);
+    });
+
+    it('should make one Bitrix24 call and three Sheet reads when nothing changed', async () => {
+      const { run, sheet, gateway } = harness(leads(150));
+      await run();
+      gateway.calls = { fields: 0, find: 0, get: 0, write: 0 };
+      sheet.calls = { read: 0, write: 0 };
+
+      const result = await run();
+
+      expect(counters(result)).toMatchObject({ skipped: 150, failed: 0 });
+      expect(gateway.calls).toEqual({ fields: 1, find: 0, get: 0, write: 0 });
+      expect(sheet.calls).toEqual({ read: 3, write: 0 });
+    });
+  });
+
   describe('lock and lifecycle', () => {
     it('should refuse a second run while one is in progress, naming it', async () => {
       const { runner, gateway } = harness(leads(2));

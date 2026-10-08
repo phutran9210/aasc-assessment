@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This NestJS 12 TypeScript application keeps runtime code under `src/`: shared utilities in `src/common/`, infrastructure in `src/core/`, configuration in `src/config/`, and feature modules in `src/modules/` (`auth`, `user`, `task`, `caro`, and `line98`). Keep each feature's controllers, services, repositories, DTOs, entities, gateways, and tests together. Unit tests use `src/**/__tests__/*.spec.ts`; end to end tests are in `test/`. Browser assets are in `public/`, exercises in `scripts/fibonacci/`, and documents in `docs/`.
+This NestJS 12 TypeScript application keeps runtime code under `src/`: shared utilities in `src/common/`, infrastructure in `src/core/`, configuration in `src/config/`, and feature modules in `src/modules/` (`auth`, `user`, `task`, `caro`, `line98`, `bitrix`, `contact`, `jotform`, `google-sheets`, and `lead-sync`). CLI entry points live in `src/cli/`; the default lead mapping is `config/mapping.json` and sample sheets are in `samples/`. Keep each feature's controllers, services, repositories, DTOs, entities, gateways, and tests together. Unit tests use `src/**/__tests__/*.spec.ts`; end to end tests are in `test/`. Browser assets are in `public/`, exercises in `scripts/fibonacci/`, and documents in `docs/`.
 
 ## Build, Test, and Development Commands
 
@@ -12,6 +12,7 @@ Run `pnpm install` and copy `.env.example` to `.env` for setup. Commands:
 - `pnpm build` / `pnpm start:prod` — compile to `dist/` and run the compiled app.
 - `pnpm test` — run unit tests; `pnpm test:e2e` runs REST and WebSocket tests.
 - `pnpm test:fibonacci` — run the Node test suite for the Fibonacci exercise.
+- `pnpm sync:leads [--dry-run] [--force]` — run one Google Sheets → Bitrix24 lead sync and wait for it.
 - `pnpm lint`, `pnpm typecheck`, and `pnpm format:check` — run code and formatting checks.
 - `pnpm check` — run linting, type checking, all test suites, and Fibonacci tests.
 

@@ -22,4 +22,9 @@ export default {
   },
   collectCoverageFrom: ['src/**/*.ts', '!src/main.ts', '!src/**/index.ts', '!src/**/*.module.ts'],
   coverageDirectory: 'coverage',
+  // The assessment asks for at least 70% unit coverage of the Google Sheets integration.
+  coverageThreshold: {
+    './src/modules/lead-sync/': { statements: 70, functions: 70, lines: 70 },
+    './src/modules/google-sheets/': { statements: 70, functions: 70, lines: 70 },
+  },
 };

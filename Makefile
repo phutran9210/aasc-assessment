@@ -7,7 +7,7 @@ SHELL := /bin/sh
 COUNT ?= 100
 COMPOSE := docker compose
 
-.PHONY: help install env setup dev build start seed fibonacci \
+.PHONY: help install env setup dev build start seed fibonacci sync-leads sync-leads-dry \
         test test-e2e test-fibonacci check lint format clean \
         docker-build docker-up docker-down docker-restart docker-logs docker-ps docker-shell docker-clean
 
@@ -38,6 +38,12 @@ seed: env ## Seed sample tasks, DELETES existing tasks (COUNT=100)
 
 fibonacci: ## Bai 2: verify and time F(50)
 	pnpm fibonacci
+
+sync-leads: env ## Sync leads from Google Sheets to Bitrix24 once
+	pnpm sync:leads
+
+sync-leads-dry: env ## Plan the lead sync without writing anything
+	pnpm sync:leads --dry-run
 
 # ── Quality ───────────────────────────────────────────────────────────
 

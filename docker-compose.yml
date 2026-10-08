@@ -15,6 +15,10 @@ services:
       - '${PORT:-3000}:3000'
     volumes:
       - aasc-data:/app/data
+      # Service account key for the Google Sheets sync (GOOGLE_SERVICE_ACCOUNT_KEY_FILE=secrets/...).
+      - ./secrets:/app/secrets:ro
+      # mapping.json of the lead sync; edit on the host, the next run picks it up.
+      - ./config:/app/config:ro
     restart: unless-stopped
 
 volumes:
