@@ -22,7 +22,7 @@ export type CompiledMappingEntry = {
   owner: 'integration' | 'manual';
 };
 
-export type CompiledMapping = { entries: CompiledMappingEntry[] };
+export type CompiledMapping = { entries: CompiledMappingEntry[]; titleMaxLength?: number };
 
 export function compileMapping(input: unknown, metadata: CrmMetadata): CompiledMapping {
   const parsed = mappingSchema.safeParse(input);
@@ -67,7 +67,8 @@ export function compileMapping(input: unknown, metadata: CrmMetadata): CompiledM
       owner: entry.owner,
     };
   });
-  return { entries };
+  const titleField = findField(metadata.lead.fields, 'title');
+  return { entries, titleMaxLength: titleField?.maxLength ?? 255 };
 }
 
 function findField(

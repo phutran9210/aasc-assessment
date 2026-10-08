@@ -9,6 +9,7 @@ export type CrmFieldMetadata = {
   required: boolean;
   readOnly: boolean;
   multiple: boolean;
+  maxLength?: number;
 };
 
 export type CrmStage = { id: string; name: string; categoryId: number; semantic: string | null };

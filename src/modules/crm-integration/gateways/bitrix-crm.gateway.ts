@@ -240,6 +240,8 @@ export class BitrixCrmGateway implements CrmGateway {
     return Object.fromEntries(
       Object.entries(fields).map(([name, raw]) => {
         const item = this.record(raw);
+        const settings = this.optionalRecord(item.settings);
+        const maxLength = optionalSafeInteger(item.maxLength ?? settings?.MAX_LENGTH);
         return [
           name,
           {
@@ -249,6 +251,7 @@ export class BitrixCrmGateway implements CrmGateway {
             required: optionalBoolean(item.isRequired, `${name} required`),
             readOnly: optionalBoolean(item.isReadOnly, `${name} read only`),
             multiple: optionalBoolean(item.isMultiple, `${name} multiple`),
+            ...(maxLength !== null ? { maxLength } : {}),
           },
         ];
       }),
@@ -341,4 +344,10 @@ function optionalBoolean(value: unknown, label: string): boolean {
   if (value === undefined) return false;
   if (typeof value !== 'boolean') throw new TypeError(`Bitrix ${label} was invalid`);
   return value;
+}
+
+function optionalSafeInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0 && value <= 100_000
+    ? value
+    : null;
 }

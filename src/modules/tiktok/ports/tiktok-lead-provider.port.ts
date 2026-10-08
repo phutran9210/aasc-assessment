@@ -10,7 +10,22 @@ export type ProviderLead = {
   id: string;
   advertiserId: string;
   fields: Record<string, unknown>;
-  customQuestions?: Array<{ question: string; answer: unknown }>;
+  eventKey?: string;
+  occurredAt?: string | null;
+  campaign?: { id?: string; name?: string };
+  ad?: { id?: string; name?: string };
+  form?: { id?: string; name?: string };
+  utm?: Record<string, unknown>;
+  consent?: Record<string, unknown>;
+  isHistorical?: boolean;
+  applyRules?: boolean;
+  sendFeedback?: boolean;
+  customQuestions?: Array<{
+    question?: string;
+    questionId?: string;
+    questionText?: string;
+    answer: unknown;
+  }>;
 };
 
 export type TiktokLeadProvider = {

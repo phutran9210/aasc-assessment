@@ -15,6 +15,15 @@ const metadata: CrmMetadata = {
         readOnly: false,
         multiple: false,
       },
+      title: {
+        name: 'title',
+        title: 'Title',
+        type: 'string',
+        required: false,
+        readOnly: false,
+        multiple: false,
+        maxLength: 128,
+      },
       email: {
         name: 'email',
         title: 'Email',
@@ -106,6 +115,7 @@ describe('compileMapping', () => {
         owner: 'manual',
       },
     ]);
+    expect(result.titleMaxLength).toBe(128);
   });
 
   it('rejects unknown/read-only targets, prototype paths, duplicate writes, and embedded secrets', () => {

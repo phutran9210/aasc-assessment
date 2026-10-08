@@ -208,6 +208,7 @@ describe('TikTok configuration ETag API', () => {
       transforms: ['trim'],
       owner: 'integration',
     });
+    expect(response.body.compiled.titleMaxLength).toBe(180);
     await request(testApp.app.getHttpServer())
       .get('/configuration/mapping')
       .set('Authorization', `Bearer ${adminToken}`)

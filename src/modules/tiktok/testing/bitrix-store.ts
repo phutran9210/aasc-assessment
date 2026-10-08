@@ -17,6 +17,7 @@ const FIELD = (name: string, type: string, title = name): CrmFieldMetadata => ({
   required: false,
   readOnly: false,
   multiple: false,
+  ...(name === 'title' ? { maxLength: 180 } : {}),
 });
 
 export class BitrixStore {
