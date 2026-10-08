@@ -123,3 +123,9 @@ export const BITRIX_TRANSIENT_CODES: readonly string[] = [
 export const BITRIX_TIME_LIMIT_CODE = 'OPERATION_TIME_LIMIT';
 /** Bitrix24 answers this to every REST call when the portal's plan does not include the REST API. */
 export const BITRIX_PLAN_BLOCKED_CODE = 'FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN';
+/** Bitrix24 does not accept the webhook code or the OAuth token (compared in upper case). */
+export const BITRIX_CREDENTIAL_CODES: readonly string[] = [
+  'INVALID_CREDENTIALS',
+  'INVALID_TOKEN',
+  'NO_AUTH_FOUND',
+];

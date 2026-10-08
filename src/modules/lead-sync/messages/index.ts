@@ -2,6 +2,8 @@ export const LEAD_SYNC_MESSAGES = {
   ERROR: {
     BITRIX_NOT_CONNECTED:
       'Chưa kết nối Bitrix24: đặt BITRIX24_WEBHOOK_URL hoặc cài ứng dụng qua /install',
+    BITRIX_CREDENTIALS: (code: string): string =>
+      `Bitrix24 từ chối thông tin xác thực (${code}): kiểm tra BITRIX24_WEBHOOK_URL, hoặc cài lại ứng dụng nếu dùng OAuth`,
     BITRIX_PLAN_BLOCKED: (code: string): string =>
       `Gói dịch vụ của portal Bitrix24 không cho dùng REST API (${code}): bật dùng thử hoặc nâng gói của portal rồi chạy lại`,
     TWO_WAY_OFF:
