@@ -1059,6 +1059,9 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       Outgoing webhook tạo tay cùng BITRIX24_OUTGOING_TOKEN cũng đã chạy thật: mỗi lần đổi
       một lead, Bitrix24 gửi hai sự kiện (của ứng dụng đã cài và của outgoing webhook), cả
       hai được chấp nhận và lead chỉ được kéo về một lần; token lạ bị trả 403.
+      Lead mới: tạo một lead trực tiếp trong Bitrix24, outgoing webhook gửi ONCRMLEADADD và
+      sau khoảng 4 giây lead thành một hàng mới trong Sheet kèm Lead ID; lần chạy chiều đi
+      ngay sau đó skipped, số lead trên portal không tăng.
 
       Google OAuth đã chạy thật ngày 08/10/2026: cấp quyền qua /google/oauth/authorize, đọc
       và ghi Sheet bằng refresh token, rồi chạy trọn chiều đi, kéo về và real-time.
