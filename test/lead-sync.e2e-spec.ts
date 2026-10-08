@@ -273,6 +273,16 @@ describe('Lead sync (e2e)', () => {
     expect(after.body.mapping.fields).toHaveLength(9);
   });
 
+  it('should guard the Google OAuth consent: login required, and a forged callback is refused', async () => {
+    await http().get('/google/oauth/authorize').expect(401);
+
+    const off = await get('/google/oauth/authorize').expect(503);
+    expect(off.body.message).toMatch(/GOOGLE_AUTH_MODE đang là service_account/);
+
+    const forged = await http().get('/google/oauth/callback?code=abc&state=forged').expect(400);
+    expect(forged.body.message).toMatch(/không hợp lệ hoặc đã hết hạn/);
+  });
+
   it('should answer 404 for an unknown run and 400 for a malformed id', async () => {
     const missing = await get(`/lead-sync/runs/${UNKNOWN_ID}`).expect(404);
     expect(missing.body.message).toBe('Không tìm thấy lần chạy');

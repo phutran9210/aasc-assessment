@@ -6,3 +6,6 @@ export const SHEETS_RATE_LIMIT = { PER_MINUTE: 50, WINDOW_MS: 60_000 } as const;
 
 export const SHEETS_REQUEST_KINDS = ['read', 'write'] as const;
 export type SheetsRequestKind = (typeof SHEETS_REQUEST_KINDS)[number];
+
+/** How long a consent URL stays valid. */
+export const GOOGLE_OAUTH_STATE_TTL_MS = 600_000;

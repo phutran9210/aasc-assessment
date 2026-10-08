@@ -15,6 +15,7 @@ const config = (overrides: Partial<GoogleConfig> = {}): GoogleConfig => ({
   oauthClientId: undefined,
   oauthClientSecret: undefined,
   oauthRedirectUri: undefined,
+  oauthTokenFile: 'secrets/google-oauth-token.json',
   sheetId: '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789',
   sheetName: 'Leads',
   timeoutMs: 30_000,
@@ -35,9 +36,6 @@ describe('GoogleAuthProvider', () => {
   it('should report what is missing, in the order a user would fix it', () => {
     expect(new GoogleAuthProvider(config({ sheetId: undefined })).missingConfig()).toBe(
       'Chưa cấu hình GOOGLE_SHEET_ID',
-    );
-    expect(new GoogleAuthProvider(config({ authMode: 'oauth' })).missingConfig()).toMatch(
-      /oauth chưa được hỗ trợ/,
     );
     expect(
       new GoogleAuthProvider(config({ serviceAccountKeyBase64: undefined })).missingConfig(),
@@ -96,5 +94,52 @@ describe('GoogleAuthProvider', () => {
     expect(() => provider.getApi()).toThrow(
       expect.objectContaining({ message: expect.not.stringContaining('TOP-SECRET') }),
     );
+  });
+
+  describe('OAuth mode', () => {
+    const oauth = (overrides: Partial<GoogleConfig> = {}): GoogleConfig =>
+      config({
+        authMode: 'oauth',
+        oauthClientId: 'client-id.apps.googleusercontent.com',
+        oauthClientSecret: 'client-secret',
+        oauthRedirectUri: 'http://localhost:3000/google/oauth/callback',
+        oauthTokenFile: join(directory, 'token.json'),
+        ...overrides,
+      });
+
+    it('should ask for the OAuth client settings first, then for the consent', () => {
+      expect(new GoogleAuthProvider(oauth({ oauthClientSecret: undefined })).missingConfig()).toBe(
+        'Chưa cấu hình Google OAuth: đặt GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET và GOOGLE_OAUTH_REDIRECT_URI',
+      );
+      expect(new GoogleAuthProvider(oauth()).missingConfig()).toBe(
+        'Chưa cấp quyền Google: đăng nhập rồi mở GET /google/oauth/authorize và làm theo đường dẫn trả về',
+      );
+    });
+
+    it('should build the API client from the stored refresh token', () => {
+      writeFileSync(join(directory, 'token.json'), JSON.stringify({ refresh_token: 'r-1' }));
+      const provider = new GoogleAuthProvider(oauth());
+
+      expect(provider.missingConfig()).toBeNull();
+      expect(provider.getApi()).toBe(provider.getApi());
+    });
+
+    it('should reject a token file without a refresh token', () => {
+      writeFileSync(join(directory, 'token.json'), '{"access_token":"a"}');
+
+      expect(() => new GoogleAuthProvider(oauth()).getApi()).toThrow(
+        'File token Google OAuth không hợp lệ: cấp quyền lại qua GET /google/oauth/authorize',
+      );
+    });
+
+    it('should build a new client after reset, so a fresh consent takes effect', () => {
+      writeFileSync(join(directory, 'token.json'), JSON.stringify({ refresh_token: 'r-1' }));
+      const provider = new GoogleAuthProvider(oauth());
+      const first = provider.getApi();
+
+      provider.reset();
+
+      expect(provider.getApi()).not.toBe(first);
+    });
   });
 });

@@ -13,6 +13,7 @@ export const googleConfig = registerAs('google', () => {
     oauthClientId: env.GOOGLE_OAUTH_CLIENT_ID,
     oauthClientSecret: env.GOOGLE_OAUTH_CLIENT_SECRET,
     oauthRedirectUri: env.GOOGLE_OAUTH_REDIRECT_URI,
+    oauthTokenFile: env.GOOGLE_OAUTH_TOKEN_FILE,
     sheetId: env.GOOGLE_SHEET_ID,
     sheetName: env.GOOGLE_SHEET_NAME,
     timeoutMs: 30_000,

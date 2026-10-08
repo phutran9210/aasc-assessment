@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { googleConfig } from '@config/index.js';
@@ -17,9 +17,10 @@ type ServiceAccountKey = { client_email: string; private_key: string };
 const { ERROR } = GOOGLE_SHEETS_MESSAGES;
 
 /**
- * Builds the authenticated Sheets API client from the service account key. The client signs a
- * JWT and fetches/refreshes the access token by itself. Nothing is read or built until the first
- * call, so the app starts fine without any Google configuration.
+ * Builds the authenticated Sheets API client. With a service account the client signs a JWT;
+ * with OAuth it uses the refresh token stored after the user's consent. Either way it fetches
+ * and refreshes the access token by itself. Nothing is read or built until the first call, so
+ * the app starts fine without any Google configuration.
  */
 @Injectable()
 export class GoogleAuthProvider {
@@ -30,7 +31,13 @@ export class GoogleAuthProvider {
   /** Why the Google side cannot be used, or null when it is configured. */
   missingConfig(): string | null {
     if (!this.config.sheetId) return ERROR.SHEET_ID_MISSING;
-    if (this.config.authMode !== 'service_account') return ERROR.OAUTH_UNSUPPORTED;
+    if (this.config.authMode === 'oauth') {
+      const { oauthClientId, oauthClientSecret, oauthRedirectUri } = this.config;
+      if (!oauthClientId || !oauthClientSecret || !oauthRedirectUri) {
+        return ERROR.OAUTH_CONFIG_MISSING;
+      }
+      return existsSync(resolve(this.config.oauthTokenFile)) ? null : ERROR.OAUTH_NOT_AUTHORIZED;
+    }
     if (!this.config.serviceAccountKeyBase64 && !this.config.serviceAccountKeyFile) {
       return ERROR.KEY_MISSING;
     }
@@ -43,14 +50,46 @@ export class GoogleAuthProvider {
     const missing = this.missingConfig();
     if (missing) throw new SheetsError(missing, 'config');
 
+    this.api = sheets({
+      version: 'v4',
+      auth: this.config.authMode === 'oauth' ? this.oauthClient() : this.serviceAccountClient(),
+    });
+    return this.api;
+  }
+
+  /** Drops the cached client: the next call reads the credentials again. */
+  reset(): void {
+    this.api = undefined;
+  }
+
+  private serviceAccountClient(): InstanceType<typeof auth.JWT> {
     const key = this.readKey();
-    const client = new auth.JWT({
+    return new auth.JWT({
       email: key.client_email,
       key: key.private_key,
       scopes: [GOOGLE_SHEETS_SCOPE],
     });
-    this.api = sheets({ version: 'v4', auth: client });
-    return this.api;
+  }
+
+  private oauthClient(): InstanceType<typeof auth.OAuth2> {
+    let refreshToken: unknown;
+    try {
+      const text = readFileSync(resolve(this.config.oauthTokenFile), 'utf8');
+      refreshToken = (JSON.parse(text) as { refresh_token?: unknown }).refresh_token;
+    } catch {
+      refreshToken = undefined;
+    }
+    if (typeof refreshToken !== 'string' || !refreshToken) {
+      throw new SheetsError(ERROR.OAUTH_TOKEN_INVALID, 'config');
+    }
+
+    const client = new auth.OAuth2(
+      this.config.oauthClientId,
+      this.config.oauthClientSecret,
+      this.config.oauthRedirectUri,
+    );
+    client.setCredentials({ refresh_token: refreshToken });
+    return client;
   }
 
   /** The base64 variable wins over the file, so a container needs no mounted secret. */

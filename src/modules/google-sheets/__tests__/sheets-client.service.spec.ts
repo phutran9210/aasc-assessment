@@ -14,6 +14,7 @@ const config: GoogleConfig = {
   oauthClientId: undefined,
   oauthClientSecret: undefined,
   oauthRedirectUri: undefined,
+  oauthTokenFile: 'secrets/google-oauth-token.json',
   sheetId: SHEET_ID,
   sheetName: 'Leads',
   timeoutMs: 30_000,

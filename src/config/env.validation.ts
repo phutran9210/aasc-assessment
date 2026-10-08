@@ -132,6 +132,10 @@ export const envSchema = z
     GOOGLE_OAUTH_CLIENT_ID: optionalText,
     GOOGLE_OAUTH_CLIENT_SECRET: optionalText,
     GOOGLE_OAUTH_REDIRECT_URI: blankAsUnset(z.url().optional()),
+    // Where the OAuth refresh token is kept after the consent; a secret, like the key file.
+    GOOGLE_OAUTH_TOKEN_FILE: blankAsUnset(
+      z.string().trim().min(1).default('secrets/google-oauth-token.json'),
+    ),
     // The part of the Sheet URL between `/d/` and `/edit`.
     GOOGLE_SHEET_ID: blankAsUnset(
       z

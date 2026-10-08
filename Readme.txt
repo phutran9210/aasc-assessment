@@ -820,6 +820,18 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
          chọn quyền Editor.
       e) Chép chuỗi giữa /d/ và /edit trong URL của Sheet vào GOOGLE_SHEET_ID.
 
+      Cách khác, dùng OAuth 2.0 của một tài khoản Google thay cho service account:
+      a) APIs & Services -> Credentials -> Create credentials -> OAuth client ID, loại
+         "Web application"; thêm Authorized redirect URI
+         http://localhost:3000/google/oauth/callback (hoặc https://<ngrok-domain>/...).
+      b) Đặt GOOGLE_AUTH_MODE=oauth, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET và
+         GOOGLE_OAUTH_REDIRECT_URI trong .env, rồi chạy ứng dụng.
+      c) Đăng nhập, gọi GET /google/oauth/authorize (kèm JWT), mở "url" trả về bằng trình
+         duyệt và đồng ý. Google chuyển về /google/oauth/callback; refresh token được lưu
+         vào GOOGLE_OAUTH_TOKEN_FILE (mặc định secrets/google-oauth-token.json, quyền 600).
+      d) Tài khoản đã đồng ý phải có quyền sửa Sheet; không cần Share cho service account.
+      Luồng OAuth mới được kiểm bằng test tự động, chưa chạy với một OAuth client thật.
+
   15.3. Chuẩn bị Bitrix24
 
       Cách nhanh (webhook): Bitrix24 -> Developer resources -> Other -> Inbound webhook,
