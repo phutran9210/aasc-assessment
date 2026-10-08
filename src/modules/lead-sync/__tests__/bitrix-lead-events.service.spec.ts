@@ -129,6 +129,21 @@ describe('BitrixLeadEvents', () => {
     expect(pullback.start).toHaveBeenLastCalledWith([10], 'webhook');
   });
 
+  it('should keep trying for as long as a long run holds the lock', async () => {
+    pullback.start.mockRejectedValue(new LeadSyncBusyError('run-0'));
+    await events.receive(event('10'));
+    await jest.advanceTimersByTimeAsync(2000 + 30 * 5000);
+    expect(pullback.start.mock.calls.length).toBeGreaterThan(25);
+
+    pullback.start.mockResolvedValue({
+      run: { id: 'run-1' },
+      done: Promise.resolve({ status: 'succeeded' }),
+    });
+    await jest.advanceTimersByTimeAsync(5000);
+
+    expect([...stored]).toEqual([]);
+  });
+
   it('should take a lead off the queue only once it was pulled', async () => {
     await events.receive(event('10'));
     expect([...stored]).toEqual([10]);

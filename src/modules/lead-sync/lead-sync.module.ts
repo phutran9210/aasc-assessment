@@ -14,6 +14,7 @@ import { LeadSyncRunItemRepository } from './repositories/lead-sync-run-item.rep
 import { LeadSyncRunRepository } from './repositories/lead-sync-run.repository.js';
 import { BitrixLeadEvents } from './services/bitrix-lead-events.service.js';
 import { LeadPullback } from './services/lead-pullback.service.js';
+import { LeadSheetSeeder } from './services/lead-sheet-seeder.service.js';
 import { LeadSyncReadiness } from './services/lead-sync-readiness.service.js';
 import { LeadSyncStatusService } from './services/lead-sync-status.service.js';
 import { MappingLoader } from './services/mapping-loader.service.js';
@@ -42,8 +43,9 @@ import { SyncScheduler } from './services/sync-scheduler.service.js';
     SyncScheduler,
     LeadSyncStatusService,
     LeadPullback,
+    LeadSheetSeeder,
     BitrixLeadEvents,
   ],
-  exports: [SyncRunner, SyncScheduler],
+  exports: [SyncRunner, SyncScheduler, LeadSheetSeeder],
 })
 export class LeadSyncModule {}

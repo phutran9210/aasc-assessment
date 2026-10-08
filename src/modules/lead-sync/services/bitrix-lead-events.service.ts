@@ -16,8 +16,6 @@ import { LeadPullback } from './lead-pullback.service.js';
 /** A new lead becomes a new row; a changed one updates the row linked to it. */
 const LEAD_EVENTS: readonly string[] = ['ONCRMLEADADD', 'ONCRMLEADUPDATE'];
 const HANDLER_PATH = 'lead-sync/bitrix-events';
-/** A pull that keeps finding the lock taken gives up; the next event or manual pull catches up. */
-const MAX_BUSY_RETRIES = 12;
 
 type LeadEvent = {
   event?: unknown;
@@ -37,7 +35,6 @@ type LeadEvent = {
 export class BitrixLeadEvents implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(BitrixLeadEvents.name);
   private timer: NodeJS.Timeout | undefined;
-  private busyRetries = 0;
 
   constructor(
     private readonly api: BitrixApiService,
@@ -115,17 +112,16 @@ export class BitrixLeadEvents implements OnApplicationBootstrap, OnApplicationSh
 
     try {
       const { done } = await this.pullback.start(ids, 'webhook');
-      this.busyRetries = 0;
       const run = await done;
       // A failed pull keeps its leads queued: the next event or restart tries them again.
       if (run.status !== LEAD_SYNC_RUN_STATUS.FAILED) await this.queue.removeLeads(ids);
     } catch (error) {
-      if (error instanceof LeadSyncBusyError && this.busyRetries < MAX_BUSY_RETRIES) {
-        this.busyRetries += 1;
+      // Another run holds the lock: wait for it, however long it takes. A run cannot hold the
+      // lock forever (a silent one is taken over), and the leads are safe in the queue meanwhile.
+      if (error instanceof LeadSyncBusyError) {
         this.schedule(this.config.eventRetryMs);
         return;
       }
-      this.busyRetries = 0;
       const reason = error instanceof Error ? error.message : String(error);
       this.logger.error(`Could not pull ${ids.length} lead(s) after a Bitrix24 event: ${reason}`);
     }

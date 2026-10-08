@@ -74,6 +74,11 @@ export class FakeLeadGateway {
     return Promise.resolve(found);
   }
 
+  deleteLeads(ids: number[]): Promise<void> {
+    for (const id of ids) this.leads.delete(id);
+    return Promise.resolve();
+  }
+
   getFieldNames(): Promise<Set<string>> {
     this.calls.fields += 1;
     return Promise.resolve(new Set(this.fieldNames));

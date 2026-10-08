@@ -83,6 +83,22 @@ export class BitrixLeadGateway {
     return found;
   }
 
+  /** Deletes leads; one that is already gone is not an error. Used to clean up test data. */
+  async deleteLeads(ids: number[]): Promise<void> {
+    for (const group of chunk(ids, BITRIX_BATCH.MAX_COMMANDS)) {
+      const outcome = await this.batch.execute(
+        group.map((id) => ({
+          key: `d${id}`,
+          method: 'crm.item.delete',
+          params: { entityTypeId: LEAD_ENTITY_TYPE_ID, id },
+        })),
+        this.readOptions,
+      );
+      const failure = [...outcome.errors.values()].find((error) => error.code !== 'NOT_FOUND');
+      if (failure) throw new BitrixHttpError(failure.message, failure.code, 400);
+    }
+  }
+
   /** Names of every lead field of the portal, custom fields under their `UF_CRM_*` name. */
   async getFieldNames(): Promise<Set<string>> {
     const { result } = await this.api.callRaw<{ fields?: Record<string, unknown> }>(

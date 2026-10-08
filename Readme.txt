@@ -905,6 +905,8 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       pnpm sync:leads                Chạy một lần và chờ kết quả
       pnpm sync:leads --dry-run      Chạy thử, không ghi gì vào Bitrix24 và Sheet
       pnpm sync:leads --force        Đồng bộ lại mọi hàng dù không đổi
+      pnpm seed:leads 500            Thêm 500 hàng dữ liệu thử (faker tiếng Việt) vào cuối Sheet
+      pnpm seed:leads --clear        Xóa mọi hàng seed và các lead tương ứng trong Bitrix24
       make sync-leads                Tương đương pnpm sync:leads
 
       Qua HTTP (cần JWT, xem mục 7):
@@ -963,7 +965,7 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
                        Outgoing webhook tạo tay phải chọn cả sự kiện tạo lead; ứng dụng đã
                        cài thì gọi lại POST /lead-sync/bitrix-events/register.
           Hai chiều dùng chung khóa một-lần-chạy với chiều đi; khi đang bận, sự kiện được
-          thử lại mỗi 5 giây, tối đa 12 lần.
+          thử lại mỗi 5 giây cho tới khi lần chạy kia xong.
           ID của lead vừa đổi nằm trong hàng chờ SQLite cho tới khi được kéo về xong, nên
           sự kiện nhận ngay trước lúc ứng dụng khởi động lại không bị mất.
 
@@ -1049,6 +1051,13 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
         Xung đột           Sửa ô Công ty trong Sheet rồi đổi giai đoạn lead trong Bitrix24:
                            hàng không bị ghi đè (conflicts=1); lần chạy chiều đi đẩy giá trị
                            của Sheet lên, sự kiện do chính lần chạy đó sinh ra không ghi gì.
+
+      Số lượng lớn (pnpm seed:leads 500): 500 hàng mới tạo 500 lead trong 72,4 giây, 20 lô,
+      0 lần gặp rate limit; chạy lại skipped=509 trong 2,3 giây; --force cập nhật 508 lead
+      trong 46,6 giây; kéo về 508 lead trong 11,7 giây. Trang quản trị phân trang 75 lần
+      chạy thành 8 trang và mở chi tiết lần chạy 500 hàng trong khoảng 0,1 giây.
+      Trong đợt này Bitrix24 chỉ gửi sự kiện cho 125 trên 500 lead vừa tạo, nên real-time
+      không thay được việc kéo tay định kỳ (POST /lead-sync/pull) khi cần chắc chắn đủ.
 
       Chưa kiểm trên hệ thống thật: xử lý rate limit và timeout của Bitrix24 (portal có trả
       QUERY_LIMIT_EXCEEDED khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp nên

@@ -13,6 +13,7 @@ Run `pnpm install` and copy `.env.example` to `.env` for setup. Commands:
 - `pnpm test` — run unit tests; `pnpm test:e2e` runs REST and WebSocket tests.
 - `pnpm test:fibonacci` — run the Node test suite for the Fibonacci exercise.
 - `pnpm sync:leads [--dry-run] [--force]` — run one Google Sheets → Bitrix24 lead sync and wait for it.
+- `pnpm seed:leads [count]` / `pnpm seed:leads --clear` — append generated test rows to the lead Sheet, or remove them with their Bitrix24 leads.
 - `pnpm lint`, `pnpm typecheck`, and `pnpm format:check` — run code and formatting checks.
 - `pnpm check` — run linting, type checking, all test suites, and Fibonacci tests.
 

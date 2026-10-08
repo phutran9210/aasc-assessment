@@ -197,6 +197,15 @@ pnpm sync:leads --force     # đồng bộ lại mọi hàng dù không đổi
 
 Trình tự nên làm ở lần đầu: `--dry-run`, xem bảng tổng kết, rồi mới chạy thật.
 
+Dữ liệu thử cho số lượng lớn:
+
+```bash
+pnpm seed:leads 500      # thêm 500 hàng sinh bằng faker tiếng Việt vào cuối Sheet
+pnpm seed:leads --clear  # xóa mọi hàng seed và các lead tương ứng trong Bitrix24
+```
+
+Hàng seed được nhận ra bằng email thuộc miền `seed.example.com`, nên các hàng khác của Sheet không bị đụng tới. Lệnh không chạy khi `NODE_ENV=production`.
+
 ### 7.2. Trang quản trị
 
 Mở `http://localhost:3000/lead-sync.html` sau khi đăng nhập ở trang chủ.
@@ -271,6 +280,8 @@ Có hai cách để Bitrix24 biết địa chỉ này, dùng được song song:
 
 ID của lead vừa đổi được xếp vào một hàng chờ trong SQLite và chỉ rời hàng chờ sau một lần kéo về không thất bại. Sự kiện nhận ngay trước khi ứng dụng khởi động lại, hoặc trong lúc Bitrix24 lỗi, được kéo về sau.
 
+Bitrix24 không cam kết gửi đủ sự kiện khi dữ liệu đổi dồn dập: trong lần thử tạo 500 lead liên tiếp, chỉ 125 sự kiện về tới ứng dụng. Khi cần chắc chắn đủ, gọi thêm `POST /lead-sync/pull`.
+
 Địa chỉ handler phải truy cập được từ internet; `localhost` không dùng được. Khi cả hai cách cùng bật, mỗi thay đổi sinh hai sự kiện nhưng lead chỉ được kéo về một lần.
 
 ### 8.3. Lead tạo trong Bitrix24
@@ -286,7 +297,7 @@ Lead tạo trực tiếp trong Bitrix24 (sự kiện `ONCRMLEADADD`) được th
 
 `POST /lead-sync/pull` kèm JWT kéo mọi lead đã liên kết (`trigger=pull`). Dùng khi không có địa chỉ công khai, hoặc để bù các sự kiện bị lỡ lúc ứng dụng tắt.
 
-Hai chiều dùng chung khóa "mỗi lúc một lần chạy" với chiều đi. Khi đang bận, sự kiện được thử lại mỗi 5 giây, tối đa 12 lần.
+Hai chiều dùng chung khóa "mỗi lúc một lần chạy" với chiều đi. Khi đang bận, sự kiện được thử lại mỗi 5 giây cho tới khi lần chạy kia xong.
 
 ## 9. Chống trùng và idempotency
 
@@ -347,26 +358,28 @@ Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 14 lần (1 `crm.sett
 
 ## 12. Kết quả trên hệ thống thật (08/10/2026)
 
-| Kịch bản                             | Kết quả                                                                                                                                                    |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TC1 Tạo mới                          | 5 hàng mẫu: 4 lead được tạo, 1 hàng cố ý sai bị báo `Lỗi`. Giai đoạn đúng theo cột `Trạng thái`; số điện thoại mất số 0 khi import được lưu thành `+84...` |
-| Chạy lại                             | Mọi hàng `skipped`, Bitrix24 không có lead mới                                                                                                             |
-| TC2 Cập nhật                         | Sửa một ô: 1 hàng `updated`, lead đổi theo, thời gian đồng bộ đổi                                                                                          |
-| TC2 Định dạng                        | In đậm và đổi định dạng số của ô: `skipped`, không có lệnh ghi                                                                                             |
-| TC3 Trùng email, trùng số điện thoại | Lead tạo tay trong Bitrix24 được cập nhật, không có lead mới; `0977000111` khớp với `+84977000111`                                                         |
-| TC4 Lỗi dữ liệu                      | Hàng sai ghi `Lỗi` kèm lý do; các hàng khác vẫn chạy                                                                                                       |
-| Custom field                         | Trường `UF_CRM_*` nhận đúng giá trị; đổi mapping làm mọi hàng đồng bộ lại một lần                                                                          |
-| Kiểu `date`                          | Bitrix24 nhận `2026-10-08` cho một trường ngày tùy chỉnh                                                                                                   |
-| Nhiều giá trị                        | Thêm email và số điện thoại thứ hai vào ô: lead nhận thêm hai giá trị, giá trị cũ giữ nguyên                                                               |
-| HTTP, lịch, cột ẩn                   | `POST /lead-sync/runs` trả 202; lần chạy theo cron xuất hiện đúng đầu phút; hai cột kỹ thuật được ẩn                                                       |
-| Hiệu năng                            | 150 hàng mới: 150 lead trong 22,2 giây, 6 lô, 0 lần gặp rate limit. Chạy lại: `skipped=150` trong 2,6 giây                                                 |
-| Hai chiều                            | Đổi giai đoạn lead trong Bitrix24: ô `Trạng thái` đổi theo sau khoảng 5 giây; lần chạy chiều đi sau đó `skipped`                                           |
-| Xung đột                             | Sửa Sheet rồi đổi lead trong Bitrix24: hàng không bị ghi đè, lần chạy chiều đi đẩy giá trị của Sheet lên                                                   |
-| Google OAuth                         | Cấp quyền, đọc và ghi Sheet bằng refresh token, chạy trọn cả hai chiều                                                                                     |
-| Incoming webhook                     | Chạy thử, cập nhật lead, chạy lại và real-time đều đạt                                                                                                     |
-| Outgoing webhook                     | Sự kiện của webhook ra và của ứng dụng đã cài cùng được chấp nhận; lead được kéo về một lần; token lạ bị trả 403                                           |
-| Lead tạo trong Bitrix24              | Outgoing webhook gửi `ONCRMLEADADD`; sau khoảng 4 giây lead thành hàng mới kèm Lead ID; lần chạy chiều đi sau đó `skipped`, không có lead trùng            |
-| Cột `"pull": true`                   | Đổi công ty và ngân sách của lead trong Bitrix24: hai ô của hàng đổi theo; lần chạy chiều đi sau đó `skipped`                                              |
+| Kịch bản                             | Kết quả                                                                                                                                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TC1 Tạo mới                          | 5 hàng mẫu: 4 lead được tạo, 1 hàng cố ý sai bị báo `Lỗi`. Giai đoạn đúng theo cột `Trạng thái`; số điện thoại mất số 0 khi import được lưu thành `+84...`                                     |
+| Chạy lại                             | Mọi hàng `skipped`, Bitrix24 không có lead mới                                                                                                                                                 |
+| TC2 Cập nhật                         | Sửa một ô: 1 hàng `updated`, lead đổi theo, thời gian đồng bộ đổi                                                                                                                              |
+| TC2 Định dạng                        | In đậm và đổi định dạng số của ô: `skipped`, không có lệnh ghi                                                                                                                                 |
+| TC3 Trùng email, trùng số điện thoại | Lead tạo tay trong Bitrix24 được cập nhật, không có lead mới; `0977000111` khớp với `+84977000111`                                                                                             |
+| TC4 Lỗi dữ liệu                      | Hàng sai ghi `Lỗi` kèm lý do; các hàng khác vẫn chạy                                                                                                                                           |
+| Custom field                         | Trường `UF_CRM_*` nhận đúng giá trị; đổi mapping làm mọi hàng đồng bộ lại một lần                                                                                                              |
+| Kiểu `date`                          | Bitrix24 nhận `2026-10-08` cho một trường ngày tùy chỉnh                                                                                                                                       |
+| Nhiều giá trị                        | Thêm email và số điện thoại thứ hai vào ô: lead nhận thêm hai giá trị, giá trị cũ giữ nguyên                                                                                                   |
+| HTTP, lịch, cột ẩn                   | `POST /lead-sync/runs` trả 202; lần chạy theo cron xuất hiện đúng đầu phút; hai cột kỹ thuật được ẩn                                                                                           |
+| Hiệu năng                            | 150 hàng mới: 150 lead trong 22,2 giây, 6 lô, 0 lần gặp rate limit. Chạy lại: `skipped=150` trong 2,6 giây                                                                                     |
+| Số lượng lớn                         | `pnpm seed:leads 500`: 500 lead trong 72,4 giây, 20 lô, 0 lần gặp rate limit. Chạy lại: `skipped=509` trong 2,3 giây. `--force`: cập nhật 508 lead trong 46,6 giây. Kéo về 508 lead: 11,7 giây |
+| Phân trang                           | Trang quản trị chia 75 lần chạy thành 8 trang; chi tiết lần chạy 500 hàng mở trong khoảng 0,1 giây                                                                                             |
+| Hai chiều                            | Đổi giai đoạn lead trong Bitrix24: ô `Trạng thái` đổi theo sau khoảng 5 giây; lần chạy chiều đi sau đó `skipped`                                                                               |
+| Xung đột                             | Sửa Sheet rồi đổi lead trong Bitrix24: hàng không bị ghi đè, lần chạy chiều đi đẩy giá trị của Sheet lên                                                                                       |
+| Google OAuth                         | Cấp quyền, đọc và ghi Sheet bằng refresh token, chạy trọn cả hai chiều                                                                                                                         |
+| Incoming webhook                     | Chạy thử, cập nhật lead, chạy lại và real-time đều đạt                                                                                                                                         |
+| Outgoing webhook                     | Sự kiện của webhook ra và của ứng dụng đã cài cùng được chấp nhận; lead được kéo về một lần; token lạ bị trả 403                                                                               |
+| Lead tạo trong Bitrix24              | Outgoing webhook gửi `ONCRMLEADADD`; sau khoảng 4 giây lead thành hàng mới kèm Lead ID; lần chạy chiều đi sau đó `skipped`, không có lead trùng                                                |
+| Cột `"pull": true`                   | Đổi công ty và ngân sách của lead trong Bitrix24: hai ô của hàng đổi theo; lần chạy chiều đi sau đó `skipped`                                                                                  |
 
 Chưa kiểm trên hệ thống thật: việc thử lại khi gặp rate limit và timeout của Bitrix24. Portal có trả `QUERY_LIMIT_EXCEEDED` khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp, nên nhánh này mới có test tự động.
 
