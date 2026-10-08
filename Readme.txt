@@ -1037,7 +1037,12 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
 
       Chưa kiểm trên hệ thống thật: xử lý rate limit và timeout của Bitrix24 (portal có trả
       QUERY_LIMIT_EXCEEDED khi bị gọi dồn dập, nhưng các lệnh của lần đồng bộ không gặp nên
-      nhánh thử lại mới có test tự động) và chế độ BITRIX24_WEBHOOK_URL.
+      nhánh thử lại mới có test tự động).
+
+      Chế độ BITRIX24_WEBHOOK_URL đã chạy thật ngày 08/10/2026 với một incoming webhook
+      quyền CRM: chạy thử, cập nhật một lead, chạy lại (skipped) và nhận sự kiện real-time.
+      Sự kiện vẫn đến qua đăng ký event.bind của ứng dụng đã cài; outgoing webhook tạo tay
+      cùng BITRIX24_OUTGOING_TOKEN thì chưa thử.
 
       Google OAuth đã chạy thật ngày 08/10/2026: cấp quyền qua /google/oauth/authorize, đọc
       và ghi Sheet bằng refresh token, rồi chạy trọn chiều đi, kéo về và real-time.
