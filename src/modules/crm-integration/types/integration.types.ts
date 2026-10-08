@@ -68,6 +68,7 @@ export type OperationPayload = {
   eventId?: UUID;
   leadId?: UUID;
   dealId?: UUID;
+  remoteId?: string;
   reportJobId?: UUID;
   sourceOperationId?: UUID;
   timelineId?: UUID;

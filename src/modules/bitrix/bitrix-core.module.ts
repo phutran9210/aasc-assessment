@@ -4,6 +4,7 @@ import { BitrixApiService } from './services/bitrix-api.service.js';
 import { BitrixBatchService } from './services/bitrix-batch.service.js';
 import { BitrixHttpTransport } from './services/bitrix-http-transport.service.js';
 import { BitrixOAuthService } from './services/bitrix-oauth.service.js';
+import { BITRIX_INSTALLATION_STORE } from './ports/bitrix-installation-store.port.js';
 
 export type BitrixCoreModuleOptions = {
   imports?: Array<Type<unknown> | DynamicModule>;
@@ -23,7 +24,13 @@ export class BitrixCoreModule {
         BitrixBatchService,
         ...options.providers,
       ],
-      exports: [BitrixHttpTransport, BitrixOAuthService, BitrixApiService, BitrixBatchService],
+      exports: [
+        BitrixHttpTransport,
+        BitrixOAuthService,
+        BitrixApiService,
+        BitrixBatchService,
+        BITRIX_INSTALLATION_STORE,
+      ],
     };
   }
 }

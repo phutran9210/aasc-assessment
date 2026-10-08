@@ -38,6 +38,11 @@ import type { CrmGateway } from '../../modules/crm-integration/ports/crm-gateway
 import { BitrixCrmGateway } from '../../modules/crm-integration/gateways/bitrix-crm.gateway.js';
 import { BitrixAdapterModule } from '../../modules/crm-integration/bitrix-adapter.module.js';
 import type { BitrixConfig } from '../../config/index.js';
+import { DealHistoryRepository } from '../../modules/crm-integration/repositories/deal-history.repository.js';
+import { DealRefreshService } from '../../modules/crm-integration/services/deal-refresh.service.js';
+import { DealRefreshHandler } from '../../modules/crm-integration/workers/deal-refresh.handler.js';
+import { DealPollService } from '../../modules/crm-integration/services/deal-poll.service.js';
+import { DealPollSchedulerService } from '../../modules/crm-integration/services/deal-poll-scheduler.service.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
@@ -50,6 +55,30 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     AssignmentCursorRepository,
     AssignmentService,
     DealRepository,
+    {
+      provide: DealPollService,
+      inject: [getDataSourceToken('tiktok'), CRM_GATEWAY, OperationRepository, OutboxRepository],
+      useFactory: (
+        ds: DataSource,
+        gateway: CrmGateway,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+      ) => new DealPollService(ds, gateway, operations, outbox),
+    },
+    DealPollSchedulerService,
+    DealHistoryRepository,
+    {
+      provide: DealRefreshService,
+      inject: [getDataSourceToken('tiktok'), CRM_GATEWAY, DealHistoryRepository],
+      useFactory: (ds: DataSource, gateway: CrmGateway, history: DealHistoryRepository) =>
+        new DealRefreshService(ds, gateway, history),
+    },
+    {
+      provide: DealRefreshHandler,
+      inject: [getDataSourceToken('tiktok'), DealRefreshService],
+      useFactory: (ds: DataSource, refresh: DealRefreshService) =>
+        new DealRefreshHandler(ds, refresh),
+    },
     {
       provide: ConfigurationRepository,
       inject: [getDataSourceToken('tiktok')],
@@ -195,7 +224,13 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     },
     {
       provide: TIKTOK_OPERATION_HANDLERS,
-      inject: [TiktokIngestHandler, LeadSyncHandler, TimelineHandler, ConversionHandler],
+      inject: [
+        TiktokIngestHandler,
+        LeadSyncHandler,
+        TimelineHandler,
+        ConversionHandler,
+        DealRefreshHandler,
+      ],
       useFactory: createTiktokWorkerHandlers,
     },
     {

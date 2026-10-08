@@ -30,6 +30,8 @@ export type CrmCandidateQuery = {
   offset?: number;
 };
 
+export type DealPageQuery = { offset: number; limit: number; modifiedSince?: Date };
+
 export type RemoteLead = {
   id: ExternalId;
   title: string;
@@ -62,6 +64,7 @@ export type CrmGateway = {
   createLead(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteLead>;
   updateLead(id: ExternalId, patch: Record<string, unknown>): Promise<RemoteLead>;
   findDeals(query: CrmCandidateQuery): Promise<RemoteDeal[]>;
+  listDealsPage(query: DealPageQuery): Promise<RemoteDeal[]>;
   getDeal(id: ExternalId): Promise<RemoteDeal>;
   createDeal(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteDeal>;
   completeLead(id: ExternalId, stage: string): Promise<RemoteLead>;

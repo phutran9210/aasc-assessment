@@ -20,6 +20,15 @@ import { OutboxRepository } from '../../core/queue/repositories/outbox.repositor
 import { RemoteReconciliationService } from './services/remote-reconciliation.service.js';
 import { TimelineService } from './services/timeline.service.js';
 import type { CrmGateway } from './ports/crm-gateway.port.js';
+import { BitrixDealWebhookController } from './controllers/bitrix-deal-webhook.controller.js';
+import { BitrixDealInbox } from './services/bitrix-deal-inbox.service.js';
+import { DealRefreshService } from './services/deal-refresh.service.js';
+import { DealHistoryRepository } from './repositories/deal-history.repository.js';
+import { WebhookEventRepository } from '../../core/queue/repositories/webhook-event.repository.js';
+import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';
+import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
+import { BitrixApiService } from '../bitrix/services/bitrix-api.service.js';
+import { DealPollService } from './services/deal-poll.service.js';
 
 export type CrmIntegrationModuleOptions = {
   imports?: Array<Type<unknown> | DynamicModule>;
@@ -32,7 +41,7 @@ export class CrmIntegrationModule {
     return {
       module: CrmIntegrationModule,
       imports: [TiktokDatabaseModule, IntegrationAuthModule, ...(options.imports ?? [])],
-      controllers: [ConfigurationController, LeadConversionController],
+      controllers: [ConfigurationController, LeadConversionController, BitrixDealWebhookController],
       providers: [
         {
           provide: ConfigurationRepository,
@@ -44,6 +53,48 @@ export class CrmIntegrationModule {
         ConfigurationService,
         OperationRepository,
         OutboxRepository,
+        WebhookEventRepository,
+        DealHistoryRepository,
+        {
+          provide: DealPollService,
+          inject: [
+            getDataSourceToken('tiktok'),
+            CRM_GATEWAY,
+            OperationRepository,
+            OutboxRepository,
+          ],
+          useFactory: (
+            ds: DataSource,
+            gateway: CrmGateway,
+            operations: OperationRepository,
+            outbox: OutboxRepository,
+          ) => new DealPollService(ds, gateway, operations, outbox),
+        },
+        {
+          provide: BitrixDealInbox,
+          inject: [
+            getDataSourceToken('tiktok'),
+            WebhookEventRepository,
+            OperationRepository,
+            OutboxRepository,
+            BitrixApiService,
+            BITRIX_INSTALLATION_STORE,
+          ],
+          useFactory: (
+            ds: DataSource,
+            events: WebhookEventRepository,
+            operations: OperationRepository,
+            outbox: OutboxRepository,
+            api: BitrixApiService,
+            installations: BitrixInstallationStore,
+          ) => new BitrixDealInbox(ds, events, operations, outbox, api, installations),
+        },
+        {
+          provide: DealRefreshService,
+          inject: [getDataSourceToken('tiktok'), CRM_GATEWAY, DealHistoryRepository],
+          useFactory: (ds: DataSource, gateway: CrmGateway, history: DealHistoryRepository) =>
+            new DealRefreshService(ds, gateway, history),
+        },
         RemoteReconciliationService,
         AssignmentCursorRepository,
         AssignmentService,

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { Pool } from 'pg';
-import { DataSource } from 'typeorm';
+import type { DataSource } from 'typeorm';
 import type { MigrationInterface } from 'typeorm';
 
 import { validateTiktokEnv } from '../../../src/config/tiktok-app/env.validation.js';
@@ -38,6 +38,8 @@ export async function createTestDatabase(
     ...process.env,
     TIKTOK_DATABASE_URL: connectionString,
     TIKTOK_DATABASE_SCHEMA: schema,
+    BITRIX_MOCK_EVENT_SECRET:
+      process.env.BITRIX_MOCK_EVENT_SECRET ?? 'mock-bitrix-event-secret-tests',
   });
   const dataSource = buildTiktokDataSource(config);
   if (migrations) dataSource.setOptions({ migrations });

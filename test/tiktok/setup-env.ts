@@ -7,3 +7,4 @@ process.env.TIKTOK_MODE ??= 'mock';
 process.env.BITRIX_INTEGRATION_MODE ??= 'mock';
 process.env.TIKTOK_ADVERTISER_ID ??= 'advertiser-test';
 process.env.TIKTOK_WEBHOOK_SECRET ??= 'test-only-webhook-secret';
+process.env.BITRIX_MOCK_EVENT_SECRET ??= 'mock-bitrix-event-secret-for-tests';

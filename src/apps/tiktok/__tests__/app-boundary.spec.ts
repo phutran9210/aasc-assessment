@@ -15,6 +15,7 @@ describe('TikTok app boundary', () => {
       BITRIX_INTEGRATION_MODE: 'mock',
       TIKTOK_ADVERTISER_ID: 'advertiser-test',
       TIKTOK_WEBHOOK_SECRET: 'mock-webhook-secret',
+      BITRIX_MOCK_EVENT_SECRET: 'mock-bitrix-event-secret-for-tests',
     });
     const { TiktokAppModule } = await import('../app.module.js');
     const moduleRef = await Test.createTestingModule({ imports: [TiktokAppModule] })

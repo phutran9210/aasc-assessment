@@ -11,6 +11,7 @@ import { LeadIngestSupport1791417603000 } from './migrations/1791417603000-lead-
 import { LeadInterests1791417604000 } from './migrations/1791417604000-lead-interests.js';
 import { LeadTimeline1791417605000 } from './migrations/1791417605000-lead-timeline.js';
 import { TimelineOperationKind1791417606000 } from './migrations/1791417606000-timeline-operation-kind.js';
+import { DealPollCheckpoint1791417607000 } from './migrations/1791417607000-deal-poll-checkpoint.js';
 
 export function buildTiktokDataSource(config: TiktokAppConfig): DataSource {
   return new DataSource({
@@ -26,6 +27,7 @@ export function buildTiktokDataSource(config: TiktokAppConfig): DataSource {
       LeadInterests1791417604000,
       LeadTimeline1791417605000,
       TimelineOperationKind1791417606000,
+      DealPollCheckpoint1791417607000,
     ],
     migrationsTableName: 'migrations',
     migrationsTransactionMode: 'all',

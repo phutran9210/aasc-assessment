@@ -11,6 +11,7 @@ import { BitrixApiService } from '../../bitrix/services/bitrix-api.service.js';
 import { BitrixHttpError } from '../../bitrix/services/bitrix-http-transport.service.js';
 import type {
   CrmCandidateQuery,
+  DealPageQuery,
   CrmFieldMetadata,
   CrmGateway,
   CrmMetadata,
@@ -157,6 +158,25 @@ export class BitrixCrmGateway implements CrmGateway {
     });
     return listValue(this.record(response).items ?? response)
       .slice(0, this.limit(query))
+      .map((item) => this.parseDeal(item));
+  }
+
+  async listDealsPage(query: DealPageQuery): Promise<RemoteDeal[]> {
+    if (!Number.isSafeInteger(query.offset) || query.offset < 0)
+      throw new RangeError('offset must be non-negative');
+    if (!Number.isSafeInteger(query.limit) || query.limit < 1 || query.limit > 50)
+      throw new RangeError('limit must be 1..50');
+    const filter: Record<string, string> = {};
+    if (query.modifiedSince) filter['>=updatedTime'] = query.modifiedSince.toISOString();
+    const response = await this.call('crm.item.list', {
+      entityTypeId: DEAL_TYPE_ID,
+      filter,
+      select: ['*', EXTERNAL_ID_FIELD],
+      order: { id: 'ASC' },
+      start: query.offset,
+    });
+    return listValue(this.record(response).items ?? response)
+      .slice(0, query.limit)
       .map((item) => this.parseDeal(item));
   }
 

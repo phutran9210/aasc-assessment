@@ -23,6 +23,15 @@ export async function createTiktokApp(
       },
     }),
   );
+  app.use(
+    express.urlencoded({
+      extended: true,
+      limit: '256kb',
+      verify: (request, _response, buffer) => {
+        (request as typeof request & { rawBody?: Buffer }).rawBody = buffer;
+      },
+    }),
+  );
   app.use(helmet());
   const config = validateTiktokEnv(process.env);
   const origins = config.corsOrigins === '*' ? '*' : config.corsOrigins;

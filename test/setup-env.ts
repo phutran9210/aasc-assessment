@@ -23,6 +23,7 @@ process.env.LEAD_SYNC_MAX_RETRIES = '0';
 process.env.LEAD_SYNC_DIRECTION = 'sheet-to-bitrix';
 process.env.APP_PUBLIC_URL = '';
 process.env.BITRIX24_OUTGOING_TOKEN = '';
+process.env.BITRIX_MOCK_EVENT_SECRET = 'mock-bitrix-event-secret-for-tests';
 // Service account mode by default: a developer's .env may switch Google to OAuth.
 process.env.GOOGLE_AUTH_MODE = 'service_account';
 process.env.GOOGLE_OAUTH_CLIENT_ID = '';

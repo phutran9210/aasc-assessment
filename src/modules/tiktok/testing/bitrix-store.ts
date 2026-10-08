@@ -160,6 +160,14 @@ export class BitrixStore {
       if (typeof phone === 'string' && item.fields.phone !== phone) return false;
       const leadId = filter['=leadId'];
       if (typeof leadId === 'string' && String(item.fields.leadId) !== leadId) return false;
+      const modifiedSince = filter['>=updatedTime'];
+      const updatedTime = item.fields.updatedTime;
+      if (
+        typeof modifiedSince === 'string' &&
+        (typeof updatedTime !== 'string' ||
+          new Date(updatedTime).getTime() < new Date(modifiedSince).getTime())
+      )
+        return false;
       return true;
     });
     const start = Number(payload.start ?? 0);
@@ -186,7 +194,7 @@ export class BitrixStore {
         id: String(this.nextLeadId++),
         title: stringValue(fields.title),
         marker: marker || null,
-        fields,
+        fields: { ...fields, updatedTime: new Date().toISOString() },
       };
       this.leads.set(item.id, item);
       return item;
@@ -195,7 +203,7 @@ export class BitrixStore {
       id: String(this.nextDealId++),
       title: stringValue(fields.title),
       marker: marker || null,
-      fields,
+      fields: { ...fields, updatedTime: new Date().toISOString() },
     };
     this.deals.set(item.id, item);
     return item;
@@ -209,7 +217,11 @@ export class BitrixStore {
     const target = this.items(entityTypeId);
     const current = target.get(id);
     if (!current) return null;
-    const fields = { ...current.fields, ...patch };
+    const fields: Record<string, unknown> = {
+      ...current.fields,
+      ...patch,
+      updatedTime: new Date().toISOString(),
+    };
     const updated = {
       ...current,
       title: stringValue(fields.title, current.title),
