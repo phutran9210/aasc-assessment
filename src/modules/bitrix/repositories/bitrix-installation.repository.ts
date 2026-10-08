@@ -20,9 +20,17 @@ export class BitrixInstallationRepository extends BaseRepository<BitrixInstallat
     return current ?? null;
   }
 
-  async saveTokens(input: BitrixTokenSet): Promise<BitrixInstallation> {
+  /**
+   * Stores the tokens of an install. Another portal may not overwrite the stored installation,
+   * unless the caller vouches for it with `allowPortalChange` (the admin pointed BITRIX24_DOMAIN
+   * at the new portal): then the single row is rewritten for that portal.
+   */
+  async saveTokens(
+    input: BitrixTokenSet,
+    options: { allowPortalChange?: boolean } = {},
+  ): Promise<BitrixInstallation> {
     const current = await this.findCurrent();
-    if (current && current.memberId !== input.memberId) {
+    if (current && current.memberId !== input.memberId && !options.allowPortalChange) {
       throw new ConflictException(BITRIX_MESSAGES.ERROR.INSTALLATION_MISMATCH);
     }
 

@@ -79,4 +79,19 @@ describe('BitrixInstallationRepository', () => {
     await expect(service.saveTokens(TOKEN_SET)).rejects.toThrow('Bitrix24 installation không khớp');
     expect(repository.save).not.toHaveBeenCalled();
   });
+
+  it('should replace the installation of another portal when the caller allows the change', async () => {
+    repository.find.mockResolvedValue([{ id: 'id-1', memberId: 'member-other', domain: 'old' }]);
+    repository.save.mockImplementation((value) => value);
+
+    await service.saveTokens(TOKEN_SET, { allowPortalChange: true });
+
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'id-1',
+        memberId: TOKEN_SET.memberId,
+        domain: TOKEN_SET.domain,
+      }),
+    );
+  });
 });

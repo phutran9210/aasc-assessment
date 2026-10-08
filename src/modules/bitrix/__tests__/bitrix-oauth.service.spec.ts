@@ -85,6 +85,7 @@ describe('BitrixOAuthService', () => {
     );
     expect(repository.saveTokens).toHaveBeenCalledWith(
       expect.objectContaining({ memberId: 'member-1' }),
+      { allowPortalChange: true },
     );
   });
 
@@ -100,6 +101,37 @@ describe('BitrixOAuthService', () => {
 
     expect(repository.saveTokens).toHaveBeenCalledWith(
       expect.objectContaining({ accessToken: 'new' }),
+      { allowPortalChange: true },
+    );
+  });
+
+  it('should let the portal named in BITRIX24_DOMAIN take over the installation', async () => {
+    transport.postRest.mockResolvedValue({ result: { CODE: 'client-id' } });
+    repository.saveTokens.mockResolvedValue({});
+
+    await service.handleInstallEvent({
+      ...EVENT,
+      auth: { ...AUTH, domain: 'portal.bitrix24.com' },
+    });
+
+    expect(repository.saveTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'portal.bitrix24.com' }),
+      { allowPortalChange: true },
+    );
+  });
+
+  it('should not let any other portal take over the installation', async () => {
+    transport.postRest.mockResolvedValue({ result: { CODE: 'client-id' } });
+    repository.saveTokens.mockResolvedValue({});
+
+    await service.handleInstallEvent({
+      ...EVENT,
+      auth: { ...AUTH, domain: 'stranger.bitrix24.com' },
+    });
+
+    expect(repository.saveTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ domain: 'stranger.bitrix24.com' }),
+      { allowPortalChange: false },
     );
   });
 

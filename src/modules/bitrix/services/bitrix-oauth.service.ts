@@ -58,7 +58,10 @@ export class BitrixOAuthService {
     if (this.config.clientId && appInfo.result?.CODE !== this.config.clientId) {
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.APP_INVALID);
     }
-    await this.repository.saveTokens({
+    // Moving to another portal is the admin's call: only the portal that BITRIX24_DOMAIN names
+    // may replace the stored installation of a different one.
+    const allowPortalChange = event.auth.domain === this.config.portalDomain;
+    const tokens = {
       memberId: event.auth.member_id,
       domain: event.auth.domain,
       scope: event.auth.scope,
@@ -69,7 +72,8 @@ export class BitrixOAuthService {
       refreshToken: event.auth.refresh_token,
       applicationToken: event.auth.application_token,
       expiresIn: event.auth.expires_in,
-    });
+    };
+    await this.repository.saveTokens(tokens, { allowPortalChange });
   }
 
   /** Builds the consent URL and remembers a one-time `state` to protect the callback (CSRF). */
