@@ -86,3 +86,36 @@ describe('buildUpdateFields', () => {
     expect(Array.isArray(fields.fm)).toBe(false);
   });
 });
+
+describe('several emails or phones in one cell', () => {
+  const many = row({
+    extraEmails: ['an.2@example.com'],
+    extraPhones: ['+84912345678', '+84987654321'],
+  });
+
+  it('should create the lead with every value, the first one of each type leading', () => {
+    expect(buildCreateFields(many).fm).toEqual([
+      { typeId: 'PHONE', valueType: 'WORK', value: '+84901234567' },
+      { typeId: 'PHONE', valueType: 'WORK', value: '+84912345678' },
+      { typeId: 'PHONE', valueType: 'WORK', value: '+84987654321' },
+      { typeId: 'EMAIL', valueType: 'WORK', value: 'an@example.com' },
+      { typeId: 'EMAIL', valueType: 'WORK', value: 'an.2@example.com' },
+    ]);
+  });
+
+  it('should add only the extra values the lead does not have yet, replacing nothing', () => {
+    const current = {
+      id: 345,
+      fm: [
+        { id: 11, typeId: 'PHONE', valueType: 'MOBILE', value: '0901 234 567' },
+        { id: 12, typeId: 'PHONE', valueType: 'WORK', value: '+84912345678' },
+        { id: 13, typeId: 'EMAIL', valueType: 'WORK', value: 'an@example.com' },
+      ],
+    };
+
+    expect(buildUpdateFields(many, current).fm).toEqual({
+      n0: { typeId: 'PHONE', valueType: 'WORK', value: '+84987654321' },
+      n1: { typeId: 'EMAIL', valueType: 'WORK', value: 'an.2@example.com' },
+    });
+  });
+});

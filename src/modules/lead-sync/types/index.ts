@@ -50,8 +50,12 @@ export type ValidRow = {
   rowNumber: number;
   /** Normalized lead fields, without email and phone. */
   fields: Record<string, LeadFieldValue>;
+  /** First value of the cell: the dedupe key. */
   email?: string;
   phone?: string;
+  /** Further values of the same cell, added to the lead next to the first one. */
+  extraEmails?: string[];
+  extraPhones?: string[];
   hash: string;
 };
 

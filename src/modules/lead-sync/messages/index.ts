@@ -34,6 +34,7 @@ export const LEAD_SYNC_MESSAGES = {
   VALIDATION: {
     COLUMN: (column: string, reason: string): string => `Cột "${column}": ${reason}`,
     REQUIRED: 'không được để trống',
+    ONE_OF_MANY: (value: string, reason: string): string => `"${value}": ${reason}`,
     FORMULA_ERROR: (value: string): string => `công thức đang lỗi (${value})`,
     EMAIL: 'email sai định dạng, ví dụ đúng: ten@congty.vn',
     PHONE: 'số điện thoại chỉ gồm chữ số, có thể bắt đầu bằng + hoặc 0, dài 8 đến 15 chữ số',

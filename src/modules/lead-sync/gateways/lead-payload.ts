@@ -8,8 +8,12 @@ const PHONE_COMPARE_DIGITS = 9;
 /** `fields` of `crm.item.add` for a new lead. */
 export function buildCreateFields(row: ValidRow): Record<string, unknown> {
   const fm: BitrixMultifield[] = [];
-  if (row.phone) fm.push({ typeId: 'PHONE', valueType: DEFAULT_VALUE_TYPE, value: row.phone });
-  if (row.email) fm.push({ typeId: 'EMAIL', valueType: DEFAULT_VALUE_TYPE, value: row.email });
+  for (const value of [row.phone, ...(row.extraPhones ?? [])]) {
+    if (value) fm.push({ typeId: 'PHONE', valueType: DEFAULT_VALUE_TYPE, value });
+  }
+  for (const value of [row.email, ...(row.extraEmails ?? [])]) {
+    if (value) fm.push({ typeId: 'EMAIL', valueType: DEFAULT_VALUE_TYPE, value });
+  }
 
   return {
     ...row.fields,
@@ -20,7 +24,8 @@ export function buildCreateFields(row: ValidRow): Record<string, unknown> {
 
 /**
  * `fields` of `crm.item.update`. Phone and email are not appended blindly: a value the lead
- * already has is left alone; otherwise the first value of that type is replaced. `fm` must be an
+ * already has is left alone; otherwise the first value of that type is replaced. Further values
+ * of the same cell never replace anything: the ones the lead lacks are added. `fm` must be an
  * object keyed by the multifield id for that (an array, even with ids, appends new values); a
  * value of a type the lead does not have yet uses the keys n0, n1, ...
  */
@@ -45,8 +50,22 @@ export function buildUpdateFields(
     fm[key] = { typeId, valueType: first?.valueType ?? DEFAULT_VALUE_TYPE, value };
   };
 
+  const add = (
+    typeId: 'PHONE' | 'EMAIL',
+    values: string[] | undefined,
+    same: (a: string, b: string) => boolean,
+  ): void => {
+    const existing = multifields(current, typeId);
+    for (const value of values ?? []) {
+      if (existing.some((entry) => same(entry.value ?? '', value))) continue;
+      fm[`n${added++}`] = { typeId, valueType: DEFAULT_VALUE_TYPE, value };
+    }
+  };
+
   set('PHONE', row.phone, samePhone);
+  add('PHONE', row.extraPhones, samePhone);
   set('EMAIL', row.email, sameEmail);
+  add('EMAIL', row.extraEmails, sameEmail);
   if (Object.keys(fm).length) fields.fm = fm;
   return fields;
 }

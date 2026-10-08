@@ -45,16 +45,24 @@ export function transformRow(row: SheetRow, context: TransformContext): Transfor
 
   const errors: string[] = [];
   const fields: Record<string, LeadFieldValue> = { ...mapping.defaults };
-  const keys: { email?: string; phone?: string } = {};
+  const keys: { email?: string[]; phone?: string[] } = {};
 
   for (const field of mapping.fields) {
-    const result = normalizeCell(cellOf(field.column), field, defaultCountry);
+    const cell = cellOf(field.column);
+    if (field.field === 'email' || field.field === 'phone') {
+      const result = normalizeContacts(cell, field, defaultCountry);
+      if (!result.ok) errors.push(VALIDATION.COLUMN(field.column, result.error));
+      else if (result.value?.length) keys[field.field] = result.value;
+      else if (field.required) {
+        errors.push(VALIDATION.COLUMN(field.column, VALIDATION.REQUIRED));
+      }
+      continue;
+    }
+    const result = normalizeCell(cell, field, defaultCountry);
     if (!result.ok) {
       errors.push(VALIDATION.COLUMN(field.column, result.error));
     } else if (result.value === undefined) {
       if (field.required) errors.push(VALIDATION.COLUMN(field.column, VALIDATION.REQUIRED));
-    } else if (field.field === 'email' || field.field === 'phone') {
-      keys[field.field] = String(result.value);
     } else {
       fields[field.field] = result.value;
     }
@@ -76,13 +84,23 @@ export function transformRow(row: SheetRow, context: TransformContext): Transfor
   const title = renderTitle(mapping.titleTemplate, cellOf);
   if (title && fields.title === undefined) fields.title = title;
 
+  const [email, ...extraEmails] = keys.email ?? [];
+  const [phone, ...extraPhones] = keys.phone ?? [];
+  // Extra values enter the hash only when there are some, so the hash of a row with one email
+  // and one phone is what it was before several values per cell were supported.
+  const extras = {
+    ...(extraEmails.length ? { extraEmails } : {}),
+    ...(extraPhones.length ? { extraPhones } : {}),
+  };
+
   return {
     kind: 'valid',
     rowNumber,
     fields,
-    email: keys.email,
-    phone: keys.phone,
-    hash: hashRow({ fields, email: keys.email, phone: keys.phone }, mappingHash),
+    email,
+    phone,
+    ...extras,
+    hash: hashRow({ fields, email, phone, ...extras }, mappingHash),
   };
 }
 
@@ -110,6 +128,38 @@ function normalizeCell(
     default:
       return normalizeText(cell);
   }
+}
+
+/** Separators between several emails or phone numbers typed into one cell. */
+const CONTACT_SEPARATOR = /[,;\n]+/;
+
+/**
+ * An email or phone cell may hold several values. Each one is normalized on its own; the result
+ * keeps their order without repeats, the first being the dedupe key of the row.
+ */
+function normalizeContacts(
+  cell: CellValue,
+  field: MappingField,
+  country: LeadSyncCountry,
+): NormalizeResult<string[]> {
+  const parts =
+    typeof cell.raw === 'string' && CONTACT_SEPARATOR.test(cell.formatted)
+      ? cell.formatted.split(CONTACT_SEPARATOR).filter((part) => part.trim() !== '')
+      : null;
+  if (!parts || parts.length < 2) {
+    const single = normalizeCell(cell, field, country);
+    if (!single.ok) return single;
+    return { ok: true, value: single.value === undefined ? undefined : [String(single.value)] };
+  }
+
+  const values: string[] = [];
+  for (const part of parts) {
+    const result = normalizeCell({ formatted: part, raw: part }, field, country);
+    if (!result.ok) return { ok: false, error: VALIDATION.ONE_OF_MANY(part.trim(), result.error) };
+    const value = result.value === undefined ? undefined : String(result.value);
+    if (value !== undefined && !values.includes(value)) values.push(value);
+  }
+  return { ok: true, value: values };
 }
 
 /** Fills `{Column}` placeholders and drops separators left dangling by an empty column. */

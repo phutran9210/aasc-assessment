@@ -885,6 +885,9 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       user     email hoặc tên người phụ trách        ID trong bảng "values", không có thì
                                                      dùng defaults.assignedById
 
+      Ô email hoặc số điện thoại có thể chứa nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy
+      hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead.
+
       Trường tùy chỉnh khai báo như trường thường với tên gốc, ví dụ
       { "column": "Kênh ưa thích", "field": "UF_CRM_1700000000", "type": "string" }.
       "titleTemplate" sinh tiêu đề lead; "defaults" là giá trị gửi kèm mọi hàng.

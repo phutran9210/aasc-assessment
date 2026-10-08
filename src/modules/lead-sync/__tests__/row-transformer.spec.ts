@@ -1,7 +1,7 @@
 import { transformRow } from '../domain/row-transformer.js';
 import type { TransformContext } from '../domain/row-transformer.js';
-import { hashMapping } from '../domain/sync-hash.js';
-import type { CellValue, LeadMapping, SheetRow } from '../types/index.js';
+import { hashMapping, hashRow } from '../domain/sync-hash.js';
+import type { CellValue, LeadMapping, SheetRow, ValidRow } from '../types/index.js';
 
 const mapping: LeadMapping = {
   version: 1,
@@ -170,6 +170,61 @@ describe('transformRow', () => {
     expect(invalid).toMatchObject({
       kind: 'invalid',
       errors: ['Cột "Ngày hẹn": ngày không hợp lệ, ví dụ đúng: 08/10/2026 hoặc 2026-10-08'],
+    });
+  });
+
+  it('should take several emails or phones from one cell, the first one being the dedupe key', () => {
+    const result = transformRow(
+      row({
+        'Tên khách hàng': 'An',
+        Email: 'An@Congty.vn; an.2@congty.vn,an@congty.vn',
+        'Số điện thoại': '0901 234 567\n0912345678',
+      }),
+      context,
+    );
+
+    expect(result).toMatchObject({
+      kind: 'valid',
+      email: 'an@congty.vn',
+      extraEmails: ['an.2@congty.vn'],
+      phone: '+84901234567',
+      extraPhones: ['+84912345678'],
+    });
+  });
+
+  it('should keep the hash of a single-value row as it was before several values were supported', () => {
+    const single = transformRow(row({ 'Tên khách hàng': 'An', Email: 'an@congty.vn' }), context);
+
+    expect(single).not.toHaveProperty('extraEmails');
+    expect(single).toMatchObject({
+      hash: hashRow(
+        { fields: (single as ValidRow).fields, email: 'an@congty.vn', phone: undefined },
+        context.mappingHash,
+      ),
+    });
+  });
+
+  it('should change the hash when a second email is added to the cell', () => {
+    const base = { 'Tên khách hàng': 'An' };
+    const one = transformRow(row({ ...base, Email: 'an@congty.vn' }), context);
+    const two = transformRow(row({ ...base, Email: 'an@congty.vn, an.2@congty.vn' }), context);
+
+    expect((two as ValidRow).hash).not.toBe((one as ValidRow).hash);
+  });
+
+  it('should name the bad value when one of several emails is wrong', () => {
+    const result = transformRow(
+      row({
+        'Tên khách hàng': 'An',
+        Email: 'an@congty.vn; khong-phai-email',
+        'Số điện thoại': '0901234567',
+      }),
+      context,
+    );
+
+    expect(result).toMatchObject({
+      kind: 'invalid',
+      errors: ['Cột "Email": "khong-phai-email": email sai định dạng, ví dụ đúng: ten@congty.vn'],
     });
   });
 
