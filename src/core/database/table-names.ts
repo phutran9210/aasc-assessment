@@ -6,6 +6,8 @@ export const TABLE_NAMES = {
   BITRIX_INSTALLATION: 'bitrix_installation',
   CARO_MATCH: 'caro_match',
   JOTFORM_SUBMISSION: 'jotform_submission',
+  LEAD_SYNC_RUN: 'lead_sync_run',
+  LEAD_SYNC_RUN_ITEM: 'lead_sync_run_item',
   LINE98_GAME: 'line98_game',
   TASK: 'task',
   USER: 'user',

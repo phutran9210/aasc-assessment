@@ -1,4 +1,4 @@
-import type { DedupeKey, FieldType } from '../constants/index.js';
+import type { DedupeKey, FieldType, RunItemAction } from '../constants/index.js';
 
 /** One entry of `mapping.json`: a Sheet column, the lead field it feeds and how to read it. */
 export type MappingField = {
@@ -102,3 +102,21 @@ export type LeadWriteOp = PlannedOp & { current?: BitrixLeadItem };
 
 export type LeadWriteResult =
   { ok: true; leadId: number } | { ok: false; code: string; message: string };
+
+export type RunCounters = {
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+};
+
+/** One line of the run log. No email, phone or customer name: row number and Lead ID suffice. */
+export type RunItemInput = {
+  rowNumber: number;
+  action: RunItemAction;
+  leadId?: number;
+  errorCode?: string;
+  errorMessage?: string;
+  attempts?: number;
+};

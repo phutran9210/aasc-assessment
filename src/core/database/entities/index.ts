@@ -1,6 +1,8 @@
 import { BitrixInstallation } from '@modules/bitrix/entities/bitrix-installation.entity.js';
 import { CaroMatch } from '@modules/caro/entities/caro-match.entity.js';
 import { JotformSubmission } from '@modules/jotform/entities/jotform-submission.entity.js';
+import { LeadSyncRunItem } from '@modules/lead-sync/entities/lead-sync-run-item.entity.js';
+import { LeadSyncRun } from '@modules/lead-sync/entities/lead-sync-run.entity.js';
 import { Line98Game } from '@modules/line98/entities/line98-game.entity.js';
 import { Task } from '@modules/task/entities/task.entity.js';
 import { User } from '@modules/user/entities/user.entity.js';
@@ -22,6 +24,8 @@ export const ENTITIES: EntityClass[] = [
   BitrixInstallation,
   CaroMatch,
   JotformSubmission,
+  LeadSyncRun,
+  LeadSyncRunItem,
   Line98Game,
   Task,
   User,
