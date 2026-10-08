@@ -8,6 +8,7 @@ import { BitrixModule } from '@modules/bitrix/index.js';
 import { CaroModule } from '@modules/caro/index.js';
 import { ContactModule } from '@modules/contact/index.js';
 import { JotformModule } from '@modules/jotform/index.js';
+import { LeadSyncModule } from '@modules/lead-sync/index.js';
 import { Line98Module } from '@modules/line98/index.js';
 import { TaskModule } from '@modules/task/index.js';
 import { UserModule } from '@modules/user/index.js';
@@ -28,6 +29,7 @@ import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
     BitrixModule,
     ContactModule,
     JotformModule,
+    LeadSyncModule,
     UserModule,
     TaskModule,
     Line98Module,

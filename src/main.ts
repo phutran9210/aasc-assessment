@@ -8,6 +8,7 @@ import {
   SWAGGER_PATH,
 } from '@config/index.js';
 import type { AppConfig } from '@config/index.js';
+import { SyncScheduler } from '@modules/lead-sync/index.js';
 
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -29,6 +30,10 @@ async function bootstrap(): Promise<void> {
   setupGracefulShutdown(app);
 
   await app.listen(config.port);
+
+  // Started here and not in a lifecycle hook: the CLI boots the same AppModule and must not
+  // run the schedule a second time.
+  app.get(SyncScheduler).start();
 
   const baseUrl = `http://localhost:${config.port}`;
   logger.log(`Server is running on ${baseUrl}`);

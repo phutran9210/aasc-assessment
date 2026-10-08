@@ -1,4 +1,10 @@
-import type { DedupeKey, FieldType, RunItemAction } from '../constants/index.js';
+import type {
+  DedupeKey,
+  FieldType,
+  LeadSyncRunStatus,
+  LeadSyncTrigger,
+  RunItemAction,
+} from '../constants/index.js';
 
 /** One entry of `mapping.json`: a Sheet column, the lead field it feeds and how to read it. */
 export type MappingField = {
@@ -119,4 +125,36 @@ export type RunItemInput = {
   errorCode?: string;
   errorMessage?: string;
   attempts?: number;
+};
+
+export type RunResponse = RunCounters & {
+  id: string;
+  trigger: LeadSyncTrigger;
+  status: LeadSyncRunStatus;
+  dryRun: boolean;
+  startedAt: string;
+  finishedAt: string | null;
+  stopReason: string | null;
+};
+
+export type RunItemResponse = {
+  rowNumber: number;
+  action: RunItemAction;
+  leadId: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  attempts: number;
+};
+
+export type RunDetailResponse = RunResponse & { items: RunItemResponse[] };
+
+export type ConnectionCheck = { ok: boolean; message: string | null };
+
+export type LeadSyncStatusResponse = {
+  configured: boolean;
+  /** What is missing when `configured` is false. */
+  reason: string | null;
+  schedule: { cron: string | null; timezone: string; nextRunAt: string | null };
+  lastRun: RunResponse | null;
+  connections: { google: ConnectionCheck; bitrix: ConnectionCheck };
 };

@@ -15,6 +15,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "db:seed": "nest build && node dist/core/database/seed/index.js",
+    "sync:leads": "nest build && node dist/cli/lead-sync.js",
     "format": "prettier --no-error-on-unmatched-pattern --write \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.js\" \"public/**/*.{js,css,html}\"",
     "format:check": "prettier --no-error-on-unmatched-pattern --check \"src/**/*.ts\" \"test/**/*.ts\" \"scripts/**/*.js\" \"public/**/*.{js,css,html}\"",
     "lint": "eslint \"{src,test}/**/*.ts\"",

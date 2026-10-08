@@ -738,6 +738,20 @@ describe('SyncRunner', () => {
       await expect(third.done).resolves.toMatchObject({ status: 'succeeded' });
     });
 
+    it('should resolve done, never reject, when the run cannot be closed in the database', async () => {
+      const { runner, runs } = harness(leads(1));
+      jest.spyOn(runs, 'finish').mockRejectedValue(new Error('disk I/O error'));
+
+      const { run, done } = await runner.start({ trigger: 'http' });
+
+      await expect(done).resolves.toMatchObject({
+        id: run.id,
+        status: 'failed',
+        created: 1,
+        stopReason: 'disk I/O error',
+      });
+    });
+
     it('should take over a run that died without releasing the lock', async () => {
       const { run, runs } = harness([lead(1)]);
       const dead = await runs.acquire('schedule', false, 120_000);

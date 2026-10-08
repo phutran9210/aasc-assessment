@@ -147,7 +147,16 @@ export class SyncRunner implements BeforeApplicationShutdown {
       clearInterval(heartbeat);
     }
 
-    const finished = await this.runs.finish(run.id, status, counters, stopReason);
+    let finished: LeadSyncRun;
+    try {
+      finished = await this.runs.finish(run.id, status, counters, stopReason);
+    } catch (error) {
+      // `done` must never reject: the HTTP trigger does not await it. The row stays `running`
+      // until its heartbeat goes stale and the next run takes the lock over.
+      stopReason = describeError(error);
+      this.logger.error(`Lead sync ${run.id} could not be closed: ${stopReason}`);
+      finished = Object.assign(run, counters, { status: FAILED, stopReason });
+    }
     const seconds = ((nowMs() - startedAt) / 1000).toFixed(1);
     this.logger.log(
       `Lead sync ${run.id} finished: total=${counters.total} created=${counters.created} updated=${counters.updated} skipped=${counters.skipped} failed=${counters.failed} duration=${seconds}s`,
