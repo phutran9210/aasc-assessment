@@ -929,6 +929,8 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
         "không có worksheet tên ..."       Sai GOOGLE_SHEET_NAME.
         "Sheet không có cột ..."           Tiêu đề cột trong Sheet khác với mapping.json.
         "Bitrix24 không có trường lead"    Sai tên trường trong mapping; xem crm.item.fields.
+        "chế độ CRM đơn giản"              Portal tắt Lead nên lead mới bị tự chuyển thành Deal
+                                           và Contact; bật CRM cổ điển trong cài đặt CRM.
         "Lead không còn tồn tại"           Lead bị xóa bên Bitrix24; xóa ô Lead ID để tạo lại.
         Nên đặt lịch ngoài giờ nhập liệu cao điểm: sắp xếp hoặc chèn hàng trong lúc đang
         chạy làm các hàng đó bị hoãn sang lần chạy sau.
@@ -949,9 +951,9 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       Bitrix24 giả), pnpm test:e2e (HTTP: 202, 409, 401, 503), pnpm test:cov (ngưỡng 70%
       cho lead-sync và google-sheets; hiện đạt 90,9% và 99,2% dòng).
 
-      Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 13 lần (1 crm.item.fields + 6 batch
-      tìm trùng + 6 batch ghi), Google 9 lần đọc và 8 lần ghi. Lần chạy lại không có thay
-      đổi: Bitrix24 1 lần, Google 3 lần đọc.
+      Số lần gọi API cho 150 hàng mới (6 lô): Bitrix24 14 lần (1 crm.settings.mode.get +
+      1 crm.item.fields + 6 batch tìm trùng + 6 batch ghi), Google 9 lần đọc và 8 lần ghi.
+      Lần chạy lại không có thay đổi: Bitrix24 2 lần, Google 3 lần đọc.
 
       Kết quả chạy thật 150 hàng: <thời gian> giây, <số> lần gặp rate limit.
       Video demo: <liên kết>.

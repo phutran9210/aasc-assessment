@@ -21,6 +21,8 @@ import type {
 import { buildCreateFields, buildUpdateFields } from './lead-payload.js';
 
 const ORIGINAL_UF_NAMES = 'Y';
+/** `crm.settings.mode.get`: 1 is classic CRM (with leads), 2 is simple CRM (without leads). */
+const CLASSIC_CRM_MODE = 1;
 
 /**
  * The only place that knows which Bitrix24 methods a lead needs and what their payloads look
@@ -38,6 +40,19 @@ export class BitrixLeadGateway {
     @Inject(leadSyncConfig.KEY) config: LeadSyncConfig,
   ) {
     this.readOptions = { retryTransient: true, maxRetries: config.maxRetries };
+  }
+
+  /**
+   * Whether the portal works with leads. In simple CRM mode Bitrix24 still accepts a new lead but
+   * converts it into a deal and a contact at once, so the stage from the Sheet is lost.
+   */
+  async usesLeads(): Promise<boolean> {
+    const { result } = await this.api.callRaw<number>(
+      'crm.settings.mode.get',
+      {},
+      this.readOptions,
+    );
+    return Number(result) === CLASSIC_CRM_MODE;
   }
 
   /** Names of every lead field of the portal, custom fields under their `UF_CRM_*` name. */

@@ -31,6 +31,21 @@ describe('BitrixLeadGateway', () => {
     );
   });
 
+  describe('usesLeads', () => {
+    it('should report classic CRM mode as using leads, retrying temporary failures', async () => {
+      api.callRaw.mockResolvedValue({ result: 1 });
+
+      await expect(gateway.usesLeads()).resolves.toBe(true);
+      expect(api.callRaw).toHaveBeenCalledWith('crm.settings.mode.get', {}, READ);
+    });
+
+    it('should report simple CRM mode as not using leads', async () => {
+      api.callRaw.mockResolvedValue({ result: 2 });
+
+      await expect(gateway.usesLeads()).resolves.toBe(false);
+    });
+  });
+
   describe('getFieldNames', () => {
     it('should read the lead fields with original UF names, retrying temporary failures', async () => {
       api.callRaw.mockResolvedValue({

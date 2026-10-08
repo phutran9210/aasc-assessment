@@ -105,7 +105,7 @@ describe('Lead sync (e2e)', () => {
     gateway.leads.clear();
     gateway.rejectRows.clear();
     gateway.gate = undefined;
-    gateway.calls = { fields: 0, find: 0, get: 0, write: 0 };
+    gateway.calls = { mode: 0, fields: 0, find: 0, get: 0, write: 0 };
     await dataSource.getRepository(LeadSyncRunItem).clear();
     await dataSource.getRepository(LeadSyncRun).clear();
   });

@@ -175,6 +175,9 @@ export class SyncRunner implements BeforeApplicationShutdown {
 
     const { mapping, hash: mappingHash } = await this.mappingLoader.load();
     const snapshot = await this.table.load(mapping);
+    if (!(await this.gateway.usesLeads())) {
+      throw new LeadSyncConfigError(MESSAGES.SIMPLE_CRM_MODE);
+    }
     const leadFields = await this.gateway.getFieldNames();
     const problems = checkMapping(mapping, snapshot.headers, leadFields);
     if (problems.length) throw new LeadSyncMappingError(problems);

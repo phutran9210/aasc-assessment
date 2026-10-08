@@ -22,7 +22,7 @@ type WriteFault = { error: Error; applied?: boolean };
 export class FakeLeadGateway {
   leads = new Map<number, FakeLead>();
   nextId = 1000;
-  calls = { fields: 0, find: 0, get: 0, write: 0 };
+  calls = { mode: 0, fields: 0, find: 0, get: 0, write: 0 };
   findSizes: number[] = [];
   writeSizes: number[] = [];
   fieldNames = new Set([
@@ -37,6 +37,8 @@ export class FakeLeadGateway {
     'comments',
     'originatorId',
   ]);
+  /** False puts the portal in simple CRM mode: Bitrix24 converts every new lead at once. */
+  leadsEnabled = true;
   /** Per-row error of the write batch, by row number. */
   rejectRows = new Map<number, { code: string; message: string }>();
   /** Called with the 1-based number of the write call; return a fault to make that call throw. */
@@ -50,6 +52,11 @@ export class FakeLeadGateway {
     const id = this.nextId++;
     this.leads.set(id, { id, email: lead.email, phone: lead.phone, fields: lead.fields ?? {} });
     return id;
+  }
+
+  usesLeads(): Promise<boolean> {
+    this.calls.mode += 1;
+    return Promise.resolve(this.leadsEnabled);
   }
 
   getFieldNames(): Promise<Set<string>> {

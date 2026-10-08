@@ -2,6 +2,8 @@ export const LEAD_SYNC_MESSAGES = {
   ERROR: {
     BITRIX_NOT_CONNECTED:
       'Chưa kết nối Bitrix24: đặt BITRIX24_WEBHOOK_URL hoặc cài ứng dụng qua /install',
+    SIMPLE_CRM_MODE:
+      'Bitrix24 đang ở chế độ CRM đơn giản (không dùng Lead): lead mới sẽ bị tự chuyển thành Deal và Contact. Chuyển sang CRM cổ điển trong CRM > Cài đặt > Chế độ CRM rồi chạy lại',
     BUSY: (runId: string | null): string =>
       `Đang có một lần đồng bộ khác chạy${runId ? `: ${runId}` : ''}`,
     RUN_NOT_FOUND: 'Không tìm thấy lần chạy',

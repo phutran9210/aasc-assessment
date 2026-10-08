@@ -653,6 +653,31 @@ describe('SyncRunner', () => {
       expect(gateway.calls).toMatchObject({ find: 0, write: 0 });
     });
 
+    it('should fail before touching the Sheet or Bitrix24 when the portal has leads turned off', async () => {
+      const { run, sheet, gateway } = harness([lead(1)]);
+      gateway.leadsEnabled = false;
+
+      const result = await run();
+
+      expect(result.status).toBe('failed');
+      expect(result.stopReason).toBe(
+        'Bitrix24 đang ở chế độ CRM đơn giản (không dùng Lead): lead mới sẽ bị tự chuyển thành Deal và Contact. Chuyển sang CRM cổ điển trong CRM > Cài đặt > Chế độ CRM rồi chạy lại',
+      );
+      expect(sheet.calls.write).toBe(0);
+      expect(sheet.grid[0]).toEqual(BUSINESS);
+      expect(gateway.calls).toMatchObject({ find: 0, write: 0 });
+    });
+
+    it('should refuse a dry run as well when the portal has leads turned off', async () => {
+      const { run, gateway } = harness([lead(1)]);
+      gateway.leadsEnabled = false;
+
+      const result = await run({ dryRun: true });
+
+      expect(result.status).toBe('failed');
+      expect(result.stopReason).toMatch(/^Bitrix24 đang ở chế độ CRM đơn giản/);
+    });
+
     it('should fail with a clear reason when the header row is empty', async () => {
       const { run } = harness([], { headers: [] });
 
@@ -719,7 +744,7 @@ describe('SyncRunner', () => {
   });
 
   describe('performance: 150 rows', () => {
-    it('should make exactly 1 + 2 × batches Bitrix24 calls and 3 + batches Sheet reads', async () => {
+    it('should make exactly 2 + 2 × batches Bitrix24 calls and 3 + batches Sheet reads', async () => {
       const { run, sheet, gateway } = harness(leads(150));
       const batches = 150 / 25;
       const startedAt = Date.now();
@@ -734,8 +759,15 @@ describe('SyncRunner', () => {
         skipped: 0,
         failed: 0,
       });
-      // Bitrix24: one crm.item.fields, then one duplicate search and one write per batch.
-      expect(gateway.calls).toEqual({ fields: 1, find: batches, get: 0, write: batches });
+      // Bitrix24: one crm.settings.mode.get and one crm.item.fields, then one duplicate search
+      // and one write per batch.
+      expect(gateway.calls).toEqual({
+        mode: 1,
+        fields: 1,
+        find: batches,
+        get: 0,
+        write: batches,
+      });
       expect(gateway.findSizes).toEqual(Array(batches).fill(50));
       expect(gateway.writeSizes).toEqual(Array(batches).fill(25));
       // Google: metadata + two renderings, then one key-column check per batch.
@@ -745,16 +777,16 @@ describe('SyncRunner', () => {
       expect(Date.now() - startedAt).toBeLessThan(5000);
     });
 
-    it('should make one Bitrix24 call and three Sheet reads when nothing changed', async () => {
+    it('should make two Bitrix24 calls and three Sheet reads when nothing changed', async () => {
       const { run, sheet, gateway } = harness(leads(150));
       await run();
-      gateway.calls = { fields: 0, find: 0, get: 0, write: 0 };
+      gateway.calls = { mode: 0, fields: 0, find: 0, get: 0, write: 0 };
       sheet.calls = { read: 0, write: 0 };
 
       const result = await run();
 
       expect(counters(result)).toMatchObject({ skipped: 150, failed: 0 });
-      expect(gateway.calls).toEqual({ fields: 1, find: 0, get: 0, write: 0 });
+      expect(gateway.calls).toEqual({ mode: 1, fields: 1, find: 0, get: 0, write: 0 });
       expect(sheet.calls).toEqual({ read: 3, write: 0 });
     });
   });
