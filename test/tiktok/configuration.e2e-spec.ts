@@ -55,6 +55,44 @@ function buildRootModule(endpoint: string): Type<unknown> {
   return ConfigurationTestModule;
 }
 
+function rules() {
+  return {
+    schema_version: 1,
+    auto_conversion: { enabled: true },
+    manual_conversion: {
+      enabled: true,
+      pipeline_id: 1,
+      stage_id: 'C1:NEW',
+      probability: 10,
+      fallback_sales_id: '1',
+    },
+    stage_probabilities: [{ pipeline_id: 1, stage_id: 'C1:NEW', probability: 10 }],
+    assignment: { strategy: 'fallback', fallback_sales_id: '1', sales_ids: ['1'] },
+    quality_scoring: {
+      weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
+      interaction_window_days: 30,
+      interaction_points: 5,
+      interaction_cap: 4,
+    },
+    feedback: { enabled: false },
+    reporting: { timezone: 'Asia/Ho_Chi_Minh' },
+    alerts: { enabled: true },
+    rules: [
+      {
+        id: 'campaign-sale',
+        priority: 1,
+        enabled: true,
+        conditions: { field: 'lead.campaign_name', op: 'contains', value: 'sale' },
+        action: 'create_deal',
+        pipeline_id: 1,
+        stage_id: 'C1:NEW',
+        probability: 10,
+        assignment: { sales_id: '1' },
+      },
+    ],
+  };
+}
+
 function mapping(title = 'NAME') {
   return {
     entries: [
@@ -94,7 +132,9 @@ describe('TikTok configuration ETag API', () => {
 
   beforeEach(async () => {
     await dataSource.getRepository(ConfigurationHeadEntity).delete({ key: 'mapping' });
+    await dataSource.getRepository(ConfigurationHeadEntity).delete({ key: 'rules' });
     await dataSource.getRepository(ConfigurationEntity).delete({ key: 'mapping' });
+    await dataSource.getRepository(ConfigurationEntity).delete({ key: 'rules' });
     await dataSource.getRepository(IntegrationUserEntity).clear();
     const bcrypt = await import('bcrypt');
     await dataSource.getRepository(IntegrationUserEntity).save([
@@ -225,5 +265,47 @@ describe('TikTok configuration ETag API', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200)
       .expect(({ body }) => expect(body.revision).toBe(1));
+  });
+
+  it('stores canonical rules only after pipeline, stage, probability, and active sales validation', async () => {
+    const response = await request(testApp.app.getHttpServer())
+      .put('/configuration/rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '"0"')
+      .send({ value: rules() })
+      .expect(200);
+    expect(response.headers.etag).toBe('"1"');
+    expect(response.body.value).toEqual(rules());
+    const read = await request(testApp.app.getHttpServer())
+      .get('/configuration/rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(read.headers.etag).toBe('"1"');
+    expect(read.body.value.manual_conversion.stage_id).toBe('C1:NEW');
+
+    const invalidPipeline = rules();
+    invalidPipeline.rules[0].pipeline_id = 0;
+    await request(testApp.app.getHttpServer())
+      .put('/configuration/rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '"1"')
+      .send({ value: invalidPipeline })
+      .expect(400);
+    const invalidProbability = rules();
+    invalidProbability.rules[0].probability = 101;
+    await request(testApp.app.getHttpServer())
+      .put('/configuration/rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '"1"')
+      .send({ value: invalidProbability })
+      .expect(400);
+    const inactiveSales = rules();
+    inactiveSales.assignment.sales_ids = ['999'];
+    await request(testApp.app.getHttpServer())
+      .put('/configuration/rules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '"1"')
+      .send({ value: inactiveSales })
+      .expect(400);
   });
 });

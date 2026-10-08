@@ -34,7 +34,7 @@ export class ConfigurationRepository {
     key: string;
     expectedRevision: number;
     value: Record<string, unknown>;
-    compiled: CompiledMapping;
+    compiled: CompiledMapping | null;
     actorId: string;
   }): Promise<StoredConfiguration> {
     return this.dataSource.transaction(async (manager) => {
@@ -54,7 +54,7 @@ export class ConfigurationRepository {
         revision: currentRevision + 1,
         value: {
           config: input.value,
-          compiled: input.compiled as unknown as Record<string, unknown>,
+          compiled: input.compiled as unknown as Record<string, unknown> | null,
         },
         createdBy: input.actorId,
       });
@@ -64,7 +64,7 @@ export class ConfigurationRepository {
         id: uuidv7(),
         scopeKey: 'configuration',
         actorId: input.actorId,
-        eventType: 'configuration.mapping.updated',
+        eventType: `configuration.${input.key}.updated`,
         aggregateType: 'configuration',
         aggregateId: null,
         metadata: { key: input.key, revision: entity.revision },
