@@ -21,6 +21,7 @@ import type {
 } from '../types/bitrix-installation-snapshot.type.js';
 import { BitrixHttpError, BitrixHttpTransport } from './bitrix-http-transport.service.js';
 import type { BitrixInstallEvent, BitrixRestEnvelope, BitrixTokenSet } from '../types/index.js';
+import { validateBitrixInstallEvent } from '../utils/normalize-install-payload.js';
 
 type OAuthTokenResponse = {
   access_token: string;
@@ -249,16 +250,8 @@ export class BitrixOAuthService {
     ) {
       throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
     }
-    for (const endpoint of [auth.client_endpoint, auth.server_endpoint]) {
-      let parsed: URL;
-      try {
-        parsed = new URL(endpoint);
-      } catch {
-        throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
-      }
-      if (parsed.protocol !== 'https:' || !parsed.pathname.endsWith('/rest/')) {
-        throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
-      }
+    if (!validateBitrixInstallEvent({ event: '', data: {}, ts: '', auth })) {
+      throw new BadRequestException(BITRIX_MESSAGES.ERROR.EVENT_INVALID);
     }
   }
 }

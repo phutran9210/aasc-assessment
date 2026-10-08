@@ -19,6 +19,18 @@ export class BitrixInstallationEntity extends IntegrationBaseEntity {
   @Column({ name: 'client_endpoint', type: 'text', nullable: true })
   clientEndpoint!: string | null;
 
+  @Column({ name: 'server_endpoint', type: 'text', nullable: true })
+  serverEndpoint!: string | null;
+
+  @Column({ name: 'scope', type: 'text', nullable: true })
+  scope!: string | null;
+
+  @Column({ name: 'status', type: 'varchar', length: 32, nullable: true })
+  status!: string | null;
+
+  @Column({ name: 'application_token', type: 'text', select: false, nullable: true })
+  applicationToken!: string | null;
+
   @Column({ name: 'access_token', type: 'text', select: false, nullable: true })
   accessToken!: string | null;
 

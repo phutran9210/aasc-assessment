@@ -135,7 +135,11 @@ describe('BitrixOAuthService', () => {
 
     await service.handleInstallEvent({
       ...EVENT,
-      auth: { ...AUTH, domain: 'stranger.bitrix24.com' },
+      auth: {
+        ...AUTH,
+        domain: 'stranger.bitrix24.com',
+        client_endpoint: 'https://stranger.bitrix24.com/rest/',
+      },
     });
 
     expect(repository.saveTokens).toHaveBeenCalledWith(
