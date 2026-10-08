@@ -1,12 +1,7 @@
 import { Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
-import type { RawBodyRequest } from '@nestjs/common';
-import type { Request } from 'express';
-
 import { TiktokInboxService } from '../services/tiktok-inbox.service.js';
 import { TiktokSignatureGuard } from '../guards/tiktok-signature.guard.js';
-import type { VerifiedEvent } from '../domain/webhook-envelope.js';
-
-type VerifiedWebhookRequest = RawBodyRequest<Request> & { verifiedTiktokEvent: VerifiedEvent };
+import type { VerifiedWebhookRequest } from '../types/webhook-request.types.js';
 
 @Controller('webhooks/tiktok')
 export class TiktokWebhookController {

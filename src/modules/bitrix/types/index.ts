@@ -1,4 +1,5 @@
 export type { BitrixCallOptions, BitrixResult } from './bitrix-api.types.js';
+export type { OAuthTokenResponse } from './bitrix-oauth.types.js';
 export type {
   BitrixBatchCommand,
   BitrixBatchError,

@@ -4,3 +4,4 @@ export type BitrixBatchOutcome = {
   results: Map<string, unknown>;
   errors: Map<string, BitrixBatchError>;
 };
+export type BatchPayload = { result?: unknown; result_error?: unknown };

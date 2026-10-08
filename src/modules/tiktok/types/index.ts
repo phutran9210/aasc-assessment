@@ -11,3 +11,4 @@ export type {
 } from '../ports/tiktok-feedback-provider.port.js';
 export type { ProviderLead, TiktokLeadProvider } from '../ports/tiktok-lead-provider.port.js';
 export type { TiktokInboxReceipt } from './tiktok-inbox-receipt.type.js';
+export type { GuardedWebhookRequest, VerifiedWebhookRequest } from './webhook-request.types.js';

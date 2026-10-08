@@ -7,6 +7,7 @@ import type {
   BitrixBatchCommand,
   BitrixBatchError,
   BitrixBatchOutcome,
+  BatchPayload,
 } from '../types/bitrix-batch.types.js';
 export type {
   BitrixBatchCommand,
@@ -15,8 +16,6 @@ export type {
 } from '../types/bitrix-batch.types.js';
 import { BitrixApiService } from './bitrix-api.service.js';
 import type { BitrixCallOptions } from '../types/bitrix-api.types.js';
-
-type BatchPayload = { result?: unknown; result_error?: unknown };
 
 /**
  * Runs up to 50 REST methods in one `batch` call. `halt: 0` lets every command run even when

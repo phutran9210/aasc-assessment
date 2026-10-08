@@ -7,7 +7,7 @@ import type { OperationContext, OperationOutcome } from '@core/queue/types/worke
 import type { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, CrmMetadata, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { DealEntity } from '../entities/deal.entity.js';

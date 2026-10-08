@@ -9,7 +9,7 @@ import type { PaginatedResponse } from '@common/types/index.js';
 import { buildPaginationMeta } from '@common/utils/index.js';
 import { bitrixConfig } from '@config/index.js';
 
-import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
+import { BitrixApiService } from '@modules/bitrix/index.js';
 
 import {
   BITRIX_PAGE_SIZE,

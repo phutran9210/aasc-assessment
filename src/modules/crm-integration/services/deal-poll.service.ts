@@ -10,9 +10,7 @@ import { DealPollRepository } from '../repositories/deal-poll.repository.js';
 import type { DealPollCheckpointEntity } from '../entities/deal-poll-checkpoint.entity.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { PollSummary } from '../types/deal-poll-summary.type.js';
-
-const PAGE_SIZE = 50;
-const OVERLAP_MS = 10 * 60 * 1000;
+import { DEAL_POLL_OVERLAP_MS, DEAL_POLL_PAGE_SIZE } from '../constants/flow.constants.js';
 
 @Injectable()
 export class DealPollService {
@@ -71,9 +69,11 @@ export class DealPollService {
             ? await this.listManagedPage(portalKey, offset)
             : await this.gateway.listDealsPage({
                 offset,
-                limit: PAGE_SIZE,
+                limit: DEAL_POLL_PAGE_SIZE,
                 ...(startWatermark
-                  ? { modifiedSince: new Date(startWatermark.getTime() - OVERLAP_MS) }
+                  ? {
+                      modifiedSince: new Date(startWatermark.getTime() - DEAL_POLL_OVERLAP_MS),
+                    }
                   : {}),
               });
         scanned += page.length;
@@ -90,7 +90,7 @@ export class DealPollService {
         checkpoint.pageOffset = offset;
         checkpoint.activeMode = mode;
         await this.pollData.saveCheckpoint(checkpoint);
-        if (page.length < PAGE_SIZE) break;
+        if (page.length < DEAL_POLL_PAGE_SIZE) break;
       }
 
       const completedAt = new Date();
@@ -133,7 +133,7 @@ export class DealPollService {
   }
 
   private async listManagedPage(portalKey: string, offset: number): Promise<RemoteDeal[]> {
-    const deals = await this.pollData.listManagedPage(portalKey, offset, PAGE_SIZE);
+    const deals = await this.pollData.listManagedPage(portalKey, offset, DEAL_POLL_PAGE_SIZE);
     return deals.flatMap((deal) =>
       deal.bitrixDealId
         ? [

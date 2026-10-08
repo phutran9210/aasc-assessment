@@ -11,8 +11,7 @@ import type { TimelineInput } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
-
-const RETRY_DELAYS_MS = [5_000, 10_000, 15_000];
+import { TIMELINE_RETRY_DELAYS_MS } from '../constants/flow.constants.js';
 
 @Injectable()
 export class TimelineService {
@@ -133,7 +132,7 @@ export class TimelineService {
       const timeline = await this.timelines.findByIdForUpdate(timelineId, manager);
       if (!timeline) return null;
       const attempt = timeline.attempt + 1;
-      if (attempt > RETRY_DELAYS_MS.length) {
+      if (attempt > TIMELINE_RETRY_DELAYS_MS.length) {
         timeline.status = 'reconcile_required';
         timeline.nextAttemptAt = null;
         timeline.lastErrorCode = 'TIMELINE_RECONCILIATION_EXHAUSTED';
@@ -142,7 +141,7 @@ export class TimelineService {
       }
       timeline.attempt = attempt;
       timeline.status = 'pending';
-      const delayMs = RETRY_DELAYS_MS[attempt - 1] ?? RETRY_DELAYS_MS[0];
+      const delayMs = TIMELINE_RETRY_DELAYS_MS[attempt - 1] ?? TIMELINE_RETRY_DELAYS_MS[0];
       timeline.nextAttemptAt = new Date(Date.now() + (delayMs ?? 5_000));
       timeline.lastErrorCode = 'TIMELINE_MUTATION_AMBIGUOUS';
       await this.timelines.save(timeline, manager);

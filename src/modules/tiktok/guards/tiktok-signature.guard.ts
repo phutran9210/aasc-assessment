@@ -6,15 +6,13 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { ExecutionContext, RawBodyRequest } from '@nestjs/common';
-import type { Request } from 'express';
+import type { ExecutionContext } from '@nestjs/common';
 
 import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
-import { parseWebhookEnvelope, type VerifiedEvent } from '../domain/webhook-envelope.js';
+import { parseWebhookEnvelope } from '../domain/webhook-envelope.js';
 import { verifyMockSignature } from '../domain/mock-signature.js';
-
-export const TIKTOK_WEBHOOK_CONFIG = Symbol('TIKTOK_WEBHOOK_CONFIG');
-type WebhookRequest = RawBodyRequest<Request> & { verifiedTiktokEvent?: VerifiedEvent };
+import type { GuardedWebhookRequest } from '../types/webhook-request.types.js';
+import { TIKTOK_WEBHOOK_CONFIG } from '../constants/index.js';
 
 @Injectable()
 export class TiktokSignatureGuard implements CanActivate {
@@ -26,7 +24,7 @@ export class TiktokSignatureGuard implements CanActivate {
         'TikTok Business webhook verification is not configured',
       );
     }
-    const request = context.switchToHttp().getRequest<WebhookRequest>();
+    const request = context.switchToHttp().getRequest<GuardedWebhookRequest>();
     const raw = request.rawBody;
     if (!Buffer.isBuffer(raw)) throw new UnauthorizedException('TikTok raw body is unavailable');
     const header = request.headers['tiktok-signature'];

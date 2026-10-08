@@ -15,10 +15,10 @@ import { SubmissionEntity } from '../entities/submission.entity.js';
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { SubmissionRepository } from '../repositories/submission.repository.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import { applyMapping } from '../domain/apply-mapping.js';
-import { buildLeadDiff } from '../domain/crm-lead-diff.js';
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
+import { buildLeadDiff } from '../domain/crm-lead-diff.js';
 import { normalizeEmail, normalizePhone } from '../domain/normalize-contact.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { CrmGateway, RemoteLead } from '../ports/crm-gateway.port.js';
@@ -26,30 +26,11 @@ import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import { TimelineService } from './timeline.service.js';
-
-const EXTERNAL_MARKER_FIELD = 'UF_CRM_TIKTOK_EXTERNAL_ID';
-const RECONCILIATION_DELAYS_MS = [5_000, 10_000, 15_000];
-const FALLBACK_MAPPING: CompiledMapping = {
-  titleMaxLength: 180,
-  entries: [
-    { sourcePath: ['name'], target: 'name', subfield: null, transforms: [], owner: 'integration' },
-    {
-      sourcePath: ['email'],
-      target: 'fm',
-      subfield: 'EMAIL',
-      transforms: [],
-      owner: 'integration',
-    },
-    {
-      sourcePath: ['phone'],
-      target: 'fm',
-      subfield: 'PHONE',
-      transforms: [],
-      owner: 'integration',
-    },
-    { sourcePath: ['city'], target: 'city', subfield: null, transforms: [], owner: 'integration' },
-  ],
-};
+import {
+  EXTERNAL_MARKER_FIELD,
+  FALLBACK_MAPPING,
+  LEAD_SYNC_RECONCILIATION_DELAYS_MS,
+} from '../constants/flow.constants.js';
 
 @Injectable()
 export class LeadSyncService {
@@ -302,11 +283,12 @@ export class LeadSyncService {
     currentAttempt: number,
   ): Promise<OperationOutcome> {
     const nextAttempt = currentAttempt + 1;
-    if (nextAttempt > RECONCILIATION_DELAYS_MS.length) {
+    if (nextAttempt > LEAD_SYNC_RECONCILIATION_DELAYS_MS.length) {
       await this.markSyncState(lead.id, 'reconcile_required', 'CRM_RECONCILIATION_EXHAUSTED');
       return { outcome: 'reconcile_required', errorCode: 'CRM_RECONCILIATION_EXHAUSTED' };
     }
-    const delayMs = RECONCILIATION_DELAYS_MS[nextAttempt - 1] ?? RECONCILIATION_DELAYS_MS[0];
+    const delayMs =
+      LEAD_SYNC_RECONCILIATION_DELAYS_MS[nextAttempt - 1] ?? LEAD_SYNC_RECONCILIATION_DELAYS_MS[0];
     const availableAt = new Date(Date.now() + (delayMs ?? 5_000));
     await this.dataSource.transaction(async (manager) => {
       const operation = await this.operations.ensure(

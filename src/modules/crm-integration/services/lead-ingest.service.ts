@@ -20,19 +20,15 @@ import { normalizeLead } from '../domain/normalize-lead.js';
 import { mergeLead } from '../domain/merge-lead.js';
 import { scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
-import type { ScorePolicy } from '../types/rule.types.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
 import type { IngestOutcome } from '../types/ingest-outcome.type.js';
-
-const DEFAULT_SCORE_POLICY: ScorePolicy = {
-  weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
-  interaction_window_days: 30,
-  interaction_points: 5,
-  interaction_cap: 4,
-};
-const LINK_INTERVAL_MS = 5 * 60 * 1000;
-const LINK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+import type { ScorePolicy } from '../types/rule.types.js';
+import {
+  DEFAULT_SCORE_POLICY,
+  LINK_INTERVAL_MS,
+  LINK_MAX_AGE_MS,
+} from '../constants/flow.constants.js';
 
 @Injectable()
 export class LeadIngestService {

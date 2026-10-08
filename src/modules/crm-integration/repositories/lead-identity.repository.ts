@@ -12,6 +12,18 @@ export class LeadIdentityRepository {
     return manager.getRepository(LeadIdentityEntity).save(input);
   }
 
+  findOwner(
+    advertiserId: string,
+    identityType: LeadIdentityEntity['identityType'],
+    normalizedValue: string,
+    manager: EntityManager,
+  ): Promise<LeadIdentityEntity | null> {
+    return manager.getRepository(LeadIdentityEntity).findOne({
+      where: { advertiserId, identityType, normalizedValue },
+      lock: { mode: 'pessimistic_write' },
+    });
+  }
+
   findByValues(
     advertiserId: string,
     identities: Array<{ type: 'email' | 'phone'; value: string }>,

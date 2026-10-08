@@ -11,6 +11,16 @@ export class WebhookEventRepository {
     return tx.getRepository(WebhookEventEntity).findOne({ where: { id } });
   }
 
+  findByIdForUpdate(id: string, tx: EntityManager): Promise<WebhookEventEntity | null> {
+    return tx
+      .getRepository(WebhookEventEntity)
+      .findOne({ where: { id }, lock: { mode: 'pessimistic_write' } });
+  }
+
+  save(event: WebhookEventEntity, tx: EntityManager): Promise<WebhookEventEntity> {
+    return tx.getRepository(WebhookEventEntity).save(event);
+  }
+
   updateStatus(
     id: string,
     status: string,

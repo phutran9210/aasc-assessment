@@ -1,9 +1,6 @@
 import { Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
-import type { Request } from 'express';
-
 import { BitrixDealInbox } from '../services/bitrix-deal-inbox.service.js';
-
-type RawRequest = Request & { rawBody?: Buffer };
+import type { RawRequest } from '../types/raw-request.type.js';
 
 @Controller('webhooks/bitrix24/deals')
 export class BitrixDealWebhookController {

@@ -6,7 +6,6 @@ import type { DataSource } from 'typeorm';
 
 import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
-import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
@@ -16,7 +15,7 @@ import {
 } from '@modules/crm-integration/ports/configuration-revision-reader.port.js';
 import { TIKTOK_DISPATCHED_EVENTS } from '../constants/index.js';
 import type { VerifiedEvent } from '../domain/webhook-envelope.js';
-import { TIKTOK_WEBHOOK_CONFIG } from '../guards/tiktok-signature.guard.js';
+import { TIKTOK_WEBHOOK_CONFIG } from '../constants/index.js';
 import type { TiktokInboxReceipt } from '../types/tiktok-inbox-receipt.type.js';
 
 @Injectable()
@@ -57,7 +56,7 @@ export class TiktokInboxService {
         if (receipt.duplicate) return { received: true, ...receipt };
 
         if (!TIKTOK_DISPATCHED_EVENTS.has(event.eventType)) {
-          await tx.getRepository(WebhookEventEntity).update(receipt.eventId, { status: 'ignored' });
+          await this.events.updateStatus(receipt.eventId, 'ignored', tx);
           return { received: true, ...receipt };
         }
 

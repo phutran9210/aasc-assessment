@@ -3,8 +3,7 @@ import type { EntityManager } from 'typeorm';
 
 import { AssignmentCursorRepository } from '../repositories/assignment-cursor.repository.js';
 import type { AssignmentPolicy } from '../types/rule.types.js';
-
-type AssignmentLead = { firstTouchCampaignId: string | null; city: string | null };
+import type { AssignmentLead } from '../types/assignment.types.js';
 
 @Injectable()
 export class AssignmentService {

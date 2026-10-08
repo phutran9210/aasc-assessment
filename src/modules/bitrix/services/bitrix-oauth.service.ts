@@ -21,22 +21,11 @@ import type {
 } from '../types/bitrix-installation-snapshot.type.js';
 import { BitrixHttpError, BitrixHttpTransport } from './bitrix-http-transport.service.js';
 import type { BitrixInstallEvent, BitrixRestEnvelope, BitrixTokenSet } from '../types/index.js';
+import type { OAuthTokenResponse } from '../types/index.js';
 import {
   normalizeInstallPayload,
   validateBitrixInstallEvent,
 } from '../utils/normalize-install-payload.js';
-
-type OAuthTokenResponse = {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  domain: string;
-  member_id: string;
-  scope: string;
-  status: string;
-  client_endpoint: string;
-  server_endpoint: string;
-};
 
 /** Obtains, stores and refreshes the OAuth 2.0 token pair of the installed application. */
 @Injectable()

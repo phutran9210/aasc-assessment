@@ -58,14 +58,14 @@ describe('TiktokInboxService', () => {
   });
 
   it('marks authenticated unsupported events ignored without creating queued work', async () => {
-    const { service, events, operations, outbox, updateEvent } = createService();
+    const { service, events, operations, outbox } = createService();
     events.accept.mockResolvedValue({ eventId: 'stored-event', duplicate: false });
 
     await expect(
       service.receive({ ...event, eventType: 'advertiser.update' }, Buffer.from('event')),
     ).resolves.toMatchObject({ received: true, duplicate: false });
 
-    expect(updateEvent).toHaveBeenCalledWith('stored-event', { status: 'ignored' });
+    expect(events.updateStatus).toHaveBeenCalledWith('stored-event', 'ignored', expect.any(Object));
     expect(operations.ensure).not.toHaveBeenCalled();
     expect(outbox.append).not.toHaveBeenCalled();
   });
@@ -86,7 +86,13 @@ describe('TiktokInboxService', () => {
 });
 
 function createService() {
-  const events = { accept: jest.fn(), findById: jest.fn(), updateStatus: jest.fn() };
+  const events = {
+    accept: jest.fn(),
+    findById: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    save: jest.fn(),
+    updateStatus: jest.fn(),
+  };
   const operations = {
     findById: jest.fn(),
     findByKey: jest.fn(),
@@ -104,14 +110,12 @@ function createService() {
   const configurations = {
     revisions: jest.fn().mockResolvedValue({ mapping: 2, rules: 4 }),
   };
-  const updateEvent = jest.fn().mockResolvedValue(undefined);
-  const tx = { getRepository: jest.fn().mockReturnValue({ update: updateEvent, find: jest.fn() }) };
   const dataSource = {
-    transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) => callback(tx)),
+    transaction: jest.fn((callback: (manager: unknown) => Promise<unknown>) => callback({})),
   } as unknown as DataSource;
   const service = new TiktokInboxService(dataSource, events, operations, outbox, configurations, {
     advertiserId: 'advertiser-1',
     tiktokMode: 'mock',
   } as unknown as TiktokAppConfig);
-  return { configurations, dataSource, events, operations, outbox, service, updateEvent };
+  return { configurations, dataSource, events, operations, outbox, service };
 }

@@ -25,17 +25,18 @@ import { BitrixDealWebhookController } from './controllers/bitrix-deal-webhook.c
 import { BitrixDealInbox } from './services/bitrix-deal-inbox.service.js';
 import { DealRefreshService } from './services/deal-refresh.service.js';
 import { DealHistoryRepository } from './repositories/deal-history.repository.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
-import { BITRIX_INSTALLATION_STORE } from '../bitrix/ports/bitrix-installation-store.port.js';
-import type { BitrixInstallationStore } from '../bitrix/ports/bitrix-installation-store.port.js';
-import { BitrixApiService } from '../bitrix/services/bitrix-api.service.js';
+import { BITRIX_INSTALLATION_STORE, BitrixApiService } from '@modules/bitrix/index.js';
+import type { BitrixInstallationStore } from '@modules/bitrix/index.js';
 import { DealPollService } from './services/deal-poll.service.js';
 import { DealPollRepository } from './repositories/deal-poll.repository.js';
 import { TimelineRepository } from './repositories/timeline.repository.js';
 import { FeedbackRepository } from './repositories/feedback.repository.js';
 import { LeadRepository } from './repositories/lead.repository.js';
 import { SubmissionRepository } from './repositories/submission.repository.js';
+import { LeadIdentityRepository } from './repositories/lead-identity.repository.js';
+import { AuditEventRepository } from './repositories/audit-event.repository.js';
 import { LeadsController } from './controllers/leads.controller.js';
 import { DealsController } from './controllers/deals.controller.js';
 import { OperationsController } from './controllers/operations.controller.js';
@@ -122,6 +123,8 @@ export class CrmIntegrationModule {
         FeedbackRepository,
         LeadRepository,
         SubmissionRepository,
+        LeadIdentityRepository,
+        AuditEventRepository,
         IntegrationReadService,
         {
           provide: IntegrationReadRepository,
@@ -139,6 +142,9 @@ export class CrmIntegrationModule {
             ConfigurationRepository,
             CRM_GATEWAY,
             RemoteReconciliationService,
+            WebhookEventRepository,
+            LeadIdentityRepository,
+            AuditEventRepository,
           ],
           useFactory: (
             dataSource: DataSource,
@@ -149,6 +155,9 @@ export class CrmIntegrationModule {
             configurations: ConfigurationRepository,
             gateway: CrmGateway,
             reconciliation: RemoteReconciliationService,
+            webhookEvents: WebhookEventRepository,
+            identities: LeadIdentityRepository,
+            auditEvents: AuditEventRepository,
           ) =>
             new OperationControlService(
               dataSource,
@@ -159,6 +168,9 @@ export class CrmIntegrationModule {
               configurations,
               gateway,
               reconciliation,
+              webhookEvents,
+              identities,
+              auditEvents,
             ),
         },
         {

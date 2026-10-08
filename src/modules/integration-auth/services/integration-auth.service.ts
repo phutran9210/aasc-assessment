@@ -5,26 +5,16 @@ import bcrypt from 'bcrypt';
 import { Inject, Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
-import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { IntegrationUserRepository } from '../repositories/integration-user.repository.js';
 import type { IntegrationUserEntity } from '../entities/integration-user.entity.js';
 import type { LoginDto, LoginResponse } from '../dto/login.dto.js';
 import type { Actor, IntegrationRole } from '../types/actor.type.js';
-import { INTEGRATION_ROLES } from '../constants/integration-role.constants.js';
+import type {
+  IntegrationAuthConfig,
+  IntegrationJwtClaims,
+} from '../types/integration-auth.types.js';
+import { INTEGRATION_AUTH_CONFIG, INTEGRATION_ROLES } from '../constants/index.js';
 import { SessionService } from './session.service.js';
-
-export const INTEGRATION_AUTH_CONFIG = Symbol('INTEGRATION_AUTH_CONFIG');
-
-type IntegrationJwtClaims = {
-  sub: string;
-  sid: string;
-  authVersion: number;
-  iss: string;
-  aud: string | string[];
-  exp: number;
-};
-
-type IntegrationAuthConfig = ReturnType<typeof validateTiktokEnv>;
 
 @Injectable()
 export class IntegrationAuthService {

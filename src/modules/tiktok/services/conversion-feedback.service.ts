@@ -14,10 +14,9 @@ import type {
   EventResult,
   TiktokFeedbackProvider,
 } from '../ports/tiktok-feedback-provider.port.js';
-import { ConfigurationRepository } from '@modules/crm-integration/repositories/configuration.repository.js';
-import { FeedbackRepository } from '@modules/crm-integration/repositories/feedback.repository.js';
+import { ConfigurationRepository, FeedbackRepository } from '@modules/crm-integration/index.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
-import type { FeedbackPolicy } from '@modules/crm-integration/types/rule.types.js';
+import type { FeedbackPolicy } from '@modules/crm-integration/index.js';
 
 @Injectable()
 export class ConversionFeedbackService {

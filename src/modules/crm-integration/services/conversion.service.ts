@@ -29,13 +29,14 @@ import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.p
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { SubmissionRepository } from '../repositories/submission.repository.js';
 import { DealRepository } from '../repositories/deal.repository.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/repositories/analytics-revision.repository.js';
+import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import type { AssignmentPolicy, RulesConfig } from '../types/rule.types.js';
-
-const LEAD_SUCCESS_STAGE = 'CONVERTED';
-const MARKER_PREFIX = 'aasc-tiktok/deal/';
-const RETRY_DELAYS_MS = [5_000, 15_000, 30_000];
+import {
+  CONVERSION_RETRY_DELAYS_MS,
+  DEAL_MARKER_PREFIX,
+  LEAD_SUCCESS_STAGE,
+} from '../constants/flow.constants.js';
 
 @Injectable()
 export class ConversionService {
@@ -255,7 +256,7 @@ export class ConversionService {
         return { outcome: 'quarantined', errorCode: 'LEAD_NOT_SYNCED' };
 
       if (!deal.bitrixDealId) {
-        const marker = `${MARKER_PREFIX}${deal.id}`;
+        const marker = `${DEAL_MARKER_PREFIX}${deal.id}`;
         const markerResult = await this.reconciliation.find('deal', marker);
         if (markerResult.status === 'ambiguous') {
           await this.updateDeal(deal.id, { conversionStatus: 'reconcile_required' });
@@ -402,8 +403,8 @@ export class ConversionService {
     await this.dataSource.transaction(async (manager) => {
       const deal = await this.deals.findByIdForUpdate(dealId, manager);
       if (!deal) return;
-      const attempt = Math.min(deal.version, RETRY_DELAYS_MS.length);
-      const when = new Date(Date.now() + (RETRY_DELAYS_MS[attempt - 1] ?? 5_000));
+      const attempt = Math.min(deal.version, CONVERSION_RETRY_DELAYS_MS.length);
+      const when = new Date(Date.now() + (CONVERSION_RETRY_DELAYS_MS[attempt - 1] ?? 5_000));
       const retry = await this.operations.ensure(
         {
           operationKey: `convert/${deal.leadId}/reconcile/${attempt}`,

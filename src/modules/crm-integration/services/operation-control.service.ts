@@ -9,20 +9,20 @@ import { OperationRepository } from '@core/queue/repositories/operation.reposito
 import { QUEUE_NAMES, retryQueueForOperation } from '@core/queue/constants/operation.constants.js';
 import type { QueueName } from '@core/queue/types/operation.types.js';
 import type { Actor } from '@modules/integration-auth/types/index.js';
-import { AuditEventEntity } from '../entities/audit-event.entity.js';
-import { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
-import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import type { LeadIdentityEntity } from '../entities/lead-identity.entity.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { LeadRepository } from '../repositories/lead.repository.js';
 import { DealRepository } from '../repositories/deal.repository.js';
+import { LeadIdentityRepository } from '../repositories/lead-identity.repository.js';
+import { AuditEventRepository } from '../repositories/audit-event.repository.js';
+import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import type { OperationResolveDto } from '../dto/operation-resolve.dto.js';
 import type { OperationDto } from '../dto/integration-response.dto.js';
 import { toOperationDto } from './integration-read.service.js';
-
-const ACTIVE_STATUSES = new Set(['pending', 'processing', 'retry_wait']);
+import { ACTIVE_OPERATION_STATUSES } from '../constants/flow.constants.js';
 
 @Injectable()
 export class OperationControlService {
@@ -35,6 +35,9 @@ export class OperationControlService {
     private readonly configurations: ConfigurationRepository,
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly reconciliation: RemoteReconciliationService,
+    private readonly webhookEvents: WebhookEventRepository,
+    private readonly identities: LeadIdentityRepository,
+    private readonly auditEvents: AuditEventRepository,
   ) {}
 
   async retry(id: string, reason: string, actor: Actor): Promise<OperationDto> {
@@ -42,7 +45,8 @@ export class OperationControlService {
     return this.dataSource.transaction(async (manager) => {
       const operation = await this.operations.findByIdForUpdate(id, manager);
       if (!operation) throw new NotFoundException('Operation was not found');
-      if (ACTIVE_STATUSES.has(operation.status)) throw new ConflictException('Operation is active');
+      if (ACTIVE_OPERATION_STATUSES.has(operation.status))
+        throw new ConflictException('Operation is active');
       if (operation.status !== 'dead_letter')
         throw new ConflictException('Resolve the operation before retrying it');
       if (operation.aggregateId)
@@ -71,7 +75,8 @@ export class OperationControlService {
   async resolve(id: string, input: OperationResolveDto, actor: Actor): Promise<OperationDto> {
     const snapshot = await this.operations.findById(id, this.dataSource.manager);
     if (!snapshot) throw new NotFoundException('Operation was not found');
-    if (ACTIVE_STATUSES.has(snapshot.status)) throw new ConflictException('Operation is active');
+    if (ACTIVE_OPERATION_STATUSES.has(snapshot.status))
+      throw new ConflictException('Operation is active');
     if (!['reconcile_required', 'quarantined', 'dead_letter'].includes(snapshot.status))
       throw new ConflictException('Operation does not require resolution');
 
@@ -101,7 +106,7 @@ export class OperationControlService {
 
     return this.dataSource.transaction(async (manager) => {
       const operation = await this.operations.findByIdForUpdate(id, manager);
-      if (!operation || ACTIVE_STATUSES.has(operation.status))
+      if (!operation || ACTIVE_OPERATION_STATUSES.has(operation.status))
         throw new ConflictException('Operation state changed during resolution');
       const before = auditState(operation);
 
@@ -139,7 +144,7 @@ export class OperationControlService {
   ): Promise<OperationDto> {
     return this.dataSource.transaction(async (manager) => {
       const original = await this.operations.findByIdForUpdate(snapshot.id, manager);
-      if (!original || ACTIVE_STATUSES.has(original.status))
+      if (!original || ACTIVE_OPERATION_STATUSES.has(original.status))
         throw new ConflictException('Operation state changed during resolution');
       if (original.aggregateId)
         await this.assertNoActiveAggregateOperation(manager, original.id, original.aggregateId);
@@ -325,16 +330,13 @@ export class OperationControlService {
   ): Promise<OperationDto> {
     return this.dataSource.transaction(async (manager) => {
       const operation = await this.operations.findByIdForUpdate(snapshot.id, manager);
-      if (!operation || ACTIVE_STATUSES.has(operation.status))
+      if (!operation || ACTIVE_OPERATION_STATUSES.has(operation.status))
         throw new ConflictException('Operation state changed during resolution');
       if (operation.kind !== 'tiktok_ingest' || !operation.payload.eventId)
         throw new ConflictException('Identity selection only applies to TikTok ingest operations');
       if (operation.aggregateId)
         await this.assertNoActiveAggregateOperation(manager, operation.id, operation.aggregateId);
-      const event = await manager.getRepository(WebhookEventEntity).findOne({
-        where: { id: operation.payload.eventId },
-        lock: { mode: 'pessimistic_write' },
-      });
+      const event = await this.webhookEvents.findByIdForUpdate(operation.payload.eventId, manager);
       const targetLeadId = input.targetLeadId;
       const identityTargets = input.identityTargets;
       if (!targetLeadId || !identityTargets)
@@ -343,7 +345,6 @@ export class OperationControlService {
       if (!event || !target || event.advertiserId !== target.advertiserId)
         throw new ConflictException('Identity target is outside the operation scope');
 
-      const identities = manager.getRepository(LeadIdentityEntity);
       for (const [identityType, rawValue] of Object.entries(identityTargets)) {
         if (
           !['email', 'phone'].includes(identityType) ||
@@ -359,24 +360,25 @@ export class OperationControlService {
         await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [
           `${target.advertiserId}:${identityKind}:${value}`,
         ]);
-        const owner = await identities.findOne({
-          where: {
-            advertiserId: target.advertiserId,
-            identityType: identityKind,
-            normalizedValue: value,
-          },
-          lock: { mode: 'pessimistic_write' },
-        });
+        const owner = await this.identities.findOwner(
+          target.advertiserId,
+          identityKind,
+          value,
+          manager,
+        );
         if (owner && owner.leadId !== target.id)
           throw new ConflictException('Identity is already owned by another lead');
         if (!owner) {
-          await identities.save({
-            id: uuidv7(),
-            advertiserId: target.advertiserId,
-            identityType: identityKind,
-            normalizedValue: value,
-            leadId: target.id,
-          });
+          await this.identities.save(
+            {
+              id: uuidv7(),
+              advertiserId: target.advertiserId,
+              identityType: identityKind,
+              normalizedValue: value,
+              leadId: target.id,
+            },
+            manager,
+          );
         }
       }
 
@@ -387,7 +389,7 @@ export class OperationControlService {
       operation.leaseUntil = null;
       operation.leaseToken = null;
       event.status = 'accepted';
-      await manager.getRepository(WebhookEventEntity).save(event);
+      await this.webhookEvents.save(event, manager);
       await this.operations.save(operation, manager);
       await this.outbox.append(operation.id, QUEUE_NAMES.tiktokIngest, new Date(), manager);
       await this.audit(
@@ -412,15 +414,18 @@ export class OperationControlService {
     after: Record<string, unknown>,
     reason: string,
   ): Promise<void> {
-    await manager.getRepository(AuditEventEntity).save({
-      id: uuidv7(),
-      scopeKey: 'crm-integration',
-      actorId: actor.sub,
-      eventType,
-      aggregateType: 'operation',
-      aggregateId: operation.id,
-      metadata: { before, after, reason: redactReason(reason) },
-    });
+    await this.auditEvents.record(
+      {
+        id: uuidv7(),
+        scopeKey: 'crm-integration',
+        actorId: actor.sub,
+        eventType,
+        aggregateType: 'operation',
+        aggregateId: operation.id,
+        metadata: { before, after, reason: redactReason(reason) },
+      },
+      manager,
+    );
   }
 
   private async assertNoActiveAggregateOperation(
@@ -435,7 +440,7 @@ export class OperationControlService {
       await this.operations.hasActiveAggregateOperation(
         aggregateId,
         currentId,
-        [...ACTIVE_STATUSES],
+        [...ACTIVE_OPERATION_STATUSES],
         manager,
       )
     ) {

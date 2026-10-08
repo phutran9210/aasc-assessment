@@ -4,18 +4,8 @@ import type { Redis } from 'ioredis';
 
 import { HttpException, HttpStatus, ServiceUnavailableException } from '@nestjs/common';
 import { ensureRedisConnected } from '@core/queue/ensure-redis-connected.js';
-
-type SessionRecord = { subject: string; authVersion: number; roleFingerprint: string };
-
-const RATE_LIMIT_SCRIPT = `
-local ipCount = redis.call('INCR', KEYS[1])
-if ipCount == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
-local userCount = redis.call('INCR', KEYS[2])
-if userCount == 1 then redis.call('EXPIRE', KEYS[2], ARGV[1]) end
-return math.max(ipCount, userCount)
-`;
-
-const RESET_RATE_LIMIT_SCRIPT = `redis.call('DEL', KEYS[1], KEYS[2]); return 1`;
+import type { SessionRecord } from '../types/integration-auth.types.js';
+import { RATE_LIMIT_SCRIPT, RESET_RATE_LIMIT_SCRIPT } from '../constants/session.constants.js';
 
 /** Redis session and login-throttle state, shared across TikTok API replicas. */
 export class SessionService {

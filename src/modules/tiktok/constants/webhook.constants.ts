@@ -1,0 +1,1 @@
+export const TIKTOK_WEBHOOK_CONFIG = Symbol('TIKTOK_WEBHOOK_CONFIG');

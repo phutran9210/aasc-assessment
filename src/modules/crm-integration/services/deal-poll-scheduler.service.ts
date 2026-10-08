@@ -3,9 +3,10 @@ import type { OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 
 import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { DealPollService } from './deal-poll.service.js';
-
-const INCREMENTAL_INTERVAL_MS = 5 * 60 * 1000;
-const FULL_INTERVAL_MS = 24 * 60 * 60 * 1000;
+import {
+  DEAL_POLL_FULL_INTERVAL_MS,
+  DEAL_POLL_INCREMENTAL_INTERVAL_MS,
+} from '../constants/flow.constants.js';
 
 @Injectable()
 export class DealPollSchedulerService implements OnModuleInit, OnApplicationShutdown {
@@ -19,9 +20,9 @@ export class DealPollSchedulerService implements OnModuleInit, OnApplicationShut
     if (!validateTiktokEnv(process.env).schedulerEnabled) return;
     this.incrementalTimer = setInterval(
       () => void this.run('incremental'),
-      INCREMENTAL_INTERVAL_MS,
+      DEAL_POLL_INCREMENTAL_INTERVAL_MS,
     );
-    this.fullTimer = setInterval(() => void this.run('full'), FULL_INTERVAL_MS);
+    this.fullTimer = setInterval(() => void this.run('full'), DEAL_POLL_FULL_INTERVAL_MS);
     this.incrementalTimer.unref();
     this.fullTimer.unref();
     void this.run('incremental').then(async () => {

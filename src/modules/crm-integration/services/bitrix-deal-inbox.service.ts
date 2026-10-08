@@ -3,9 +3,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, UnauthorizedException, Injectable, Inject } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 
-import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
-import { BITRIX_INSTALLATION_STORE } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
-import type { BitrixInstallationStore } from '@modules/bitrix/ports/bitrix-installation-store.port.js';
+import { BitrixApiService, BITRIX_INSTALLATION_STORE } from '@modules/bitrix/index.js';
+import type { BitrixInstallationStore } from '@modules/bitrix/index.js';
 import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';

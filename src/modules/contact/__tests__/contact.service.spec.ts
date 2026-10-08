@@ -3,7 +3,7 @@ import { Test } from '@nestjs/testing';
 
 import { bitrixConfig } from '@config/index.js';
 
-import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
+import { BitrixApiService } from '@modules/bitrix/index.js';
 
 import { ContactService } from '../services/contact.service.js';
 

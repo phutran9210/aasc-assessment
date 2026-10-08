@@ -7,12 +7,11 @@ import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
 import { TiktokRedisModule } from '@core/queue/redis.module.js';
 import type { RedisConnectionFactory } from '@core/queue/redis-connection.js';
+import type { IntegrationAuthConfig } from './types/index.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { IntegrationUserRepository } from './repositories/integration-user.repository.js';
-import {
-  IntegrationAuthService,
-  INTEGRATION_AUTH_CONFIG,
-} from './services/integration-auth.service.js';
+import { IntegrationAuthService } from './services/integration-auth.service.js';
+import { INTEGRATION_AUTH_CONFIG } from './constants/index.js';
 import { SessionService } from './services/session.service.js';
 import { IntegrationJwtGuard } from './guards/integration-jwt.guard.js';
 import { IntegrationRolesGuard } from './guards/roles.guard.js';
@@ -54,7 +53,7 @@ import { IntegrationRolesGuard } from './guards/roles.guard.js';
     {
       provide: SessionService,
       inject: [REDIS_CONNECTION_FACTORY, INTEGRATION_AUTH_CONFIG],
-      useFactory: (factory: RedisConnectionFactory, config: ReturnType<typeof validateTiktokEnv>) =>
+      useFactory: (factory: RedisConnectionFactory, config: IntegrationAuthConfig) =>
         new SessionService(factory.producer(), config.queuePrefix),
     },
     IntegrationAuthService,

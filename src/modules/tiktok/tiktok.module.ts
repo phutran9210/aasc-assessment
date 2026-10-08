@@ -4,9 +4,10 @@ import { TiktokDatabaseModule } from '@/apps/tiktok/database/database.module.js'
 import { QueueModule } from '@core/queue/queue.module.js';
 import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { TiktokWebhookController } from './controllers/tiktok-webhook.controller.js';
-import { TiktokSignatureGuard, TIKTOK_WEBHOOK_CONFIG } from './guards/tiktok-signature.guard.js';
+import { TiktokSignatureGuard } from './guards/tiktok-signature.guard.js';
+import { TIKTOK_WEBHOOK_CONFIG } from './constants/index.js';
 import { TiktokInboxService } from './services/tiktok-inbox.service.js';
-import { ConfigurationPersistenceModule } from '@modules/crm-integration/configuration-persistence.module.js';
+import { ConfigurationPersistenceModule } from '@modules/crm-integration/index.js';
 
 @Module({
   imports: [TiktokDatabaseModule, ConfigurationPersistenceModule, QueueModule],

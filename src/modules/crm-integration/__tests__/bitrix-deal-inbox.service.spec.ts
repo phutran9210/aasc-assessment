@@ -5,6 +5,8 @@ describe('BitrixDealInbox', () => {
   const events = {
     accept: jest.fn().mockResolvedValue(accepted),
     findById: jest.fn(),
+    findByIdForUpdate: jest.fn(),
+    save: jest.fn(),
     updateStatus: jest.fn(),
   };
   const operations = {
