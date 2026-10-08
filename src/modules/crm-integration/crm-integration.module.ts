@@ -9,6 +9,7 @@ import { BitrixCrmGateway } from './gateways/bitrix-crm.gateway.js';
 import { CRM_GATEWAY } from './ports/crm-gateway.port.js';
 import { ConfigurationController } from './controllers/configuration.controller.js';
 import { ConfigurationRepository } from './repositories/configuration.repository.js';
+import { ConfigurationPersistenceModule } from './configuration-persistence.module.js';
 import { ConfigurationService } from './services/configuration.service.js';
 import { LeadConversionController } from './controllers/lead-conversion.controller.js';
 import { AssignmentService } from './services/assignment.service.js';
@@ -49,7 +50,12 @@ export class CrmIntegrationModule {
   static register(options: CrmIntegrationModuleOptions = {}): DynamicModule {
     return {
       module: CrmIntegrationModule,
-      imports: [TiktokDatabaseModule, IntegrationAuthModule, ...(options.imports ?? [])],
+      imports: [
+        TiktokDatabaseModule,
+        ConfigurationPersistenceModule,
+        IntegrationAuthModule,
+        ...(options.imports ?? []),
+      ],
       controllers: [
         ConfigurationController,
         LeadConversionController,
@@ -59,11 +65,6 @@ export class CrmIntegrationModule {
         OperationsController,
       ],
       providers: [
-        {
-          provide: ConfigurationRepository,
-          inject: [getDataSourceToken('tiktok')],
-          useFactory: (dataSource: DataSource) => new ConfigurationRepository(dataSource),
-        },
         BitrixCrmGateway,
         { provide: CRM_GATEWAY, useExisting: BitrixCrmGateway },
         ConfigurationService,

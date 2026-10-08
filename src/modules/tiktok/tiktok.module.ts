@@ -6,9 +6,10 @@ import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
 import { TiktokWebhookController } from './controllers/tiktok-webhook.controller.js';
 import { TiktokSignatureGuard, TIKTOK_WEBHOOK_CONFIG } from './guards/tiktok-signature.guard.js';
 import { TiktokInboxService } from './services/tiktok-inbox.service.js';
+import { ConfigurationPersistenceModule } from '@modules/crm-integration/configuration-persistence.module.js';
 
 @Module({
-  imports: [TiktokDatabaseModule, QueueModule],
+  imports: [TiktokDatabaseModule, ConfigurationPersistenceModule, QueueModule],
   controllers: [TiktokWebhookController],
   providers: [
     { provide: TIKTOK_WEBHOOK_CONFIG, useFactory: () => validateTiktokEnv(process.env) },

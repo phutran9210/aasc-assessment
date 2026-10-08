@@ -5,17 +5,19 @@ import { getDataSourceToken } from '@nestjs/typeorm';
 import type { DataSource } from 'typeorm';
 
 import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
-import { ConfigurationHeadEntity } from '@modules/crm-integration/entities/configuration-head.entity.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
+import {
+  CONFIGURATION_REVISION_READER,
+  type ConfigurationRevisionReader,
+} from '@modules/crm-integration/ports/configuration-revision-reader.port.js';
+import { TIKTOK_DISPATCHED_EVENTS } from '../constants/index.js';
 import type { VerifiedEvent } from '../domain/webhook-envelope.js';
 import { TIKTOK_WEBHOOK_CONFIG } from '../guards/tiktok-signature.guard.js';
 import type { TiktokInboxReceipt } from '../types/tiktok-inbox-receipt.type.js';
-
-const DISPATCHED_EVENTS = new Set(['lead.generate', 'form.complete', 'user.interaction']);
 
 @Injectable()
 export class TiktokInboxService {
@@ -24,6 +26,8 @@ export class TiktokInboxService {
     private readonly events: WebhookEventRepository,
     private readonly operations: OperationRepository,
     private readonly outbox: OutboxRepository,
+    @Inject(CONFIGURATION_REVISION_READER)
+    private readonly configurations: ConfigurationRevisionReader,
     @Inject(TIKTOK_WEBHOOK_CONFIG) private readonly config: TiktokAppConfig,
   ) {}
 
@@ -52,13 +56,12 @@ export class TiktokInboxService {
         );
         if (receipt.duplicate) return { received: true, ...receipt };
 
-        if (!DISPATCHED_EVENTS.has(event.eventType)) {
+        if (!TIKTOK_DISPATCHED_EVENTS.has(event.eventType)) {
           await tx.getRepository(WebhookEventEntity).update(receipt.eventId, { status: 'ignored' });
           return { received: true, ...receipt };
         }
 
-        const heads = await tx.getRepository(ConfigurationHeadEntity).find();
-        const revisions = Object.fromEntries(heads.map((head) => [head.key, head.revision]));
+        const revisions = await this.configurations.revisions(tx);
         const operation = await this.operations.ensure(
           {
             operationKey: `tiktok-ingest/${receipt.eventId}`,

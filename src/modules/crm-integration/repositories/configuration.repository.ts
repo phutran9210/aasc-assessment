@@ -6,6 +6,7 @@ import { AuditEventEntity } from '../entities/audit-event.entity.js';
 import { ConfigurationEntity } from '../entities/configuration.entity.js';
 import { ConfigurationHeadEntity } from '../entities/configuration-head.entity.js';
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
+import type { ConfigurationRevisionReader } from '../ports/configuration-revision-reader.port.js';
 
 export type StoredConfiguration = {
   entity: ConfigurationEntity;
@@ -14,7 +15,7 @@ export type StoredConfiguration = {
 };
 
 @Injectable()
-export class ConfigurationRepository {
+export class ConfigurationRepository implements ConfigurationRevisionReader {
   constructor(private readonly dataSource: DataSource) {}
 
   async findActive(
