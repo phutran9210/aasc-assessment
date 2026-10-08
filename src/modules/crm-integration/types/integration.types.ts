@@ -66,6 +66,7 @@ export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
 
 export type OperationPayload = {
   eventId?: UUID;
+  feedbackLedgerId?: UUID;
   leadId?: UUID;
   dealId?: UUID;
   remoteId?: string;

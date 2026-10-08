@@ -34,6 +34,10 @@ import { DealsController } from './controllers/deals.controller.js';
 import { OperationsController } from './controllers/operations.controller.js';
 import { IntegrationReadService } from './services/integration-read.service.js';
 import { OperationControlService } from './services/operation-control.service.js';
+import { ConversionFeedbackService } from '../tiktok/services/conversion-feedback.service.js';
+import { MockTiktokAdapter } from '../tiktok/adapters/mock-tiktok.adapter.js';
+import { TIKTOK_FEEDBACK_PROVIDER } from '../tiktok/ports/tiktok-feedback-provider.port.js';
+import type { TiktokFeedbackProvider } from '../tiktok/ports/tiktok-feedback-provider.port.js';
 
 export type CrmIntegrationModuleOptions = {
   imports?: Array<Type<unknown> | DynamicModule>;
@@ -65,6 +69,32 @@ export class CrmIntegrationModule {
         ConfigurationService,
         OperationRepository,
         OutboxRepository,
+        {
+          provide: TIKTOK_FEEDBACK_PROVIDER,
+          useFactory: (): TiktokFeedbackProvider =>
+            new MockTiktokAdapter(
+              process.env.TIKTOK_MOCK_BASE_URL ?? 'http://127.0.0.1:3002/tiktok',
+              process.env.TIKTOK_MOCK_API_KEY ?? 'local-only-mock-key',
+            ),
+        },
+        {
+          provide: ConversionFeedbackService,
+          inject: [
+            getDataSourceToken('tiktok'),
+            ConfigurationRepository,
+            OperationRepository,
+            OutboxRepository,
+            TIKTOK_FEEDBACK_PROVIDER,
+          ],
+          useFactory: (
+            dataSource: DataSource,
+            configurations: ConfigurationRepository,
+            operations: OperationRepository,
+            outbox: OutboxRepository,
+            provider: TiktokFeedbackProvider,
+          ) =>
+            new ConversionFeedbackService(dataSource, configurations, operations, outbox, provider),
+        },
         WebhookEventRepository,
         DealHistoryRepository,
         IntegrationReadService,
@@ -128,9 +158,18 @@ export class CrmIntegrationModule {
         },
         {
           provide: DealRefreshService,
-          inject: [getDataSourceToken('tiktok'), CRM_GATEWAY, DealHistoryRepository],
-          useFactory: (ds: DataSource, gateway: CrmGateway, history: DealHistoryRepository) =>
-            new DealRefreshService(ds, gateway, history),
+          inject: [
+            getDataSourceToken('tiktok'),
+            CRM_GATEWAY,
+            DealHistoryRepository,
+            ConversionFeedbackService,
+          ],
+          useFactory: (
+            ds: DataSource,
+            gateway: CrmGateway,
+            history: DealHistoryRepository,
+            feedback: ConversionFeedbackService,
+          ) => new DealRefreshService(ds, gateway, history, feedback),
         },
         RemoteReconciliationService,
         AssignmentCursorRepository,
@@ -164,6 +203,7 @@ export class CrmIntegrationModule {
             CRM_GATEWAY,
             RemoteReconciliationService,
             TimelineService,
+            ConversionFeedbackService,
           ],
           useFactory: (
             dataSource: DataSource,
@@ -174,6 +214,7 @@ export class CrmIntegrationModule {
             gateway: CrmGateway,
             reconciliation: RemoteReconciliationService,
             timeline: TimelineService,
+            feedback: ConversionFeedbackService,
           ) =>
             new ConversionService(
               dataSource,
@@ -184,11 +225,18 @@ export class CrmIntegrationModule {
               gateway,
               reconciliation,
               timeline,
+              feedback,
             ),
         },
         ...(options.providers ?? []),
       ],
-      exports: [ConfigurationRepository, ConfigurationService, CRM_GATEWAY, ConversionService],
+      exports: [
+        ConfigurationRepository,
+        ConfigurationService,
+        CRM_GATEWAY,
+        ConversionService,
+        ConversionFeedbackService,
+      ],
     };
   }
 }

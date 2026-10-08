@@ -222,7 +222,11 @@ export class ProviderServer {
     return value as Record<string, unknown>;
   }
 
-  private sendTiktok(response: ServerResponse, result: { status: number; body: unknown }): void {
+  private sendTiktok(
+    response: ServerResponse,
+    result: { status: number; body: unknown; hang?: boolean },
+  ): void {
+    if (result.hang) return;
     this.send(response, result.status, result.body);
   }
 
@@ -252,5 +256,10 @@ function isBitrixFault(value: unknown): value is ProviderFault {
 }
 
 function isTiktokFault(value: unknown): value is TiktokFault {
-  return value === 'rate_limit' || value === 'auth_invalid' || value === 'partial_feedback';
+  return (
+    value === 'rate_limit' ||
+    value === 'auth_invalid' ||
+    value === 'partial_feedback' ||
+    value === 'timeout_without_persist'
+  );
 }

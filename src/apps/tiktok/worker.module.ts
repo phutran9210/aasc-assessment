@@ -43,6 +43,11 @@ import { DealRefreshService } from '../../modules/crm-integration/services/deal-
 import { DealRefreshHandler } from '../../modules/crm-integration/workers/deal-refresh.handler.js';
 import { DealPollService } from '../../modules/crm-integration/services/deal-poll.service.js';
 import { DealPollSchedulerService } from '../../modules/crm-integration/services/deal-poll-scheduler.service.js';
+import { ConversionFeedbackService } from '../../modules/tiktok/services/conversion-feedback.service.js';
+import { FeedbackHandler } from '../../modules/tiktok/workers/feedback.handler.js';
+import { TIKTOK_FEEDBACK_PROVIDER } from '../../modules/tiktok/ports/tiktok-feedback-provider.port.js';
+import type { TiktokFeedbackProvider } from '../../modules/tiktok/ports/tiktok-feedback-provider.port.js';
+import { MockTiktokAdapter } from '../../modules/tiktok/adapters/mock-tiktok.adapter.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
@@ -69,9 +74,18 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     DealHistoryRepository,
     {
       provide: DealRefreshService,
-      inject: [getDataSourceToken('tiktok'), CRM_GATEWAY, DealHistoryRepository],
-      useFactory: (ds: DataSource, gateway: CrmGateway, history: DealHistoryRepository) =>
-        new DealRefreshService(ds, gateway, history),
+      inject: [
+        getDataSourceToken('tiktok'),
+        CRM_GATEWAY,
+        DealHistoryRepository,
+        ConversionFeedbackService,
+      ],
+      useFactory: (
+        ds: DataSource,
+        gateway: CrmGateway,
+        history: DealHistoryRepository,
+        feedback: ConversionFeedbackService,
+      ) => new DealRefreshService(ds, gateway, history, feedback),
     },
     {
       provide: DealRefreshHandler,
@@ -85,6 +99,32 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
       useFactory: (dataSource: DataSource) => new ConfigurationRepository(dataSource),
     },
     OperationRepository,
+    {
+      provide: TIKTOK_FEEDBACK_PROVIDER,
+      useFactory: (): TiktokFeedbackProvider =>
+        new MockTiktokAdapter(
+          process.env.TIKTOK_MOCK_BASE_URL ?? 'http://127.0.0.1:3002/tiktok',
+          process.env.TIKTOK_MOCK_API_KEY ?? 'local-only-mock-key',
+        ),
+    },
+    {
+      provide: ConversionFeedbackService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        ConfigurationRepository,
+        OperationRepository,
+        OutboxRepository,
+        TIKTOK_FEEDBACK_PROVIDER,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        configurations: ConfigurationRepository,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+        provider: TiktokFeedbackProvider,
+      ) => new ConversionFeedbackService(dataSource, configurations, operations, outbox, provider),
+    },
+    FeedbackHandler,
     WebhookEventRepository,
     RemoteReconciliationService,
     BitrixCrmGateway,
@@ -115,6 +155,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         SubmissionRepository,
         OperationRepository,
         OutboxRepository,
+        ConversionFeedbackService,
       ],
       useFactory: (
         dataSource: DataSource,
@@ -123,6 +164,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         submissions: SubmissionRepository,
         operations: OperationRepository,
         outbox: OutboxRepository,
+        feedback: ConversionFeedbackService,
       ) => {
         const config = validateTiktokEnv(process.env);
         return new LeadIngestService(
@@ -134,6 +176,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
           outbox,
           config.portalKey,
           config.defaultPhoneRegion,
+          feedback,
         );
       },
     },
@@ -194,6 +237,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         CRM_GATEWAY,
         RemoteReconciliationService,
         TimelineService,
+        ConversionFeedbackService,
       ],
       useFactory: (
         dataSource: DataSource,
@@ -204,6 +248,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         gateway: CrmGateway,
         reconciliation: RemoteReconciliationService,
         timeline: TimelineService,
+        feedback: ConversionFeedbackService,
       ) =>
         new ConversionService(
           dataSource,
@@ -214,6 +259,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
           gateway,
           reconciliation,
           timeline,
+          feedback,
         ),
     },
     {
@@ -230,6 +276,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         TimelineHandler,
         ConversionHandler,
         DealRefreshHandler,
+        FeedbackHandler,
       ],
       useFactory: createTiktokWorkerHandlers,
     },

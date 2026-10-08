@@ -22,6 +22,7 @@ import { scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import type { ScorePolicy } from '../types/rule.types.js';
 import { AnalyticsRevisionEntity } from '../../integration-analytics/entities/analytics-revision.entity.js';
+import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
 
 export type IngestOutcome =
   | { outcome: 'succeeded'; leadId: string; version: number }
@@ -49,6 +50,7 @@ export class LeadIngestService {
     private readonly outbox: OutboxRepository,
     private readonly portalKey: string,
     private readonly region = 'VN',
+    private readonly feedback?: ConversionFeedbackService,
   ) {}
 
   async process(
@@ -420,6 +422,7 @@ export class LeadIngestService {
         lead.lastSubmissionId = submission.id;
       }
       await this.recomputeScore(lead, context, manager, touchChanged);
+      if (lead.score >= 70) await this.feedback?.schedule(lead.id, 'lead_qualified', manager);
       if (touchChanged || lead.version !== oldVersion)
         await this.scheduleLeadSync(lead, context, manager);
       if (touchChanged)

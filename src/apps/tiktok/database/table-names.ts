@@ -10,6 +10,7 @@ export const TIKTOK_TABLE_NAMES = {
   deal: 'integration_deal',
   dealHistory: 'integration_deal_history',
   dealPollCheckpoint: 'integration_deal_poll_checkpoint',
+  feedbackLedger: 'integration_feedback_ledger',
   assignmentCursor: 'integration_assignment_cursor',
   auditEvent: 'integration_audit_event',
   webhookEvent: 'integration_webhook_event',

@@ -35,6 +35,7 @@ export class MockTiktokAdapter
     baseUrl: string,
     private readonly apiKey: string,
     private readonly webhookSecret = 'mock-webhook-secret',
+    private readonly requestTimeoutMs = 5_000,
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }
@@ -128,7 +129,7 @@ export class MockTiktokAdapter
           'content-type': 'application/json',
           ...init.headers,
         },
-        signal: AbortSignal.timeout(5_000),
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
     } catch {
       throw new ProviderHttpError(503, 'PROVIDER_UNAVAILABLE');

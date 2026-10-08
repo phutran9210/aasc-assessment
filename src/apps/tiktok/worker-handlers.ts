@@ -7,6 +7,7 @@ import type { LeadSyncHandler } from '../../modules/crm-integration/workers/lead
 import type { TimelineHandler } from '../../modules/crm-integration/workers/timeline.handler.js';
 import type { ConversionHandler } from '../../modules/crm-integration/workers/conversion.handler.js';
 import type { DealRefreshHandler } from '../../modules/crm-integration/workers/deal-refresh.handler.js';
+import type { FeedbackHandler } from '../../modules/tiktok/workers/feedback.handler.js';
 
 export function createTiktokWorkerHandlers(
   ingest: TiktokIngestHandler,
@@ -14,6 +15,7 @@ export function createTiktokWorkerHandlers(
   timeline: TimelineHandler,
   conversion: ConversionHandler,
   dealRefresh: DealRefreshHandler,
+  feedback: FeedbackHandler,
 ): OperationHandlerRegistry {
   return new Map<string, OperationHandler>([
     ['tiktok_ingest', ingest],
@@ -21,5 +23,6 @@ export function createTiktokWorkerHandlers(
     ['crm_timeline', timeline],
     ['bitrix_deal_convert', conversion],
     ['bitrix_deal_refresh', dealRefresh],
+    ['tiktok_feedback', feedback],
   ]);
 }

@@ -21,7 +21,14 @@ export type PipelinePolicy = {
   stage_id: string;
   probability: number;
 };
-export type FeedbackPolicy = { enabled: boolean; events?: string[] };
+export type FeedbackPolicy = {
+  enabled: boolean;
+  events?: string[];
+  event_mapping?: Partial<Record<'lead_qualified' | 'deal_created' | 'deal_won', string>>;
+  matching_keys?: Array<'email' | 'phone' | 'ttclid'>;
+  hash_email?: boolean;
+  hash_phone?: boolean;
+};
 export type ReportingPolicy = { timezone: string };
 export type AlertPolicy = { enabled: boolean };
 export type ScorePolicy = {

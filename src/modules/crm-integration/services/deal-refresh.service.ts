@@ -11,6 +11,7 @@ import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, CrmMetadata, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { DealEntity } from '../entities/deal.entity.js';
 import { DealHistoryRepository } from '../repositories/deal-history.repository.js';
+import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
 
 @Injectable()
 export class DealRefreshService {
@@ -21,6 +22,7 @@ export class DealRefreshService {
     private readonly dataSource: DataSource,
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly history: DealHistoryRepository,
+    private readonly feedback?: ConversionFeedbackService,
   ) {}
 
   async refresh(remoteId: string, context: OperationContext): Promise<OperationOutcome> {
@@ -152,6 +154,7 @@ export class DealRefreshService {
           },
           manager,
         );
+        if (semantics === 'won') await this.feedback?.schedule(locked.leadId, 'deal_won', manager);
         await manager
           .createQueryBuilder()
           .update(AnalyticsRevisionEntity)

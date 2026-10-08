@@ -25,6 +25,7 @@ import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { CrmGateway, RemoteDeal } from '../ports/crm-gateway.port.js';
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import { TimelineService } from './timeline.service.js';
+import { ConversionFeedbackService } from '../../tiktok/services/conversion-feedback.service.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '../types/integration.types.js';
 import type { AssignmentPolicy, RulesConfig } from '../types/rule.types.js';
 
@@ -53,6 +54,7 @@ export class ConversionService {
     @Inject(CRM_GATEWAY) private readonly gateway: CrmGateway,
     private readonly reconciliation: RemoteReconciliationService,
     private readonly timeline: TimelineService,
+    private readonly feedback?: ConversionFeedbackService,
   ) {}
 
   async request(
@@ -295,14 +297,17 @@ export class ConversionService {
           }
         }
         await context.assertOwnership();
-        await this.updateDeal(deal.id, {
-          bitrixDealId: remote.id,
-          conversionStatus: 'deal_created',
+        await this.dataSource.transaction(async (manager) => {
+          await manager.getRepository(DealEntity).update(deal.id, {
+            bitrixDealId: remote.id,
+            conversionStatus: 'deal_created',
+          });
+          await manager.getRepository(LeadEntity).update(lead.id, {
+            dealCreatedAt: new Date(),
+          });
+          await this.feedback?.schedule(lead.id, 'deal_created', manager);
         });
         deal.bitrixDealId = remote.id;
-        await this.dataSource.getRepository(LeadEntity).update(lead.id, {
-          dealCreatedAt: new Date(),
-        });
       }
 
       await context.assertOwnership();

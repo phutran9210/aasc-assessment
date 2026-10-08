@@ -105,6 +105,19 @@ export const rulesSchema = z
     feedback: z.strictObject({
       enabled: z.boolean(),
       events: z.array(z.string().min(1).max(100)).max(50).optional(),
+      event_mapping: z
+        .strictObject({
+          lead_qualified: z.string().min(1).max(100).optional(),
+          deal_created: z.string().min(1).max(100).optional(),
+          deal_won: z.string().min(1).max(100).optional(),
+        })
+        .optional(),
+      matching_keys: z
+        .array(z.enum(['email', 'phone', 'ttclid']))
+        .max(3)
+        .optional(),
+      hash_email: z.boolean().optional(),
+      hash_phone: z.boolean().optional(),
     }),
     reporting: z.strictObject({ timezone: z.string().min(1).max(100) }),
     alerts: z.strictObject({ enabled: z.boolean() }),

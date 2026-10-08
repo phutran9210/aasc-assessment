@@ -219,7 +219,10 @@ describe('provider contracts', () => {
     tiktokStore.injectFault('feedback', 'partial_feedback');
     await expect(
       adapter.sendEvents([{ eventId: 'event-1' }, { eventId: 'event-2' }]),
-    ).resolves.toHaveLength(2);
+    ).resolves.toEqual([
+      { eventId: 'event-1', status: 'accepted' },
+      { eventId: 'event-2', status: 'rejected', errorCode: 'INVALID' },
+    ]);
     const faultResponse = await fetch(controlUrl('tiktok/fault'), {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

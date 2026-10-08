@@ -6,6 +6,7 @@ import { AuditEventEntity } from '../../../modules/crm-integration/entities/audi
 import { DealEntity } from '../../../modules/crm-integration/entities/deal.entity.js';
 import { DealHistoryEntity } from '../../../modules/crm-integration/entities/deal-history.entity.js';
 import { DealPollCheckpointEntity } from '../../../modules/crm-integration/entities/deal-poll-checkpoint.entity.js';
+import { FeedbackLedgerEntity } from '../../../modules/crm-integration/entities/feedback-ledger.entity.js';
 import { LeadIdentityEntity } from '../../../modules/crm-integration/entities/lead-identity.entity.js';
 import { LeadEntity } from '../../../modules/crm-integration/entities/lead.entity.js';
 import { SubmissionEntity } from '../../../modules/crm-integration/entities/submission.entity.js';
@@ -32,6 +33,7 @@ export const TIKTOK_ENTITIES = [
   DealEntity,
   DealHistoryEntity,
   DealPollCheckpointEntity,
+  FeedbackLedgerEntity,
   AssignmentCursorEntity,
   AuditEventEntity,
   WebhookEventEntity,

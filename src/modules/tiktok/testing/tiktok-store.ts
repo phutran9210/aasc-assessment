@@ -3,7 +3,7 @@ import type { ProviderLead } from '../ports/tiktok-lead-provider.port.js';
 import type { SpendPage } from '../ports/campaign-spend-provider.port.js';
 import type { ProviderFault } from './bitrix-store.js';
 
-export type MockProviderResponse = { status: number; body: unknown };
+export type MockProviderResponse = { status: number; body: unknown; hang?: boolean };
 export type TiktokFault =
   Exclude<ProviderFault, 'persist_then_timeout' | 'stale_snapshot'> | 'partial_feedback';
 
@@ -51,8 +51,9 @@ export class TiktokStore {
       return page ? { status: 200, body: page } : { status: 200, body: { items: [] } };
     }
     if (fault === 'partial_feedback') {
-      return { status: 207, body: { results: this.feedbackResult ?? [] } };
+      return { status: 200, body: { results: this.feedbackResult ?? [] } };
     }
+    if (fault === 'timeout_without_persist') return { status: 200, body: {}, hang: true };
     const results =
       this.feedbackResult ??
       (input.events ?? []).map((event) => ({
