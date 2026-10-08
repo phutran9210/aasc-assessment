@@ -886,8 +886,10 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       datetime 08/10/2026 14:30, ô ngày giờ         "2026-10-08T14:30:00+07:00" (giờ theo
                                                      LEAD_SYNC_TIMEZONE nếu ô không ghi múi)
       enum     "Đang liên hệ"                        mã trong bảng "values" (IN_PROCESS)
-      user     email hoặc tên người phụ trách        ID trong bảng "values", không có thì
-                                                     dùng defaults.assignedById
+      user     email hoặc tên người phụ trách        ID trong bảng "values"; email không có
+                                                     trong bảng thì tra bằng user.get (cần
+                                                     quyền user); vẫn không có thì dùng
+                                                     defaults.assignedById
 
       Ô email hoặc số điện thoại có thể chứa nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy
       hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead.

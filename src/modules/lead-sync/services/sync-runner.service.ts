@@ -37,12 +37,14 @@ import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
 import { LeadSyncRunItemRepository } from '../repositories/lead-sync-run-item.repository.js';
 import { LeadSyncRunRepository } from '../repositories/lead-sync-run.repository.js';
 import type {
+  LeadMapping,
   LeadWriteOp,
   LeadWriteResult,
   PendingRow,
   RowFailure,
   RunCounters,
   RunItemInput,
+  SheetRow,
 } from '../types/index.js';
 import { LeadSyncReadiness } from './lead-sync-readiness.service.js';
 import { MappingLoader } from './mapping-loader.service.js';
@@ -67,6 +69,8 @@ type PreparedBatch = { ops: LeadWriteOp[]; failures: RowFailure[] };
 
 const { SUCCEEDED, PARTIAL, FAILED, ABORTED } = LEAD_SYNC_RUN_STATUS;
 const { ERROR: MESSAGES, ROW } = LEAD_SYNC_MESSAGES;
+/** Enough to tell an email from a name; the portal decides whether it exists. */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Rows per Sheet write when reporting failures outside a batch (a sheet full of bad rows).
 const FAILURE_WRITE_CHUNK = 100;
 
@@ -113,6 +117,46 @@ export class SyncRunner implements BeforeApplicationShutdown {
     });
     this.active = done;
     return { run, done };
+  }
+
+  /**
+   * An assignee cell may hold the email of a portal user that the mapping does not list. Those
+   * emails are looked up once per run and added to the value table of the column, in memory
+   * only. When the lookup is refused (no `user` scope) the default assignee is used, as before.
+   */
+  private async withPortalUsers(
+    mapping: LeadMapping,
+    rows: readonly SheetRow[],
+  ): Promise<LeadMapping> {
+    const userFields = mapping.fields.filter((field) => field.type === 'user');
+    const unknown = new Set<string>();
+    for (const field of userFields) {
+      const known = new Set(Object.keys(field.values ?? {}).map((label) => label.toLowerCase()));
+      for (const row of rows) {
+        const label = (row.cells[field.column]?.formatted ?? '').trim().toLowerCase();
+        if (EMAIL_SHAPE.test(label) && !known.has(label)) unknown.add(label);
+      }
+    }
+    if (!unknown.size) return mapping;
+
+    let users: Map<string, number>;
+    try {
+      users = await this.gateway.findUsersByEmail([...unknown]);
+    } catch (error) {
+      this.logger.warn(
+        `Assignees not looked up with user.get (${describeError(error)}); using the default assignee`,
+      );
+      return mapping;
+    }
+    if (!users.size) return mapping;
+    return {
+      ...mapping,
+      fields: mapping.fields.map((field) =>
+        field.type === 'user'
+          ? { ...field, values: { ...Object.fromEntries(users), ...field.values } }
+          : field,
+      ),
+    };
   }
 
   /** SIGTERM/SIGINT: let the current batch finish, then stop the run as `aborted`. */
@@ -186,7 +230,7 @@ export class SyncRunner implements BeforeApplicationShutdown {
     if (!dryRun) await this.table.ensureTechnicalColumns(snapshot);
 
     const transformContext = {
-      mapping,
+      mapping: await this.withPortalUsers(mapping, snapshot.rows),
       mappingHash,
       defaultCountry: this.config.defaultCountry,
       timezone: this.config.timezone,

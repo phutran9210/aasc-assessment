@@ -724,6 +724,73 @@ describe('SyncRunner', () => {
     });
   });
 
+  describe('assignee looked up in Bitrix24', () => {
+    const headers = [...BUSINESS, 'Người phụ trách'];
+    const mapping = parseMapping({
+      version: 1,
+      defaults: { stageId: 'NEW', assignedById: 1 },
+      fields: [
+        { column: 'Tên khách hàng', field: 'name', type: 'string', required: true },
+        { column: 'Email', field: 'email', type: 'email' },
+        {
+          column: 'Người phụ trách',
+          field: 'assignedById',
+          type: 'user',
+          values: { 'an@congty.vn': 7 },
+        },
+      ],
+      dedupe: { keys: ['email'], requireAtLeastOne: true },
+    });
+    const withAssignee = (n: number, assignee: string): SheetCell[] => [...lead(n), assignee];
+    const assignees = (gateway: FakeLeadGateway): unknown[] =>
+      [...gateway.leads.values()].map((item) => item.fields.assignedById);
+
+    it('should assign the lead to the portal user who has the email typed in the cell', async () => {
+      const { run, gateway } = harness(
+        [
+          withAssignee(1, 'Binh.Tran@congty.vn'),
+          withAssignee(2, 'binh.tran@congty.vn'),
+          withAssignee(3, 'an@congty.vn'),
+          withAssignee(4, ''),
+        ],
+        { headers, mapping },
+      );
+      gateway.fieldNames.add('assignedById');
+      gateway.users.set('binh.tran@congty.vn', 42);
+
+      await run();
+
+      expect(assignees(gateway)).toEqual([42, 42, 7, 1]);
+      expect(gateway.userLookups).toEqual([['binh.tran@congty.vn']]);
+    });
+
+    it('should not ask Bitrix24 when no cell holds an email the mapping does not know', async () => {
+      const { run, gateway } = harness(
+        [withAssignee(1, 'an@congty.vn'), withAssignee(2, 'Tên không phải email')],
+        { headers, mapping },
+      );
+
+      await run();
+
+      expect(gateway.userLookups).toEqual([]);
+    });
+
+    it('should fall back to the default assignee when the lookup is not allowed', async () => {
+      const { run, gateway } = harness([withAssignee(1, 'binh.tran@congty.vn')], {
+        headers,
+        mapping,
+      });
+      gateway.usersError = new BitrixHttpError('insufficient scope', 'insufficient_scope', 401);
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      const result = await run();
+
+      expect(result.status).toBe('succeeded');
+      expect(assignees(gateway)).toEqual([1]);
+      expect(warn).toHaveBeenCalledWith(expect.stringMatching(/user\.get.*insufficient_scope/));
+    });
+  });
+
   describe('dry run', () => {
     it('should plan everything but write nothing to Bitrix24, the Sheet or the item log', async () => {
       const bad = lead(3);

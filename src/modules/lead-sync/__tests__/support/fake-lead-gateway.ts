@@ -23,6 +23,10 @@ export class FakeLeadGateway {
   leads = new Map<number, FakeLead>();
   nextId = 1000;
   calls = { mode: 0, fields: 0, find: 0, get: 0, write: 0 };
+  /** Portal users by email; `usersError` makes the lookup throw (e.g. missing `user` scope). */
+  users = new Map<string, number>();
+  usersError: Error | undefined;
+  userLookups: string[][] = [];
   findSizes: number[] = [];
   writeSizes: number[] = [];
   fieldNames = new Set([
@@ -57,6 +61,17 @@ export class FakeLeadGateway {
   usesLeads(): Promise<boolean> {
     this.calls.mode += 1;
     return Promise.resolve(this.leadsEnabled);
+  }
+
+  findUsersByEmail(emails: string[]): Promise<Map<string, number>> {
+    this.userLookups.push(emails);
+    if (this.usersError) return Promise.reject(this.usersError);
+    const found = new Map<string, number>();
+    for (const email of emails) {
+      const id = this.users.get(email);
+      if (id !== undefined) found.set(email, id);
+    }
+    return Promise.resolve(found);
   }
 
   getFieldNames(): Promise<Set<string>> {

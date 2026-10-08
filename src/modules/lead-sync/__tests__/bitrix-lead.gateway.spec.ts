@@ -46,6 +46,40 @@ describe('BitrixLeadGateway', () => {
     });
   });
 
+  describe('findUsersByEmail', () => {
+    it('should look up each email with user.get and return the IDs it found', async () => {
+      batch.execute.mockResolvedValue({
+        results: new Map<string, unknown>([
+          ['u0', [{ ID: '42', EMAIL: 'binh@congty.vn' }]],
+          ['u1', []],
+        ]),
+        errors: new Map(),
+      });
+
+      await expect(gateway.findUsersByEmail(['binh@congty.vn', 'la@congty.vn'])).resolves.toEqual(
+        new Map([['binh@congty.vn', 42]]),
+      );
+      expect(batch.execute).toHaveBeenCalledWith(
+        [
+          { key: 'u0', method: 'user.get', params: { FILTER: { EMAIL: 'binh@congty.vn' } } },
+          { key: 'u1', method: 'user.get', params: { FILTER: { EMAIL: 'la@congty.vn' } } },
+        ],
+        READ,
+      );
+    });
+
+    it('should fail with the Bitrix24 error when the lookup is refused', async () => {
+      batch.execute.mockResolvedValue({
+        results: new Map(),
+        errors: new Map([['u0', { code: 'insufficient_scope', message: 'no scope' }]]),
+      });
+
+      await expect(gateway.findUsersByEmail(['binh@congty.vn'])).rejects.toMatchObject({
+        code: 'insufficient_scope',
+      });
+    });
+  });
+
   describe('getFieldNames', () => {
     it('should read the lead fields with original UF names, retrying temporary failures', async () => {
       api.callRaw.mockResolvedValue({

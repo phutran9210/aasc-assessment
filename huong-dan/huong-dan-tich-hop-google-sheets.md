@@ -153,16 +153,16 @@ Mỗi phần tử của `fields` nối một cột với một trường lead:
 { "column": "Ngân sách dự kiến", "field": "opportunity", "type": "number" }
 ```
 
-| Kiểu       | Ví dụ đầu vào                                         | Gửi sang Bitrix24                                                                     |
-| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `string`   | `"  Nguyễn  Văn An "`                                 | `"Nguyễn Văn An"`                                                                     |
-| `email`    | `"An@Example.com "`                                   | `"an@example.com"`                                                                    |
-| `phone`    | `0901 234 567`, `901234567`, `+84 901234567`          | `"+84901234567"`                                                                      |
-| `number`   | `1500000`, `1.500.000 ₫`, `15tr`                      | `1500000`, `1500000`, `15000000`                                                      |
-| `date`     | `08/10/2026`, `2026-10-08`, ô định dạng ngày          | `"2026-10-08"` (ngày trước tháng sau; bỏ phần giờ)                                    |
-| `datetime` | `08/10/2026 14:30`, `2026-10-08T14:30:00`, ô ngày giờ | `"2026-10-08T14:30:00+07:00"`; ô không ghi múi giờ thì tính theo `LEAD_SYNC_TIMEZONE` |
-| `enum`     | `Đang liên hệ`                                        | Mã trong bảng `values`, ví dụ `IN_PROCESS`                                            |
-| `user`     | Email hoặc tên người phụ trách                        | ID trong bảng `values`; không có thì dùng `defaults.assignedById`                     |
+| Kiểu       | Ví dụ đầu vào                                         | Gửi sang Bitrix24                                                                                                                                                                          |
+| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `string`   | `"  Nguyễn  Văn An "`                                 | `"Nguyễn Văn An"`                                                                                                                                                                          |
+| `email`    | `"An@Example.com "`                                   | `"an@example.com"`                                                                                                                                                                         |
+| `phone`    | `0901 234 567`, `901234567`, `+84 901234567`          | `"+84901234567"`                                                                                                                                                                           |
+| `number`   | `1500000`, `1.500.000 ₫`, `15tr`                      | `1500000`, `1500000`, `15000000`                                                                                                                                                           |
+| `date`     | `08/10/2026`, `2026-10-08`, ô định dạng ngày          | `"2026-10-08"` (ngày trước tháng sau; bỏ phần giờ)                                                                                                                                         |
+| `datetime` | `08/10/2026 14:30`, `2026-10-08T14:30:00`, ô ngày giờ | `"2026-10-08T14:30:00+07:00"`; ô không ghi múi giờ thì tính theo `LEAD_SYNC_TIMEZONE`                                                                                                      |
+| `enum`     | `Đang liên hệ`                                        | Mã trong bảng `values`, ví dụ `IN_PROCESS`                                                                                                                                                 |
+| `user`     | Email hoặc tên người phụ trách                        | ID trong bảng `values`. Email không có trong bảng thì được tra trong Bitrix24 bằng `user.get` (webhook hoặc ứng dụng cần thêm quyền `user`); vẫn không có thì dùng `defaults.assignedById` |
 
 Ô email hoặc số điện thoại có thể chứa nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead và không thay thế giá trị lead đã có.
 
@@ -376,7 +376,7 @@ Câu hỏi còn mở: `crm.duplicate.findbycomm` có trả lead đã chuyển đ
 
 - Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead; các cột này chỉ đi từ Sheet sang Bitrix24.
 - Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện (ứng dụng tắt, chưa đăng ký sự kiện tạo lead) không được thêm vào Sheet về sau.
-- Người phụ trách tra bằng bảng tĩnh trong mapping, chưa tra qua `user.get`.
+- Tra người phụ trách bằng `user.get` cần quyền `user`; thiếu quyền thì ứng dụng ghi một dòng cảnh báo và dùng người phụ trách mặc định. Nhánh tra thành công mới có test tự động, vì portal thử chỉ cấp quyền `crm`.
 - Khóa "mỗi lúc một lần chạy" nằm trong SQLite, nên chỉ có tác dụng khi server và CLI dùng chung file dữ liệu. Chạy nhiều container với volume riêng không được hỗ trợ.
 
 ## 14. Tham khảo trong repo

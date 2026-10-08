@@ -55,6 +55,34 @@ export class BitrixLeadGateway {
     return Number(result) === CLASSIC_CRM_MODE;
   }
 
+  /**
+   * Portal users by email, for assignee cells that hold an email the mapping has no ID for.
+   * Needs the `user` scope; without it Bitrix24 refuses and this throws.
+   */
+  async findUsersByEmail(emails: string[]): Promise<Map<string, number>> {
+    const found = new Map<string, number>();
+    for (const group of chunk(emails, BITRIX_BATCH.MAX_COMMANDS)) {
+      const outcome = await this.batch.execute(
+        group.map((email, index) => ({
+          key: `u${index}`,
+          method: 'user.get',
+          params: { FILTER: { EMAIL: email } },
+        })),
+        this.readOptions,
+      );
+      const [failure] = outcome.errors.values();
+      if (failure) throw new BitrixHttpError(failure.message, failure.code, 400);
+      group.forEach((email, index) => {
+        const users = outcome.results.get(`u${index}`);
+        const id = Array.isArray(users)
+          ? Number((users[0] as { ID?: unknown } | undefined)?.ID)
+          : NaN;
+        if (Number.isInteger(id) && id > 0) found.set(email, id);
+      });
+    }
+    return found;
+  }
+
   /** Names of every lead field of the portal, custom fields under their `UF_CRM_*` name. */
   async getFieldNames(): Promise<Set<string>> {
     const { result } = await this.api.callRaw<{ fields?: Record<string, unknown> }>(
