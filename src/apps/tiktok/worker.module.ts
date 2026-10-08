@@ -15,13 +15,66 @@ import { createTiktokWorkerHandlers } from './worker-handlers.js';
 import type { OperationHandlerRegistry } from '../../core/queue/types/worker.types.js';
 import { REDIS_CONNECTION_FACTORY } from '../../config/tiktok-app/redis.config.js';
 import type { RedisConnectionFactory } from '../../core/queue/redis-connection.js';
+import { LeadIngestService } from '../../modules/crm-integration/services/lead-ingest.service.js';
+import { LeadRepository } from '../../modules/crm-integration/repositories/lead.repository.js';
+import { LeadIdentityRepository } from '../../modules/crm-integration/repositories/lead-identity.repository.js';
+import { SubmissionRepository } from '../../modules/crm-integration/repositories/submission.repository.js';
+import { OperationRepository } from '../../core/queue/repositories/operation.repository.js';
+import { WebhookEventRepository } from '../../core/queue/repositories/webhook-event.repository.js';
+import { TiktokIngestHandler } from '../../modules/crm-integration/workers/tiktok-ingest.handler.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
 @Module({
   imports: [TiktokDatabaseModule, QueueModule],
   providers: [
-    { provide: TIKTOK_OPERATION_HANDLERS, useFactory: createTiktokWorkerHandlers },
+    LeadRepository,
+    LeadIdentityRepository,
+    SubmissionRepository,
+    OperationRepository,
+    WebhookEventRepository,
+    {
+      provide: LeadIngestService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        LeadRepository,
+        LeadIdentityRepository,
+        SubmissionRepository,
+        OperationRepository,
+        OutboxRepository,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        leads: LeadRepository,
+        identities: LeadIdentityRepository,
+        submissions: SubmissionRepository,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+      ) => {
+        const config = validateTiktokEnv(process.env);
+        return new LeadIngestService(
+          dataSource,
+          leads,
+          identities,
+          submissions,
+          operations,
+          outbox,
+          config.portalKey,
+          config.defaultPhoneRegion,
+        );
+      },
+    },
+    {
+      provide: TiktokIngestHandler,
+      inject: [getDataSourceToken('tiktok'), LeadIngestService],
+      useFactory: (dataSource: DataSource, ingest: LeadIngestService) =>
+        new TiktokIngestHandler(dataSource, ingest),
+    },
+    {
+      provide: TIKTOK_OPERATION_HANDLERS,
+      inject: [TiktokIngestHandler],
+      useFactory: createTiktokWorkerHandlers,
+    },
     {
       provide: OperationRunnerService,
       inject: [

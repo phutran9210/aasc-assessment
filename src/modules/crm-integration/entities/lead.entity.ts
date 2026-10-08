@@ -15,6 +15,9 @@ export class LeadEntity extends IntegrationBaseEntity {
   @Column({ name: 'advertiser_id', type: 'varchar', length: 255 })
   advertiserId!: string;
 
+  @Column({ name: 'scope_key', type: 'varchar', length: 255 })
+  scopeKey!: string;
+
   @Column({ name: 'portal_key', type: 'varchar', length: 128 })
   portalKey!: string;
 
@@ -32,6 +35,9 @@ export class LeadEntity extends IntegrationBaseEntity {
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   city!: string | null;
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  interests!: string[];
 
   @Column({ type: 'integer', default: 0 })
   score!: number;

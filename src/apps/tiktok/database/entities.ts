@@ -17,6 +17,7 @@ import { CampaignDailyEntity } from '../../../modules/integration-analytics/enti
 import { NotificationEntity } from '../../../modules/integration-reports/entities/notification.entity.js';
 import { ReportJobEntity } from '../../../modules/integration-reports/entities/report-job.entity.js';
 import { ReportRowErrorEntity } from '../../../modules/integration-reports/entities/report-row-error.entity.js';
+import { AnalyticsRevisionEntity } from '../../../modules/integration-analytics/entities/analytics-revision.entity.js';
 
 export const TIKTOK_ENTITIES = [
   IntegrationUserEntity,
@@ -38,4 +39,5 @@ export const TIKTOK_ENTITIES = [
   ReportJobEntity,
   ReportRowErrorEntity,
   NotificationEntity,
+  AnalyticsRevisionEntity,
 ] as const;

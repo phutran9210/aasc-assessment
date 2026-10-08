@@ -74,4 +74,16 @@ export class SubmissionEntity extends IntegrationBaseEntity {
 
   @Column({ name: 'payload_hash', type: 'varchar', length: 64 })
   payloadHash!: string;
+
+  @Column({ name: 'association_status', type: 'varchar', length: 20, default: 'linked' })
+  associationStatus!: 'linked' | 'waiting_link' | 'unmatched';
+
+  @Column({ name: 'link_attempt_count', type: 'integer', default: 0 })
+  linkAttemptCount!: number;
+
+  @Column({ name: 'next_link_attempt_at', type: 'timestamptz', nullable: true })
+  nextLinkAttemptAt!: Date | null;
+
+  @Column({ name: 'association_expires_at', type: 'timestamptz', nullable: true })
+  associationExpiresAt!: Date | null;
 }
