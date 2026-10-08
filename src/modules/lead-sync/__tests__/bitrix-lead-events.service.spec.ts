@@ -81,6 +81,18 @@ describe('BitrixLeadEvents', () => {
     expect(pullback.start).toHaveBeenCalledWith([10], 'webhook');
   });
 
+  it('should keep trusting the installed app while an outbound webhook token is also set', async () => {
+    events = build({ outgoingToken: 'manual-token' });
+
+    await events.receive(event('10', 'app-token'));
+    await expect(events.receive(event('12', 'forged'))).rejects.toThrow(
+      'Sự kiện Bitrix24 có application_token không hợp lệ',
+    );
+    await jest.advanceTimersByTimeAsync(2000);
+
+    expect(pullback.start).toHaveBeenCalledWith([10], 'webhook');
+  });
+
   it('should ignore other events, malformed IDs and everything while two-way sync is off', async () => {
     await events.receive(event('10', 'app-token', 'ONCRMLEADADD'));
     await events.receive(event('abc'));

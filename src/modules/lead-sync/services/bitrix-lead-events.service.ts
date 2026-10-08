@@ -77,9 +77,14 @@ export class BitrixLeadEvents implements OnApplicationShutdown {
     this.timer = undefined;
   }
 
+  /**
+   * Two senders are trusted: an outbound webhook created by hand (its token is in the config)
+   * and the installed app (its token was stored at install time). Both may be active at once;
+   * a lead reported by both is pulled once, because pending IDs are a set.
+   */
   private async isTrusted(token: string): Promise<boolean> {
     const { outgoingToken } = this.config;
-    if (outgoingToken) return safeEqual(token, outgoingToken);
+    if (outgoingToken && safeEqual(token, outgoingToken)) return true;
     return this.api.verifyApplicationToken(token);
   }
 
