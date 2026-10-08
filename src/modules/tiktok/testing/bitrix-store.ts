@@ -7,7 +7,11 @@ import type {
 } from '../../crm-integration/ports/crm-gateway.port.js';
 
 export type ProviderFault =
-  'persist_then_timeout' | 'rate_limit' | 'auth_invalid' | 'stale_snapshot';
+  | 'persist_then_timeout'
+  | 'timeout_without_persist'
+  | 'rate_limit'
+  | 'auth_invalid'
+  | 'stale_snapshot';
 export type MockRestResponse = { status: number; body: Record<string, unknown>; hang?: boolean };
 
 const FIELD = (name: string, type: string, title = name): CrmFieldMetadata => ({
@@ -53,8 +57,15 @@ export class BitrixStore {
       };
     }
 
-    const result = this.apply(method, payload, fault === 'stale_snapshot');
-    return { status: 200, body: { result }, hang: fault === 'persist_then_timeout' };
+    const result =
+      fault === 'timeout_without_persist'
+        ? null
+        : this.apply(method, payload, fault === 'stale_snapshot');
+    return {
+      status: 200,
+      body: { result },
+      hang: fault === 'persist_then_timeout' || fault === 'timeout_without_persist',
+    };
   }
 
   private apply(method: string, payload: Record<string, unknown>, stale: boolean): unknown {
@@ -68,6 +79,8 @@ export class BitrixStore {
         if (!item) return null;
         return { item: stale ? { ...item, stale: true } : item };
       }
+      case 'crm.duplicate.findbycomm':
+        return this.findDuplicateLeads(payload);
       case 'crm.item.add':
         return { item: this.addItem(Number(payload.entityTypeId), this.record(payload.fields)) };
       case 'crm.item.update':
@@ -151,6 +164,19 @@ export class BitrixStore {
     return { items: items.slice(start, start + this.pageSize), total: items.length };
   }
 
+  private findDuplicateLeads(payload: Record<string, unknown>): Record<string, string[]> {
+    const type = payload.type === 'PHONE' ? 'PHONE' : 'EMAIL';
+    const values = Array.isArray(payload.values)
+      ? payload.values.filter((value): value is string => typeof value === 'string')
+      : [];
+    const ids = [...this.leads.values()]
+      .filter((lead) =>
+        values.some((value) => communicationValues(lead.fields, type).includes(value)),
+      )
+      .map((lead) => lead.id);
+    return ids.length ? { LEAD: ids } : {};
+  }
+
   private addItem(entityTypeId: number, fields: Record<string, unknown>): RemoteLead | RemoteDeal {
     const marker = stringValue(fields.UF_CRM_TIKTOK_EXTERNAL_ID);
     if (entityTypeId === 1) {
@@ -213,6 +239,21 @@ export class BitrixStore {
       ? (value as Record<string, unknown>)
       : {};
   }
+}
+
+function communicationValues(fields: Record<string, unknown>, type: 'PHONE' | 'EMAIL'): string[] {
+  const direct = fields[type === 'PHONE' ? 'phone' : 'email'];
+  const multifields = Array.isArray(fields.fm) ? fields.fm : [];
+  return [
+    ...(typeof direct === 'string' ? [direct] : []),
+    ...multifields.flatMap((value) => {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+      const field = value as Record<string, unknown>;
+      if ((field.typeId ?? field.TYPE_ID) !== type) return [];
+      const item = field.value ?? field.VALUE;
+      return typeof item === 'string' ? [item] : [];
+    }),
+  ];
 }
 
 function stringValue(value: unknown, fallback = ''): string {

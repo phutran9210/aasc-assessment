@@ -244,6 +244,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isBitrixFault(value: unknown): value is ProviderFault {
   return (
     value === 'persist_then_timeout' ||
+    value === 'timeout_without_persist' ||
     value === 'rate_limit' ||
     value === 'auth_invalid' ||
     value === 'stale_snapshot'

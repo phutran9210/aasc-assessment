@@ -13,6 +13,7 @@ import type {
 const OPERATION_QUEUE: Record<OperationKind, QueueName> = {
   tiktok_ingest: QUEUE_NAMES.tiktokIngest,
   bitrix_lead_sync: QUEUE_NAMES.bitrixLeadSync,
+  crm_timeline: QUEUE_NAMES.bitrixLeadSync,
   bitrix_deal_convert: QUEUE_NAMES.bitrixDealConvert,
   bitrix_deal_refresh: QUEUE_NAMES.bitrixDealRefresh,
   tiktok_feedback: QUEUE_NAMES.tiktokFeedback,

@@ -31,6 +31,7 @@ export const OPERATION_KINDS = {
   bitrixDealConvert: 'bitrix_deal_convert',
   bitrixDealRefresh: 'bitrix_deal_refresh',
   tiktokFeedback: 'tiktok_feedback',
+  crmTimeline: 'crm_timeline',
   integrationReport: 'integration_report',
   integrationNotification: 'integration_notification',
   integrationDlq: 'integration_dlq',
@@ -69,6 +70,8 @@ export type OperationPayload = {
   dealId?: UUID;
   reportJobId?: UUID;
   sourceOperationId?: UUID;
+  timelineId?: UUID;
+  reconciliationAttempt?: number;
   errorCode?: string;
   targetVersion?: number;
   revisions?: RevisionSet;

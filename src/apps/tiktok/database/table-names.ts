@@ -4,6 +4,7 @@ export const TIKTOK_TABLE_NAMES = {
   configuration: 'integration_configuration',
   configurationHead: 'integration_configuration_head',
   lead: 'integration_lead',
+  timeline: 'integration_timeline',
   leadIdentity: 'integration_lead_identity',
   submission: 'integration_submission',
   deal: 'integration_deal',

@@ -18,6 +18,7 @@ import { NotificationEntity } from '../../../modules/integration-reports/entitie
 import { ReportJobEntity } from '../../../modules/integration-reports/entities/report-job.entity.js';
 import { ReportRowErrorEntity } from '../../../modules/integration-reports/entities/report-row-error.entity.js';
 import { AnalyticsRevisionEntity } from '../../../modules/integration-analytics/entities/analytics-revision.entity.js';
+import { TimelineEntity } from '../../../modules/crm-integration/entities/timeline.entity.js';
 
 export const TIKTOK_ENTITIES = [
   IntegrationUserEntity,
@@ -40,4 +41,5 @@ export const TIKTOK_ENTITIES = [
   ReportRowErrorEntity,
   NotificationEntity,
   AnalyticsRevisionEntity,
+  TimelineEntity,
 ] as const;

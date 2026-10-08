@@ -56,6 +56,7 @@ export type TimelineEntry = TimelineInput & { id: ExternalId };
 export type CrmGateway = {
   metadata(): Promise<CrmMetadata>;
   findLeadCandidates(query: CrmCandidateQuery): Promise<RemoteLead[]>;
+  findLeadDuplicates(query: { email?: string; phone?: string }): Promise<RemoteLead[]>;
   getLead(id: ExternalId): Promise<RemoteLead>;
   createLead(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteLead>;
   updateLead(id: ExternalId, patch: Record<string, unknown>): Promise<RemoteLead>;

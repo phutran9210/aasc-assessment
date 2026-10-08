@@ -9,6 +9,8 @@ import { IntegrationDomain1791417601000 } from './migrations/1791417601000-integ
 import { BitrixInstallationFields1791417602000 } from './migrations/1791417602000-bitrix-installation-fields.js';
 import { LeadIngestSupport1791417603000 } from './migrations/1791417603000-lead-ingest-support.js';
 import { LeadInterests1791417604000 } from './migrations/1791417604000-lead-interests.js';
+import { LeadTimeline1791417605000 } from './migrations/1791417605000-lead-timeline.js';
+import { TimelineOperationKind1791417606000 } from './migrations/1791417606000-timeline-operation-kind.js';
 
 export function buildTiktokDataSource(config: TiktokAppConfig): DataSource {
   return new DataSource({
@@ -22,6 +24,8 @@ export function buildTiktokDataSource(config: TiktokAppConfig): DataSource {
       BitrixInstallationFields1791417602000,
       LeadIngestSupport1791417603000,
       LeadInterests1791417604000,
+      LeadTimeline1791417605000,
+      TimelineOperationKind1791417606000,
     ],
     migrationsTableName: 'migrations',
     migrationsTransactionMode: 'all',

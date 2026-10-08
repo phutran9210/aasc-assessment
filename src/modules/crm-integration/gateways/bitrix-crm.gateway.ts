@@ -98,6 +98,28 @@ export class BitrixCrmGateway implements CrmGateway {
       .map((item) => this.parseLead(item));
   }
 
+  async findLeadDuplicates(query: { email?: string; phone?: string }): Promise<RemoteLead[]> {
+    const queries = [
+      ...(query.email ? [{ type: 'EMAIL', value: query.email }] : []),
+      ...(query.phone ? [{ type: 'PHONE', value: query.phone }] : []),
+    ];
+    const idGroups = await Promise.all(
+      queries.map(async ({ type, value }) => {
+        const response = await this.call('crm.duplicate.findbycomm', {
+          entity_type: 'LEAD',
+          type,
+          values: [value],
+        });
+        const result = this.optionalRecord(response);
+        const rawIds = result?.LEAD;
+        if (!Array.isArray(rawIds)) return [];
+        return rawIds.map((id) => externalId(id, 'duplicate lead id'));
+      }),
+    );
+    const ids = [...new Set(idGroups.flat())];
+    return Promise.all(ids.map((id) => this.getLead(id)));
+  }
+
   async getLead(id: ExternalId): Promise<RemoteLead> {
     const response = await this.call('crm.item.get', { entityTypeId: LEAD_TYPE_ID, id });
     const item = response === null ? null : (this.record(response).item ?? response);

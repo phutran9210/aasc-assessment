@@ -22,17 +22,47 @@ import { SubmissionRepository } from '../../modules/crm-integration/repositories
 import { OperationRepository } from '../../core/queue/repositories/operation.repository.js';
 import { WebhookEventRepository } from '../../core/queue/repositories/webhook-event.repository.js';
 import { TiktokIngestHandler } from '../../modules/crm-integration/workers/tiktok-ingest.handler.js';
+import { LeadSyncService } from '../../modules/crm-integration/services/lead-sync.service.js';
+import { RemoteReconciliationService } from '../../modules/crm-integration/services/remote-reconciliation.service.js';
+import { TimelineService } from '../../modules/crm-integration/services/timeline.service.js';
+import { LeadSyncHandler } from '../../modules/crm-integration/workers/lead-sync.handler.js';
+import { TimelineHandler } from '../../modules/crm-integration/workers/timeline.handler.js';
+import { CRM_GATEWAY } from '../../modules/crm-integration/ports/crm-gateway.port.js';
+import type { CrmGateway } from '../../modules/crm-integration/ports/crm-gateway.port.js';
+import { BitrixCrmGateway } from '../../modules/crm-integration/gateways/bitrix-crm.gateway.js';
+import { BitrixAdapterModule } from '../../modules/crm-integration/bitrix-adapter.module.js';
+import type { BitrixConfig } from '../../config/index.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
 @Module({
-  imports: [TiktokDatabaseModule, QueueModule],
+  imports: [TiktokDatabaseModule, QueueModule, workerBitrixAdapter()],
   providers: [
     LeadRepository,
     LeadIdentityRepository,
     SubmissionRepository,
     OperationRepository,
     WebhookEventRepository,
+    RemoteReconciliationService,
+    BitrixCrmGateway,
+    { provide: CRM_GATEWAY, useExisting: BitrixCrmGateway },
+    {
+      provide: TimelineService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        CRM_GATEWAY,
+        RemoteReconciliationService,
+        OperationRepository,
+        OutboxRepository,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        gateway: CrmGateway,
+        reconciliation: RemoteReconciliationService,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+      ) => new TimelineService(dataSource, gateway, reconciliation, operations, outbox),
+    },
     {
       provide: LeadIngestService,
       inject: [
@@ -71,8 +101,48 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         new TiktokIngestHandler(dataSource, ingest),
     },
     {
+      provide: LeadSyncService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        CRM_GATEWAY,
+        RemoteReconciliationService,
+        OperationRepository,
+        OutboxRepository,
+        TimelineService,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        gateway: CrmGateway,
+        reconciliation: RemoteReconciliationService,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+        timeline: TimelineService,
+      ) =>
+        new LeadSyncService(
+          dataSource,
+          gateway,
+          reconciliation,
+          operations,
+          outbox,
+          timeline,
+          validateTiktokEnv(process.env).defaultPhoneRegion,
+        ),
+    },
+    {
+      provide: LeadSyncHandler,
+      inject: [getDataSourceToken('tiktok'), LeadSyncService],
+      useFactory: (dataSource: DataSource, sync: LeadSyncService) =>
+        new LeadSyncHandler(dataSource, sync),
+    },
+    {
+      provide: TimelineHandler,
+      inject: [getDataSourceToken('tiktok'), TimelineService],
+      useFactory: (dataSource: DataSource, timeline: TimelineService) =>
+        new TimelineHandler(dataSource, timeline),
+    },
+    {
       provide: TIKTOK_OPERATION_HANDLERS,
-      inject: [TiktokIngestHandler],
+      inject: [TiktokIngestHandler, LeadSyncHandler, TimelineHandler],
       useFactory: createTiktokWorkerHandlers,
     },
     {
@@ -121,3 +191,24 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
   ],
 })
 export class TiktokWorkerModule {}
+
+function workerBitrixAdapter() {
+  const portalKey = process.env.BITRIX_PORTAL_KEY ?? 'mock-portal';
+  const requisitePresetId = Number(process.env.BITRIX24_REQUISITE_PRESET_ID ?? 0);
+  const bitrix: BitrixConfig = {
+    clientId: process.env.BITRIX24_CLIENT_ID ?? '',
+    clientSecret: process.env.BITRIX24_CLIENT_SECRET ?? '',
+    portalDomain: process.env.BITRIX24_DOMAIN ?? '',
+    requisitePresetId:
+      Number.isSafeInteger(requisitePresetId) && requisitePresetId >= 0 ? requisitePresetId : 0,
+    webhookUrl: process.env.BITRIX24_WEBHOOK_URL,
+    timeoutMs: 10_000,
+    stateTtlSeconds: 600,
+    refreshSkewSeconds: 60,
+  };
+  return BitrixAdapterModule.register({
+    portalKey,
+    namespace: `aasc-tiktok:${portalKey}`,
+    bitrix,
+  });
+}
