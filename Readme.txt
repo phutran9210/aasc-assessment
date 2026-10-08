@@ -883,6 +883,8 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       number   1500000, "1.500.000 ₫", "15tr"        1500000, 1500000, 15000000
       date     08/10/2026, 2026-10-08, ô ngày       "2026-10-08" (ngày trước tháng sau;
                                                      bỏ phần giờ)
+      datetime 08/10/2026 14:30, ô ngày giờ         "2026-10-08T14:30:00+07:00" (giờ theo
+                                                     LEAD_SYNC_TIMEZONE nếu ô không ghi múi)
       enum     "Đang liên hệ"                        mã trong bảng "values" (IN_PROCESS)
       user     email hoặc tên người phụ trách        ID trong bảng "values", không có thì
                                                      dùng defaults.assignedById

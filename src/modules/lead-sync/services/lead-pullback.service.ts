@@ -108,6 +108,7 @@ export class LeadPullback {
       mapping,
       mappingHash,
       defaultCountry: this.config.defaultCountry,
+      timezone: this.config.timezone,
     });
 
     const syncedAt = formatTimestamp(this.config.timezone);

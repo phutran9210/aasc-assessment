@@ -2,6 +2,7 @@ import {
   normalizeEmail,
   normalizeLookup,
   normalizeDate,
+  normalizeDateTime,
   normalizeNumber,
   normalizePhone,
   normalizeText,
@@ -175,6 +176,44 @@ describe('normalizeDate', () => {
     expect(normalizeDate(cell(formatted, raw))).toEqual({
       ok: false,
       error: 'ngày không hợp lệ, ví dụ đúng: 08/10/2026 hoặc 2026-10-08',
+    });
+  });
+});
+
+describe('normalizeDateTime', () => {
+  const TZ = 'Asia/Ho_Chi_Minh';
+
+  it.each<[string, CellValue['raw'], string | undefined]>([
+    ['08/10/2026 14:30:00', 46303.6041666667, '2026-10-08T14:30:00+07:00'],
+    ['08/10/2026', 46303, '2026-10-08T00:00:00+07:00'],
+    ['08/10/2026 14:30', '08/10/2026 14:30', '2026-10-08T14:30:00+07:00'],
+    ['8/3/2026 9:05:07', '8/3/2026 9:05:07', '2026-03-08T09:05:07+07:00'],
+    ['08/10/2026', '08/10/2026', '2026-10-08T00:00:00+07:00'],
+    ['2026-10-08 14:30', '2026-10-08 14:30', '2026-10-08T14:30:00+07:00'],
+    ['2026-10-08T14:30:00', '2026-10-08T14:30:00', '2026-10-08T14:30:00+07:00'],
+    ['2026-10-08T14:30:00+03:00', '2026-10-08T14:30:00+03:00', '2026-10-08T14:30:00+03:00'],
+    ['2026-10-08T07:30:00Z', '2026-10-08T07:30:00Z', '2026-10-08T07:30:00+00:00'],
+    ['', null, undefined],
+  ])('should turn %j (raw %j) into %j', (formatted, raw, expected) => {
+    expect(normalizeDateTime(cell(formatted, raw), TZ)).toEqual({ ok: true, value: expected });
+  });
+
+  it('should use the offset the timezone has on that day', () => {
+    expect(normalizeDateTime(cell('15/07/2026 10:00'), 'America/New_York')).toEqual({
+      ok: true,
+      value: '2026-07-15T10:00:00-04:00',
+    });
+  });
+
+  it.each<[string, CellValue['raw']]>([
+    ['31/02/2026 10:00', '31/02/2026 10:00'],
+    ['08/10/2026 25:00', '08/10/2026 25:00'],
+    ['sáng mai', 'sáng mai'],
+    ['-1', -1],
+  ])('should reject %j', (formatted, raw) => {
+    expect(normalizeDateTime(cell(formatted, raw), TZ)).toEqual({
+      ok: false,
+      error: 'ngày giờ không hợp lệ, ví dụ đúng: 08/10/2026 14:30 hoặc 2026-10-08T14:30:00',
     });
   });
 });

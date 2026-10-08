@@ -43,6 +43,7 @@ export const LEAD_SYNC_MESSAGES = {
     FORMULA_ERROR: (value: string): string => `công thức đang lỗi (${value})`,
     EMAIL: 'email sai định dạng, ví dụ đúng: ten@congty.vn',
     PHONE: 'số điện thoại chỉ gồm chữ số, có thể bắt đầu bằng + hoặc 0, dài 8 đến 15 chữ số',
+    DATETIME: 'ngày giờ không hợp lệ, ví dụ đúng: 08/10/2026 14:30 hoặc 2026-10-08T14:30:00',
     DATE: 'ngày không hợp lệ, ví dụ đúng: 08/10/2026 hoặc 2026-10-08',
     NUMBER: 'phải là số không âm, ví dụ 1500000, 1.500.000 hoặc 15tr',
     ENUM: (label: string, allowed: string[]): string =>

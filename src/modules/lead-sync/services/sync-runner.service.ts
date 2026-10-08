@@ -185,7 +185,12 @@ export class SyncRunner implements BeforeApplicationShutdown {
     // Only now is the Sheet touched: a wrong mapping must leave it exactly as it was.
     if (!dryRun) await this.table.ensureTechnicalColumns(snapshot);
 
-    const transformContext = { mapping, mappingHash, defaultCountry: this.config.defaultCountry };
+    const transformContext = {
+      mapping,
+      mappingHash,
+      defaultCountry: this.config.defaultCountry,
+      timezone: this.config.timezone,
+    };
     const transformed = snapshot.rows.map((row) => transformRow(row, transformContext));
     const states = new Map(snapshot.rows.map((row) => [row.rowNumber, row.state]));
     const classification = classifyRows(transformed, states, { force: options.force ?? false });

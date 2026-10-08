@@ -15,6 +15,7 @@ import {
   normalizeEmail,
   normalizeLookup,
   normalizeDate,
+  normalizeDateTime,
   normalizeNumber,
   normalizePhone,
   normalizeText,
@@ -25,7 +26,12 @@ export type TransformContext = {
   mapping: LeadMapping;
   mappingHash: string;
   defaultCountry: LeadSyncCountry;
+  /** Zone of date-and-time cells that carry no offset. Defaults to Vietnam time. */
+  timezone?: string;
 };
+
+type Locale = { country: LeadSyncCountry; timezone: string };
+const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 const EMPTY_CELL: CellValue = { formatted: '', raw: null };
 const { VALIDATION } = LEAD_SYNC_MESSAGES;
@@ -35,7 +41,11 @@ const { VALIDATION } = LEAD_SYNC_MESSAGES;
  * hash, or the list of validation errors. No I/O, so the same row always gives the same result.
  */
 export function transformRow(row: SheetRow, context: TransformContext): TransformedRow {
-  const { mapping, mappingHash, defaultCountry } = context;
+  const { mapping, mappingHash } = context;
+  const locale: Locale = {
+    country: context.defaultCountry,
+    timezone: context.timezone ?? DEFAULT_TIMEZONE,
+  };
   const { rowNumber } = row;
   const cellOf = (column: string): CellValue => row.cells[column] ?? EMPTY_CELL;
 
@@ -50,7 +60,7 @@ export function transformRow(row: SheetRow, context: TransformContext): Transfor
   for (const field of mapping.fields) {
     const cell = cellOf(field.column);
     if (field.field === 'email' || field.field === 'phone') {
-      const result = normalizeContacts(cell, field, defaultCountry);
+      const result = normalizeContacts(cell, field, locale);
       if (!result.ok) errors.push(VALIDATION.COLUMN(field.column, result.error));
       else if (result.value?.length) keys[field.field] = result.value;
       else if (field.required) {
@@ -58,7 +68,7 @@ export function transformRow(row: SheetRow, context: TransformContext): Transfor
       }
       continue;
     }
-    const result = normalizeCell(cell, field, defaultCountry);
+    const result = normalizeCell(cell, field, locale);
     if (!result.ok) {
       errors.push(VALIDATION.COLUMN(field.column, result.error));
     } else if (result.value === undefined) {
@@ -107,7 +117,7 @@ export function transformRow(row: SheetRow, context: TransformContext): Transfor
 function normalizeCell(
   cell: CellValue,
   field: MappingField,
-  country: LeadSyncCountry,
+  locale: Locale,
 ): NormalizeResult<LeadFieldValue> {
   const shown = cell.formatted.trim();
   if (SHEET_ERROR_VALUES.includes(shown)) {
@@ -117,11 +127,13 @@ function normalizeCell(
     case 'email':
       return normalizeEmail(cell);
     case 'phone':
-      return normalizePhone(cell, country);
+      return normalizePhone(cell, locale.country);
     case 'number':
       return normalizeNumber(cell);
     case 'date':
       return normalizeDate(cell);
+    case 'datetime':
+      return normalizeDateTime(cell, locale.timezone);
     case 'enum':
     case 'user':
       return normalizeLookup(cell, field);
@@ -140,21 +152,21 @@ const CONTACT_SEPARATOR = /[,;\n]+/;
 function normalizeContacts(
   cell: CellValue,
   field: MappingField,
-  country: LeadSyncCountry,
+  locale: Locale,
 ): NormalizeResult<string[]> {
   const parts =
     typeof cell.raw === 'string' && CONTACT_SEPARATOR.test(cell.formatted)
       ? cell.formatted.split(CONTACT_SEPARATOR).filter((part) => part.trim() !== '')
       : null;
   if (!parts || parts.length < 2) {
-    const single = normalizeCell(cell, field, country);
+    const single = normalizeCell(cell, field, locale);
     if (!single.ok) return single;
     return { ok: true, value: single.value === undefined ? undefined : [String(single.value)] };
   }
 
   const values: string[] = [];
   for (const part of parts) {
-    const result = normalizeCell({ formatted: part, raw: part }, field, country);
+    const result = normalizeCell({ formatted: part, raw: part }, field, locale);
     if (!result.ok) return { ok: false, error: VALIDATION.ONE_OF_MANY(part.trim(), result.error) };
     const value = result.value === undefined ? undefined : String(result.value);
     if (value !== undefined && !values.includes(value)) values.push(value);
