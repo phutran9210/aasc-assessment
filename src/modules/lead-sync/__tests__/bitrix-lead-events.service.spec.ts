@@ -6,6 +6,7 @@ import { Logger } from '@nestjs/common';
 
 import { LeadSyncBusyError } from '../errors/index.js';
 import { BitrixLeadEvents } from '../services/bitrix-lead-events.service.js';
+import type { LeadSyncPendingLeadRepository } from '../repositories/lead-sync-pending-lead.repository.js';
 import type { LeadPullback } from '../services/lead-pullback.service.js';
 
 const event = (id: unknown, token = 'app-token', name = 'ONCRMLEADUPDATE') => ({
@@ -17,12 +18,20 @@ const event = (id: unknown, token = 'app-token', name = 'ONCRMLEADUPDATE') => ({
 describe('BitrixLeadEvents', () => {
   const api = { verifyApplicationToken: jest.fn(), callRaw: jest.fn(), mode: 'oauth' };
   const pullback = { enabled: true, start: jest.fn() };
+  /** In-memory stand-in for the database queue. */
+  const stored = new Set<number>();
+  const queue = {
+    add: (id: number) => Promise.resolve(void stored.add(id)),
+    leadIds: () => Promise.resolve([...stored].sort((a, b) => a - b)),
+    removeLeads: (ids: number[]) => Promise.resolve(ids.forEach((id) => stored.delete(id))),
+  };
   let events: BitrixLeadEvents;
 
   const build = (overrides: Partial<LeadSyncConfig> = {}): BitrixLeadEvents =>
     new BitrixLeadEvents(
       api as unknown as BitrixApiService,
       pullback as unknown as LeadPullback,
+      queue as unknown as LeadSyncPendingLeadRepository,
       {
         publicUrl: 'https://app.example.com/',
         outgoingToken: undefined,
@@ -37,11 +46,15 @@ describe('BitrixLeadEvents', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     jest.useFakeTimers();
+    stored.clear();
     pullback.enabled = true;
     api.verifyApplicationToken.mockImplementation((token: string) =>
       Promise.resolve(token === 'app-token'),
     );
-    pullback.start.mockResolvedValue({ run: { id: 'run-1' }, done: Promise.resolve({}) });
+    pullback.start.mockResolvedValue({
+      run: { id: 'run-1' },
+      done: Promise.resolve({ status: 'succeeded' }),
+    });
     events = build();
   });
 
@@ -114,6 +127,40 @@ describe('BitrixLeadEvents', () => {
 
     expect(pullback.start).toHaveBeenCalledTimes(2);
     expect(pullback.start).toHaveBeenLastCalledWith([10], 'webhook');
+  });
+
+  it('should take a lead off the queue only once it was pulled', async () => {
+    await events.receive(event('10'));
+    expect([...stored]).toEqual([10]);
+
+    await jest.advanceTimersByTimeAsync(2000);
+
+    expect([...stored]).toEqual([]);
+  });
+
+  it('should keep the lead queued when the pull fails, and pull it with the next event', async () => {
+    pullback.start.mockResolvedValueOnce({
+      run: { id: 'run-1' },
+      done: Promise.resolve({ status: 'failed' }),
+    });
+    await events.receive(event('10'));
+    await jest.advanceTimersByTimeAsync(2000);
+    expect([...stored]).toEqual([10]);
+
+    await events.receive(event('12'));
+    await jest.advanceTimersByTimeAsync(2000);
+
+    expect(pullback.start).toHaveBeenLastCalledWith([10, 12], 'webhook');
+    expect([...stored]).toEqual([]);
+  });
+
+  it('should pull at startup what a previous process left in the queue', async () => {
+    stored.add(33);
+
+    await events.onApplicationBootstrap();
+    await jest.advanceTimersByTimeAsync(2000);
+
+    expect(pullback.start).toHaveBeenCalledWith([33], 'webhook');
   });
 
   it('should register the handler URL for lead updates', async () => {

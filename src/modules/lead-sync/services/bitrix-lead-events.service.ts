@@ -5,10 +5,12 @@ import type { LeadSyncConfig } from '@config/index.js';
 import { BitrixApiService, BitrixHttpError } from '@modules/bitrix/index.js';
 
 import { ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
-import type { OnApplicationShutdown } from '@nestjs/common';
+import type { OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 
+import { LEAD_SYNC_RUN_STATUS } from '../constants/index.js';
 import { LeadSyncBusyError, LeadSyncConfigError } from '../errors/index.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
+import { LeadSyncPendingLeadRepository } from '../repositories/lead-sync-pending-lead.repository.js';
 import { LeadPullback } from './lead-pullback.service.js';
 
 const LEAD_UPDATED = 'ONCRMLEADUPDATE';
@@ -26,17 +28,20 @@ type LeadEvent = {
  * Real-time half of the two-way sync. Bitrix24 calls the handler when a lead changes; the lead
  * IDs of the same few seconds are collected and pulled into the Sheet in one run. The app's own
  * updates come back as events too: they find the Sheet already equal and write nothing.
+ *
+ * Lead IDs wait in a database queue and leave it only after a pull that did not fail, so an
+ * event received just before a restart, or during a Bitrix24 outage, is pulled later.
  */
 @Injectable()
-export class BitrixLeadEvents implements OnApplicationShutdown {
+export class BitrixLeadEvents implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(BitrixLeadEvents.name);
-  private readonly pending = new Set<number>();
   private timer: NodeJS.Timeout | undefined;
   private busyRetries = 0;
 
   constructor(
     private readonly api: BitrixApiService,
     private readonly pullback: LeadPullback,
+    private readonly queue: LeadSyncPendingLeadRepository,
     @Inject(leadSyncConfig.KEY) private readonly config: LeadSyncConfig,
   ) {}
 
@@ -53,8 +58,14 @@ export class BitrixLeadEvents implements OnApplicationShutdown {
 
     const id = Number(payload.data?.FIELDS?.ID);
     if (!Number.isInteger(id) || id <= 0) return;
-    this.pending.add(id);
+    await this.queue.add(id);
     this.schedule(this.config.eventDebounceMs);
+  }
+
+  /** Leads queued by a previous process are pulled once this one is up. */
+  async onApplicationBootstrap(): Promise<void> {
+    if (!this.pullback.enabled) return;
+    if ((await this.queue.leadIds()).length) this.schedule(this.config.eventDebounceMs);
   }
 
   /** Asks Bitrix24 to send lead updates to this app. Needs the app installed (OAuth). */
@@ -96,17 +107,18 @@ export class BitrixLeadEvents implements OnApplicationShutdown {
 
   private async flush(): Promise<void> {
     this.timer = undefined;
-    const ids = [...this.pending];
+    const ids = await this.queue.leadIds();
     if (!ids.length) return;
-    this.pending.clear();
 
     try {
-      await this.pullback.start(ids, 'webhook');
+      const { done } = await this.pullback.start(ids, 'webhook');
       this.busyRetries = 0;
+      const run = await done;
+      // A failed pull keeps its leads queued: the next event or restart tries them again.
+      if (run.status !== LEAD_SYNC_RUN_STATUS.FAILED) await this.queue.removeLeads(ids);
     } catch (error) {
       if (error instanceof LeadSyncBusyError && this.busyRetries < MAX_BUSY_RETRIES) {
         this.busyRetries += 1;
-        for (const id of ids) this.pending.add(id);
         this.schedule(this.config.eventRetryMs);
         return;
       }

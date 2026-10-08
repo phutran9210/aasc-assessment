@@ -953,6 +953,8 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
           Mã không có nhãn trong mapping (ví dụ giai đoạn CONVERTED) được bỏ qua.
           Hai chiều dùng chung khóa một-lần-chạy với chiều đi; khi đang bận, sự kiện được
           thử lại mỗi 5 giây, tối đa 12 lần.
+          ID của lead vừa đổi nằm trong hàng chờ SQLite cho tới khi được kéo về xong, nên
+          sự kiện nhận ngay trước lúc ứng dụng khởi động lại không bị mất.
 
   15.9. Xử lý lỗi và giám sát
 

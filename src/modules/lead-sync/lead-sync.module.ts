@@ -9,6 +9,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { LeadSyncEventsController } from './controllers/lead-sync-events.controller.js';
 import { LeadSyncController } from './controllers/lead-sync.controller.js';
 import { BitrixLeadGateway } from './gateways/bitrix-lead.gateway.js';
+import { LeadSyncPendingLeadRepository } from './repositories/lead-sync-pending-lead.repository.js';
 import { LeadSyncRunItemRepository } from './repositories/lead-sync-run-item.repository.js';
 import { LeadSyncRunRepository } from './repositories/lead-sync-run.repository.js';
 import { BitrixLeadEvents } from './services/bitrix-lead-events.service.js';
@@ -32,6 +33,7 @@ import { SyncScheduler } from './services/sync-scheduler.service.js';
   providers: [
     LeadSyncRunRepository,
     LeadSyncRunItemRepository,
+    LeadSyncPendingLeadRepository,
     MappingLoader,
     SheetTable,
     BitrixLeadGateway,

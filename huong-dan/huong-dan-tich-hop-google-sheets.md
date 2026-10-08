@@ -263,6 +263,8 @@ Có hai cách để Bitrix24 biết địa chỉ này, dùng được song song:
 - **Ứng dụng đã cài qua OAuth:** đặt `APP_PUBLIC_URL`, chạy ứng dụng, gọi một lần `POST /lead-sync/bitrix-events/register` kèm JWT. Gọi lại khi đổi địa chỉ công khai.
 - **Outgoing webhook tạo tay** (khi chỉ dùng incoming webhook): vào **Tài nguyên cho nhà phát triển → Khác → Webhook ra**, đặt handler là `<APP_PUBLIC_URL>/lead-sync/bitrix-events`, chọn sự kiện cập nhật Lead (`ONCRMLEADUPDATE`), bấm **Create**, rồi chép token Bitrix24 hiện ra vào `BITRIX24_OUTGOING_TOKEN`.
 
+ID của lead vừa đổi được xếp vào một hàng chờ trong SQLite và chỉ rời hàng chờ sau một lần kéo về không thất bại. Sự kiện nhận ngay trước khi ứng dụng khởi động lại, hoặc trong lúc Bitrix24 lỗi, được kéo về sau.
+
 Địa chỉ handler phải truy cập được từ internet; `localhost` không dùng được. Khi cả hai cách cùng bật, mỗi thay đổi sinh hai sự kiện nhưng lead chỉ được kéo về một lần.
 
 ### 8.3. Kéo tay
@@ -361,7 +363,6 @@ Câu hỏi còn mở: `crm.duplicate.findbycomm` có trả lead đã chuyển đ
 - Lead tạo mới trong Bitrix24 không được thêm thành hàng mới trong Sheet.
 - Người phụ trách tra bằng bảng tĩnh trong mapping, chưa tra qua `user.get`.
 - Khóa "mỗi lúc một lần chạy" nằm trong SQLite, nên chỉ có tác dụng khi server và CLI dùng chung file dữ liệu. Chạy nhiều container với volume riêng không được hỗ trợ.
-- Hàng chờ sự kiện real-time nằm trong bộ nhớ: sự kiện đến lúc ứng dụng tắt bị mất; dùng `POST /lead-sync/pull` để bù.
 
 ## 14. Tham khảo trong repo
 
