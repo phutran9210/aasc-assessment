@@ -107,7 +107,7 @@ describe('BitrixLeadEvents', () => {
   });
 
   it('should ignore other events, malformed IDs and everything while two-way sync is off', async () => {
-    await events.receive(event('10', 'app-token', 'ONCRMLEADADD'));
+    await events.receive(event('10', 'app-token', 'ONCRMLEADDELETE'));
     await events.receive(event('abc'));
     await events.receive({});
     pullback.enabled = false;
@@ -163,23 +163,31 @@ describe('BitrixLeadEvents', () => {
     expect(pullback.start).toHaveBeenCalledWith([33], 'webhook');
   });
 
-  it('should register the handler URL for lead updates', async () => {
+  it('should register the handler URL for new and changed leads', async () => {
     api.callRaw.mockResolvedValue({ result: true });
+    const handler = 'https://app.example.com/lead-sync/bitrix-events';
 
     await expect(events.register()).resolves.toEqual({
-      event: 'ONCRMLEADUPDATE',
-      handler: 'https://app.example.com/lead-sync/bitrix-events',
+      events: ['ONCRMLEADADD', 'ONCRMLEADUPDATE'],
+      handler,
     });
-    expect(api.callRaw).toHaveBeenCalledWith('event.bind', {
-      event: 'ONCRMLEADUPDATE',
-      handler: 'https://app.example.com/lead-sync/bitrix-events',
-    });
+    expect(api.callRaw).toHaveBeenCalledWith('event.bind', { event: 'ONCRMLEADADD', handler });
+    expect(api.callRaw).toHaveBeenCalledWith('event.bind', { event: 'ONCRMLEADUPDATE', handler });
+  });
+
+  it('should queue a lead that was just created in Bitrix24', async () => {
+    await events.receive(event('40', 'app-token', 'ONCRMLEADADD'));
+    await jest.advanceTimersByTimeAsync(2000);
+
+    expect(pullback.start).toHaveBeenCalledWith([40], 'webhook');
   });
 
   it('should treat a handler that is already registered as success', async () => {
     api.callRaw.mockRejectedValue(new BitrixHttpError('Handler already binded', 'ERROR_CORE', 400));
 
-    await expect(events.register()).resolves.toMatchObject({ event: 'ONCRMLEADUPDATE' });
+    await expect(events.register()).resolves.toMatchObject({
+      events: ['ONCRMLEADADD', 'ONCRMLEADUPDATE'],
+    });
   });
 
   it('should say what is missing when no public URL is configured', async () => {

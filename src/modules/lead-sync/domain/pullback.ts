@@ -1,5 +1,11 @@
-import { HASH_KIND, PULLABLE_TYPES, PULLED_BY_DEFAULT } from '../constants/index.js';
-import type { BitrixLeadItem, MappingField, SheetRow } from '../types/index.js';
+import {
+  HASH_KIND,
+  LEAD_ORIGINATOR_FIELD,
+  LEAD_ORIGINATOR_ID,
+  PULLABLE_TYPES,
+  PULLED_BY_DEFAULT,
+} from '../constants/index.js';
+import type { BitrixLeadItem, BitrixMultifield, MappingField, SheetRow } from '../types/index.js';
 import { transformRow } from './row-transformer.js';
 import type { TransformContext } from './row-transformer.js';
 import { formatHashCell } from './sync-hash.js';
@@ -99,4 +105,91 @@ function withCells(row: SheetRow, cells: Record<string, string>): SheetRow {
     next[column] = { formatted: value, raw: value };
   }
   return { ...row, cells: next };
+}
+
+/** A lead to add to the Sheet as a new row. `hash` is empty when the row would not be valid. */
+export type NewRow = {
+  rowNumber: number;
+  leadId: number;
+  cells: Record<string, string>;
+  hash: string;
+};
+
+/**
+ * Leads created in Bitrix24 → new rows under the last one. Two kinds of lead get no row: one
+ * this sync created itself (its row exists and receives the ID from the run that created it),
+ * and one whose email or phone is already in a row, because the next Sheet → Bitrix24 run will
+ * link that row to the lead and a second row would be a duplicate.
+ */
+export function planNewRows(
+  rows: readonly SheetRow[],
+  leads: readonly BitrixLeadItem[],
+  context: TransformContext,
+): NewRow[] {
+  const emails = new Set<string>();
+  const phones = new Set<string>();
+  const remember = (row: SheetRow): boolean => {
+    const transformed = transformRow(row, context);
+    if (transformed.kind !== 'valid') return false;
+    const taken =
+      (transformed.email !== undefined && emails.has(transformed.email)) ||
+      (transformed.phone !== undefined && phones.has(transformed.phone));
+    if (transformed.email !== undefined) emails.add(transformed.email);
+    if (transformed.phone !== undefined) phones.add(transformed.phone);
+    return taken;
+  };
+  for (const row of rows) remember(row);
+
+  const plan: NewRow[] = [];
+  let rowNumber = Math.max(context.mapping.sheet.headerRow, ...rows.map((row) => row.rowNumber));
+  for (const lead of leads) {
+    if (lead[LEAD_ORIGINATOR_FIELD] === LEAD_ORIGINATOR_ID) continue;
+
+    const cells = Object.fromEntries(
+      context.mapping.fields.map((field) => [field.column, cellOfLead(field, lead)]),
+    );
+    const row: SheetRow = {
+      rowNumber: rowNumber + 1,
+      cells: Object.fromEntries(
+        Object.entries(cells).map(([column, value]) => [column, { formatted: value, raw: value }]),
+      ),
+      state: { leadId: String(lead.id), status: '', error: '', hash: '' },
+    };
+    if (remember(row)) continue;
+
+    const transformed = transformRow(row, context);
+    rowNumber += 1;
+    plan.push({
+      rowNumber,
+      leadId: Number(lead.id),
+      cells,
+      hash: transformed.kind === 'valid' ? formatHashCell(HASH_KIND.SYNCED, transformed.hash) : '',
+    });
+  }
+  return plan;
+}
+
+/** What a lead holds for `field`, written the way a user would type it into the Sheet. */
+function cellOfLead(field: MappingField, lead: BitrixLeadItem): string {
+  if (field.field === 'email' || field.field === 'phone') {
+    const typeId = field.field === 'email' ? 'EMAIL' : 'PHONE';
+    const entries = Array.isArray(lead.fm) ? (lead.fm as BitrixMultifield[]) : [];
+    return entries
+      .filter((entry) => entry.typeId === typeId && entry.value)
+      .map((entry) => String(entry.value))
+      .join(', ');
+  }
+  const held = lead[field.field];
+  if (typeof held !== 'string' && typeof held !== 'number') return '';
+  switch (field.type) {
+    case 'enum':
+    case 'user':
+      return labelOf(field, held) ?? '';
+    case 'date':
+      return String(held).slice(0, 10);
+    case 'number':
+      return Number(held) === 0 ? '' : String(held);
+    default:
+      return String(held).trim();
+  }
 }

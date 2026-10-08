@@ -224,4 +224,38 @@ describe('LeadPullback', () => {
     expect(run.status).toBe('failed');
     expect(run.stopReason).toMatch(/^Gói dịch vụ của portal Bitrix24 không cho dùng REST API/);
   });
+
+  it('should add a lead created in Bitrix24 as a new row that the next push leaves alone', async () => {
+    const { sheet, gateway, push, pull } = await synced();
+    const id = gateway.seed({
+      email: 'moi@congty.vn',
+      fields: { name: 'Khách mới', stageId: 'IN_PROCESS', assignedById: 7 },
+    });
+
+    const run = await pull([id]);
+
+    expect(run).toMatchObject({ status: 'succeeded', created: 1 });
+    expect(sheet.cell(4, 'Tên khách hàng')).toBe('Khách mới');
+    expect(sheet.cell(4, 'Email')).toBe('moi@congty.vn');
+    expect(sheet.cell(4, 'Trạng thái')).toBe('Đang liên hệ');
+    expect(sheet.cell(4, 'Người phụ trách')).toBe('An Nguyễn');
+    expect(sheet.cell(4, 'Lead ID Bitrix24')).toBe(String(id));
+    expect(sheet.cell(4, 'Trạng thái đồng bộ')).toBe('Đã đồng bộ');
+    gateway.calls.write = 0;
+    expect(await push()).toMatchObject({ total: 3, skipped: 3, created: 0, updated: 0 });
+    expect(gateway.calls.write).toBe(0);
+  });
+
+  it('should not add a row for a lead that this sync created', async () => {
+    const { sheet, gateway, pull } = await synced();
+    const id = gateway.seed({
+      email: 'cua-minh@congty.vn',
+      fields: { name: 'Của mình', originatorId: 'google-sheets' },
+    });
+
+    const run = await pull([id]);
+
+    expect(run).toMatchObject({ created: 0 });
+    expect(sheet.cell(4, 'Tên khách hàng')).toBe('');
+  });
 });

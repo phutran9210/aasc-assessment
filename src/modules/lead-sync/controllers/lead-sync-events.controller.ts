@@ -33,7 +33,7 @@ export class LeadSyncEventsController {
    */
   @Post('bitrix-events')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Bitrix24 gọi khi một lead thay đổi (ONCRMLEADUPDATE)' })
+  @ApiOperation({ summary: 'Bitrix24 gọi khi một lead được tạo hoặc thay đổi' })
   async receive(@Body() body: unknown): Promise<{ received: true }> {
     await this.events.receive(body);
     return { received: true };
@@ -43,7 +43,7 @@ export class LeadSyncEventsController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Đăng ký nhận sự kiện lead với Bitrix24 (event.bind)' })
-  async register(): Promise<{ event: string; handler: string }> {
+  async register(): Promise<{ events: string[]; handler: string }> {
     try {
       return await this.events.register();
     } catch (error) {

@@ -1,4 +1,4 @@
-import { planPullback } from '../domain/pullback.js';
+import { planNewRows, planPullback } from '../domain/pullback.js';
 import { transformRow } from '../domain/row-transformer.js';
 import type { TransformContext } from '../domain/row-transformer.js';
 import { formatHashCell, hashMapping } from '../domain/sync-hash.js';
@@ -208,6 +208,68 @@ describe('planPullback', () => {
       );
 
       expect(plan.writes[0].cells).toEqual({ 'Công ty': '' });
+    });
+  });
+
+  describe('planNewRows', () => {
+    const fresh = (fields: Record<string, unknown>): BitrixLeadItem => ({
+      id: 77,
+      name: 'Giang',
+      stageId: 'IN_PROCESS',
+      assignedById: 9,
+      fm: [
+        { id: 1, typeId: 'EMAIL', valueType: 'WORK', value: 'giang@congty.vn' },
+        { id: 2, typeId: 'EMAIL', valueType: 'HOME', value: 'giang.2@congty.vn' },
+      ],
+      ...fields,
+    });
+
+    it('should turn a lead created in Bitrix24 into a row placed after the last one', () => {
+      const existing = syncedRow(BASE, '10', 5);
+
+      const plan = planNewRows([existing], [fresh({})], context);
+
+      expect(plan).toHaveLength(1);
+      expect(plan[0]).toMatchObject({
+        rowNumber: 6,
+        leadId: 77,
+        cells: {
+          'Tên khách hàng': 'Giang',
+          Email: 'giang@congty.vn, giang.2@congty.vn',
+          'Trạng thái': 'Đang liên hệ',
+          'Người phụ trách': 'Bình Trần',
+        },
+      });
+      expect(plan[0].hash).toMatch(/^v1:[0-9a-f]{64}$/);
+    });
+
+    it('should number several new rows one after the other', () => {
+      const plan = planNewRows(
+        [syncedRow(BASE, '10', 2)],
+        [fresh({}), fresh({ id: 78, fm: [{ typeId: 'EMAIL', value: 'khac@congty.vn' }] })],
+        context,
+      );
+
+      expect(plan.map((row) => [row.rowNumber, row.leadId])).toEqual([
+        [3, 77],
+        [4, 78],
+      ]);
+    });
+
+    it('should skip a lead this sync created itself', () => {
+      expect(planNewRows([], [fresh({ originatorId: 'google-sheets' })], context)).toEqual([]);
+    });
+
+    it('should skip a lead whose email is already in a row waiting to be linked', () => {
+      const waiting = syncedRow({ ...BASE, Email: 'giang@congty.vn' }, '', 2);
+
+      expect(planNewRows([waiting], [fresh({})], context)).toEqual([]);
+    });
+
+    it('should leave the hash empty when the lead cannot make a valid row', () => {
+      const plan = planNewRows([], [fresh({ fm: [] })], context);
+
+      expect(plan[0]).toMatchObject({ rowNumber: 2, leadId: 77, hash: '' });
     });
   });
 });

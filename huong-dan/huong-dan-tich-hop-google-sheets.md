@@ -267,13 +267,22 @@ Bitrix24 gọi `POST <APP_PUBLIC_URL>/lead-sync/bitrix-events` mỗi khi một l
 Có hai cách để Bitrix24 biết địa chỉ này, dùng được song song:
 
 - **Ứng dụng đã cài qua OAuth:** đặt `APP_PUBLIC_URL`, chạy ứng dụng, gọi một lần `POST /lead-sync/bitrix-events/register` kèm JWT. Gọi lại khi đổi địa chỉ công khai.
-- **Outgoing webhook tạo tay** (khi chỉ dùng incoming webhook): vào **Tài nguyên cho nhà phát triển → Khác → Webhook ra**, đặt handler là `<APP_PUBLIC_URL>/lead-sync/bitrix-events`, chọn sự kiện cập nhật Lead (`ONCRMLEADUPDATE`), bấm **Create**, rồi chép token Bitrix24 hiện ra vào `BITRIX24_OUTGOING_TOKEN`.
+- **Outgoing webhook tạo tay** (khi chỉ dùng incoming webhook): vào **Tài nguyên cho nhà phát triển → Khác → Webhook ra**, đặt handler là `<APP_PUBLIC_URL>/lead-sync/bitrix-events`, chọn sự kiện cập nhật Lead (`ONCRMLEADUPDATE`) và sự kiện tạo Lead (`ONCRMLEADADD`), bấm **Create**, rồi chép token Bitrix24 hiện ra vào `BITRIX24_OUTGOING_TOKEN`.
 
 ID của lead vừa đổi được xếp vào một hàng chờ trong SQLite và chỉ rời hàng chờ sau một lần kéo về không thất bại. Sự kiện nhận ngay trước khi ứng dụng khởi động lại, hoặc trong lúc Bitrix24 lỗi, được kéo về sau.
 
 Địa chỉ handler phải truy cập được từ internet; `localhost` không dùng được. Khi cả hai cách cùng bật, mỗi thay đổi sinh hai sự kiện nhưng lead chỉ được kéo về một lần.
 
-### 8.3. Kéo tay
+### 8.3. Lead tạo trong Bitrix24
+
+Lead tạo trực tiếp trong Bitrix24 (sự kiện `ONCRMLEADADD`) được thêm thành một hàng mới dưới hàng cuối của Sheet, kèm Lead ID, nên lần chạy chiều đi sau đó bỏ qua nó. Hai trường hợp không thêm hàng:
+
+- Lead do chính lần đồng bộ tạo ra: hàng của nó đã có sẵn.
+- Lead có email hoặc số điện thoại đã nằm trong một hàng: hàng đó sẽ được nối với lead ở lần chạy chiều đi, thêm hàng nữa sẽ thành trùng.
+
+Để nhận sự kiện này: ứng dụng đã cài thì gọi lại `POST /lead-sync/bitrix-events/register`; outgoing webhook tạo tay thì chọn thêm sự kiện tạo Lead. Kéo tay (`POST /lead-sync/pull`) không tìm lead mới, chỉ cập nhật các hàng đã liên kết.
+
+### 8.4. Kéo tay
 
 `POST /lead-sync/pull` kèm JWT kéo mọi lead đã liên kết (`trigger=pull`). Dùng khi không có địa chỉ công khai, hoặc để bù các sự kiện bị lỡ lúc ứng dụng tắt.
 
@@ -366,7 +375,7 @@ Câu hỏi còn mở: `crm.duplicate.findbycomm` có trả lead đã chuyển đ
 ## 13. Giới hạn của phiên bản này
 
 - Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead; các cột này chỉ đi từ Sheet sang Bitrix24.
-- Lead tạo mới trong Bitrix24 không được thêm thành hàng mới trong Sheet.
+- Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện (ứng dụng tắt, chưa đăng ký sự kiện tạo lead) không được thêm vào Sheet về sau.
 - Người phụ trách tra bằng bảng tĩnh trong mapping, chưa tra qua `user.get`.
 - Khóa "mỗi lúc một lần chạy" nằm trong SQLite, nên chỉ có tác dụng khi server và CLI dùng chung file dữ liệu. Chạy nhiều container với volume riêng không được hỗ trợ.
 

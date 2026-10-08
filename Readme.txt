@@ -954,6 +954,12 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
                        sửa đổi chờ thì nhận giá trị của Bitrix24 và Sync Hash mới, nên thay
                        đổi không bị dội ngược thành một lần cập nhật.
           Mã không có nhãn trong mapping (ví dụ giai đoạn CONVERTED) được bỏ qua.
+          Lead mới     Lead tạo trong Bitrix24 (sự kiện ONCRMLEADADD) được thêm thành một
+                       hàng mới dưới hàng cuối, kèm Lead ID. Không thêm hàng cho lead do
+                       chính lần đồng bộ tạo ra, và cho lead có email hoặc số điện thoại đã
+                       nằm trong một hàng (hàng đó sẽ được nối với lead ở lần chạy chiều đi).
+                       Outgoing webhook tạo tay phải chọn cả sự kiện tạo lead; ứng dụng đã
+                       cài thì gọi lại POST /lead-sync/bitrix-events/register.
           Hai chiều dùng chung khóa một-lần-chạy với chiều đi; khi đang bận, sự kiện được
           thử lại mỗi 5 giây, tối đa 12 lần.
           ID của lead vừa đổi nằm trong hàng chờ SQLite cho tới khi được kéo về xong, nên

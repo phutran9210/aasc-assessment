@@ -13,7 +13,8 @@ import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
 import { LeadSyncPendingLeadRepository } from '../repositories/lead-sync-pending-lead.repository.js';
 import { LeadPullback } from './lead-pullback.service.js';
 
-const LEAD_UPDATED = 'ONCRMLEADUPDATE';
+/** A new lead becomes a new row; a changed one updates the row linked to it. */
+const LEAD_EVENTS: readonly string[] = ['ONCRMLEADADD', 'ONCRMLEADUPDATE'];
 const HANDLER_PATH = 'lead-sync/bitrix-events';
 /** A pull that keeps finding the lock taken gives up; the next event or manual pull catches up. */
 const MAX_BUSY_RETRIES = 12;
@@ -49,7 +50,7 @@ export class BitrixLeadEvents implements OnApplicationBootstrap, OnApplicationSh
   async receive(body: unknown): Promise<void> {
     if (!this.pullback.enabled) return;
     const payload = (body ?? {}) as LeadEvent;
-    if (payload.event !== LEAD_UPDATED) return;
+    if (typeof payload.event !== 'string' || !LEAD_EVENTS.includes(payload.event)) return;
 
     const token = payload.auth?.application_token;
     if (typeof token !== 'string' || !(await this.isTrusted(token))) {
@@ -68,19 +69,21 @@ export class BitrixLeadEvents implements OnApplicationBootstrap, OnApplicationSh
     if ((await this.queue.leadIds()).length) this.schedule(this.config.eventDebounceMs);
   }
 
-  /** Asks Bitrix24 to send lead updates to this app. Needs the app installed (OAuth). */
-  async register(): Promise<{ event: string; handler: string }> {
+  /** Asks Bitrix24 to send new and changed leads to this app. Needs the app installed (OAuth). */
+  async register(): Promise<{ events: string[]; handler: string }> {
     if (!this.config.publicUrl) {
       throw new LeadSyncConfigError(LEAD_SYNC_MESSAGES.ERROR.PUBLIC_URL_MISSING);
     }
     const handler = new URL(HANDLER_PATH, ensureTrailingSlash(this.config.publicUrl)).toString();
-    try {
-      await this.api.callRaw('event.bind', { event: LEAD_UPDATED, handler });
-    } catch (error) {
-      const bound = error instanceof BitrixHttpError && /already bind/i.test(error.message);
-      if (!bound) throw error;
+    for (const event of LEAD_EVENTS) {
+      try {
+        await this.api.callRaw('event.bind', { event, handler });
+      } catch (error) {
+        const bound = error instanceof BitrixHttpError && /already bind/i.test(error.message);
+        if (!bound) throw error;
+      }
     }
-    return { event: LEAD_UPDATED, handler };
+    return { events: [...LEAD_EVENTS], handler };
   }
 
   onApplicationShutdown(): void {

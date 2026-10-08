@@ -3,9 +3,14 @@ import type { LeadSyncConfig } from '@config/index.js';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
 
-import { LEAD_SYNC_RUN_STATUS, SHEET_COLUMNS, SPECIAL_FIELDS } from '../constants/index.js';
+import {
+  LEAD_SYNC_RUN_STATUS,
+  SHEET_COLUMNS,
+  SPECIAL_FIELDS,
+  SYNC_STATUS,
+} from '../constants/index.js';
 import type { LeadSyncTrigger } from '../constants/index.js';
-import { planPullback } from '../domain/pullback.js';
+import { planNewRows, planPullback } from '../domain/pullback.js';
 import { formatTimestamp } from '../domain/timestamp.js';
 import type { LeadSyncRun } from '../entities/lead-sync-run.entity.js';
 import { describeError } from '../errors/describe-error.js';
@@ -23,7 +28,7 @@ const { SUCCEEDED, FAILED } = LEAD_SYNC_RUN_STATUS;
 
 /**
  * Bitrix24 → Sheet half of the two-way sync: copies the stage and the assignee of leads back to
- * the rows linked to them. It takes the same single-run lock as SyncRunner, so the two never
+ * the rows linked to them, and adds a row for a lead that was created in Bitrix24. It takes the same single-run lock as SyncRunner, so the two never
  * touch the Sheet at the same time, and it shows up in the same run log.
  */
 @Injectable()
@@ -80,7 +85,7 @@ export class LeadPullback {
         stopReason,
       );
       this.logger.log(
-        `Lead pullback ${run.id} finished: total=${counters.total} updated=${counters.updated} skipped=${counters.skipped} conflicts=${conflicts}`,
+        `Lead pullback ${run.id} finished: total=${counters.total} added=${counters.created} updated=${counters.updated} skipped=${counters.skipped} conflicts=${conflicts}`,
       );
       return finished;
     } catch (error) {
@@ -96,40 +101,68 @@ export class LeadPullback {
     const { mapping, hash: mappingHash } = await this.mappingLoader.load();
     const snapshot = await this.table.load(mapping);
 
-    const wanted = leadIds === 'all' ? null : new Set(leadIds);
-    const rows = snapshot.rows.filter((row) => {
-      if (!/^\d+$/.test(row.state.leadId)) return false;
-      return !wanted || wanted.has(Number(row.state.leadId));
-    });
-    if (!rows.length) return 0;
+    const linked = new Set(
+      snapshot.rows
+        .filter((row) => /^\d+$/.test(row.state.leadId))
+        .map((row) => Number(row.state.leadId)),
+    );
+    const linkedIds = leadIds === 'all' ? [...linked] : leadIds.filter((id) => linked.has(id));
+    // A lead named by an event and linked to no row was created in Bitrix24: it gets a new row.
+    const newIds = leadIds === 'all' ? [] : leadIds.filter((id) => !linked.has(id));
+    if (!linkedIds.length && !newIds.length) return 0;
 
-    const leads = await this.gateway.getLeads(rows.map((row) => Number(row.state.leadId)));
-    const plan = planPullback(rows, leads, {
+    const leads = await this.gateway.getLeads([...linkedIds, ...newIds]);
+    const context = {
       mapping,
       mappingHash,
       defaultCountry: this.config.defaultCountry,
       timezone: this.config.timezone,
-    });
-
-    const syncedAt = formatTimestamp(this.config.timezone);
-    const outcome = await this.table.writeResults(
-      snapshot,
-      plan.writes.map((write) => ({
-        rowNumber: write.rowNumber,
-        cells: {
-          ...write.cells,
-          [SHEET_COLUMNS.HASH]: write.hash,
-          [SHEET_COLUMNS.SYNCED_AT]: syncedAt,
-        },
-      })),
-      mapping.fields
-        .filter((field) => SPECIAL_FIELDS.includes(field.field))
-        .map((field) => field.column),
+    };
+    const rows = snapshot.rows.filter((row) => linkedIds.includes(Number(row.state.leadId)));
+    const plan = planPullback(rows, leads, context);
+    const added = planNewRows(
+      snapshot.rows,
+      newIds.flatMap((id) => leads.get(id) ?? []),
+      context,
     );
 
-    counters.total = plan.writes.length + plan.conflicts.length + plan.unchanged.length;
-    counters.updated = outcome.written.length;
-    counters.skipped = counters.total - counters.updated;
+    const syncedAt = formatTimestamp(this.config.timezone);
+    const keyColumns = mapping.fields
+      .filter((field) => SPECIAL_FIELDS.includes(field.field))
+      .map((field) => field.column);
+    const outcome = await this.table.writeResults(
+      snapshot,
+      [
+        ...plan.writes.map((write) => ({
+          rowNumber: write.rowNumber,
+          cells: {
+            ...write.cells,
+            [SHEET_COLUMNS.HASH]: write.hash,
+            [SHEET_COLUMNS.SYNCED_AT]: syncedAt,
+          },
+        })),
+        // A row someone typed into meanwhile is not overwritten: writeResults finds its key
+        // cells no longer empty and leaves it; the lead is added by a later pull.
+        ...added.map((row) => ({
+          rowNumber: row.rowNumber,
+          cells: {
+            ...row.cells,
+            [SHEET_COLUMNS.STATUS]: row.hash ? SYNC_STATUS.SYNCED : SYNC_STATUS.PENDING,
+            [SHEET_COLUMNS.LEAD_ID]: String(row.leadId),
+            [SHEET_COLUMNS.SYNCED_AT]: syncedAt,
+            [SHEET_COLUMNS.HASH]: row.hash,
+          },
+        })),
+      ],
+      keyColumns,
+    );
+
+    const addedRows = new Set(added.map((row) => row.rowNumber));
+    counters.created = outcome.written.filter((rowNumber) => addedRows.has(rowNumber)).length;
+    counters.total =
+      plan.writes.length + plan.conflicts.length + plan.unchanged.length + added.length;
+    counters.updated = outcome.written.length - counters.created;
+    counters.skipped = counters.total - counters.updated - counters.created;
     return plan.conflicts.length;
   }
 }
