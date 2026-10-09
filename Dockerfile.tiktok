@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+
+# TikTok – Bitrix24 integration: one image for the API, the worker, migrations and demo tools.
+# Build:  docker build -f Dockerfile.tiktok -t aasc-tiktok:local .
+
+# ── Base: Node + pnpm (version pinned to package.json "packageManager") ──────────────────
+FROM node:24-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN npm install -g pnpm@11.2.2
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+
+# ── Build: all dependencies, compile the TikTok app to dist-tiktok/ ─────────────────────
+FROM base AS build
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+COPY nest-cli.tiktok.json tsconfig.json tsconfig.tiktok.build.json ./
+COPY src ./src
+RUN pnpm build:tiktok
+
+# ── Production dependencies only ─────────────────────────────────────────────────────────
+FROM base AS prod-deps
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
+
+# ── Runtime: non-root, no build tools ────────────────────────────────────────────────────
+FROM node:24-bookworm-slim AS runtime
+ENV NODE_ENV=production \
+    TIKTOK_APP_PORT=3001 \
+    INTEGRATION_ARTIFACT_DIR=/app/data/tiktok-artifacts
+WORKDIR /app
+
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist-tiktok ./dist-tiktok
+COPY package.json ./
+COPY samples/tiktok ./samples/tiktok
+
+# Export artifacts and import uploads live here; API and worker must share this volume.
+RUN mkdir -p data/tiktok-artifacts artifacts && chown -R node:node /app/data /app/artifacts
+USER node
+VOLUME ["/app/data/tiktok-artifacts"]
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.TIKTOK_APP_PORT || 3001) + '/health/live').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+
+CMD ["node", "dist-tiktok/apps/tiktok/main.js"]

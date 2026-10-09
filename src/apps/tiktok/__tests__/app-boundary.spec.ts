@@ -40,3 +40,22 @@ describe('TikTok app boundary', () => {
     expect(workerModuleNames).not.toContain('DatabaseModule');
   });
 });
+
+describe('TikTok composition roots', () => {
+  it('load without evaluating the legacy application configuration', async () => {
+    const previous = process.env.BITRIX24_WEBHOOK_URL;
+    // The legacy schema only accepts an https Bitrix24 URL; a local mock endpoint must not be
+    // judged by it, which is only true while no legacy module is imported.
+    process.env.BITRIX24_WEBHOOK_URL = 'http://127.0.0.1:3002/rest/1/mock/';
+    try {
+      await jest.isolateModulesAsync(async () => {
+        const { TiktokApiModule } = await import('../api.module.js');
+        await import('../worker.module.js');
+        expect(TiktokApiModule.fromEnvironment().imports).toHaveLength(2);
+      });
+    } finally {
+      if (previous === undefined) delete process.env.BITRIX24_WEBHOOK_URL;
+      else process.env.BITRIX24_WEBHOOK_URL = previous;
+    }
+  });
+});

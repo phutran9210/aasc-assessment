@@ -5,6 +5,15 @@
   "entryFile": "apps/tiktok/main",
   "compilerOptions": {
     "tsConfigPath": "tsconfig.tiktok.build.json",
-    "deleteOutDir": true
+    "deleteOutDir": true,
+    "plugins": [
+      {
+        "name": "@nestjs/swagger",
+        "options": {
+          "classValidatorShim": true,
+          "introspectComments": true
+        }
+      }
+    ]
   }
 }

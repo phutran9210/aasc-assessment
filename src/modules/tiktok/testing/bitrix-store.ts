@@ -146,6 +146,8 @@ export class BitrixStore {
             NAME: 'Pipeline new',
             EXTRA: { SEMANTICS: null },
           },
+          { STATUS_ID: `C${categoryId}:WON`, NAME: 'Pipeline won', EXTRA: { SEMANTICS: 'S' } },
+          { STATUS_ID: `C${categoryId}:LOSE`, NAME: 'Pipeline lost', EXTRA: { SEMANTICS: 'F' } },
         ];
   }
 

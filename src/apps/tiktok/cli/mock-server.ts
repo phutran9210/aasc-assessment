@@ -17,7 +17,10 @@ const server = new ProviderServer({
   exposeControl: process.env.NODE_ENV !== 'production',
   tiktokApiKey: process.env.TIKTOK_MOCK_API_KEY ?? 'local-only-mock-key',
 });
-await server.listen(portFromEnvironment(process.env.TIKTOK_MOCK_PORT));
+await server.listen(
+  portFromEnvironment(process.env.TIKTOK_MOCK_PORT),
+  process.env.TIKTOK_MOCK_HOST ?? '127.0.0.1',
+);
 console.log(`TikTok and Bitrix mock APIs listening on ${server.bitrixEndpoint}`);
 
 let closing = false;

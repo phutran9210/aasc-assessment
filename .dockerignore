@@ -1,6 +1,9 @@
 # Keep the build context small and never send secrets or local data to the Docker daemon.
 node_modules
 dist
+dist-tiktok
+artifacts
+coverage-tiktok
 coverage
 data
 secrets
@@ -11,6 +14,7 @@ logs
 .env
 .env.*
 !.env.example
+!.env.tiktok.example
 
 .git
 .gitignore
@@ -25,5 +29,8 @@ scripts
 Readme.txt
 Makefile
 Dockerfile
+Dockerfile.tiktok
 docker-compose.yml
+docker-compose.tiktok.yml
+docker-compose.tiktok.test.yml
 .dockerignore

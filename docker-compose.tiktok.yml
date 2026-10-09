@@ -1,0 +1,151 @@
+# TikTok – Bitrix24 integration demo (mock providers).
+#   cp .env.tiktok.example .env.tiktok
+#   docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml up -d --build --wait
+#   docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml run --rm demo
+# (--env-file feeds the ${...} placeholders below; env_file feeds the containers.)
+# The project name keeps these containers and volumes apart from the AASC app and the tests.
+name: aasc-tiktok-demo
+
+x-app: &app
+  build:
+    context: .
+    dockerfile: Dockerfile.tiktok
+  image: aasc-tiktok:local
+  env_file: .env.tiktok
+  environment: &app-env
+    # Mock mode with demo accounts is a development setup; real mode must use NODE_ENV=production.
+    NODE_ENV: development
+    TIKTOK_DATABASE_URL: postgres://${TIKTOK_POSTGRES_USER:-tiktok}:${TIKTOK_POSTGRES_PASSWORD:?set TIKTOK_POSTGRES_PASSWORD in .env.tiktok}@postgres:5432/${TIKTOK_POSTGRES_DB:-tiktok}
+    TIKTOK_REDIS_URL: redis://redis:6379
+    BITRIX24_WEBHOOK_URL: http://mock:3002/rest/1/mock/
+    TIKTOK_MOCK_BASE_URL: http://mock:3002/tiktok
+    INTEGRATION_ARTIFACT_DIR: /app/data/tiktok-artifacts
+    # The API reports itself ready only while a worker heartbeat is fresh.
+    INTEGRATION_WORKER_ENABLED: 'true'
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_USER: ${TIKTOK_POSTGRES_USER:-tiktok}
+      POSTGRES_PASSWORD: ${TIKTOK_POSTGRES_PASSWORD:?set TIKTOK_POSTGRES_PASSWORD in .env.tiktok}
+      POSTGRES_DB: ${TIKTOK_POSTGRES_DB:-tiktok}
+    volumes:
+      - tiktok-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4.3-alpine
+    # Append-only persistence: queued jobs survive a restart. The source of truth stays PostgreSQL.
+    command: ['redis-server', '--appendonly', 'yes', '--appendfsync', 'everysec']
+    volumes:
+      - tiktok-redis:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Local stand-in for the TikTok and Bitrix24 APIs. Never deploy it next to real credentials.
+  mock:
+    <<: *app
+    command: ['node', 'dist-tiktok/apps/tiktok/cli/mock-server.js']
+    environment:
+      NODE_ENV: development
+      TIKTOK_MOCK_HOST: 0.0.0.0
+      TIKTOK_MOCK_PORT: '3002'
+    env_file: []
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3002/__control/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # One-shot: applies migrations (under an advisory lock) before anything else starts.
+  migrate:
+    <<: *app
+    command: ['node', 'dist-tiktok/apps/tiktok/database/migration-runner.js']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    healthcheck:
+      disable: true
+
+  # One-shot: demo identity, accounts, rules and campaign cost. Idempotent; mock mode only.
+  seed:
+    <<: *app
+    command: ['node', 'dist-tiktok/apps/tiktok/cli/seed.js']
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+    healthcheck:
+      disable: true
+
+  api:
+    <<: *app
+    command: ['node', 'dist-tiktok/apps/tiktok/main.js']
+    ports:
+      - '127.0.0.1:${TIKTOK_APP_PORT:-3001}:3001'
+    environment:
+      <<: *app-env
+      TIKTOK_APP_PORT: '3001'
+    volumes:
+      - tiktok-artifacts:/app/data/tiktok-artifacts
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mock:
+        condition: service_healthy
+
+  worker:
+    <<: *app
+    command: ['node', 'dist-tiktok/apps/tiktok/worker.js']
+    environment:
+      <<: *app-env
+      INTEGRATION_SCHEDULER_ENABLED: 'true'
+    volumes:
+      - tiktok-artifacts:/app/data/tiktok-artifacts
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      mock:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  # Run on demand: docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml run --rm demo
+  demo:
+    <<: *app
+    profiles: ['demo']
+    command: ['node', 'dist-tiktok/apps/tiktok/cli/run-demo.js']
+    environment:
+      <<: *app-env
+      TIKTOK_DEMO_BASE_URL: http://api:3001
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: 'no'
+    healthcheck:
+      disable: true
+
+volumes:
+  tiktok-postgres:
+  tiktok-redis:
+  tiktok-artifacts:

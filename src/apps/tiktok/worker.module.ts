@@ -12,6 +12,7 @@ import { WorkerLifecycleService } from '@core/queue/services/worker-lifecycle.se
 import { WorkerHeartbeatService } from '@core/queue/services/worker-heartbeat.service.js';
 import { TiktokDatabaseModule } from './database/database.module.js';
 import { QueueModule } from '@core/queue/queue.module.js';
+import { environmentBitrixAdapter } from './bitrix-adapter.config.js';
 import { createTiktokWorkerHandlers } from './worker-handlers.js';
 import type { OperationHandlerRegistry } from '@core/queue/types/worker.types.js';
 import { REDIS_CONNECTION_FACTORY } from '@config/tiktok-app/redis.config.js';
@@ -37,8 +38,6 @@ import { ConversionHandler } from '@modules/crm-integration/workers/conversion.h
 import { CRM_GATEWAY } from '@modules/crm-integration/ports/crm-gateway.port.js';
 import type { CrmGateway } from '@modules/crm-integration/ports/crm-gateway.port.js';
 import { BitrixCrmGateway } from '@modules/crm-integration/gateways/bitrix-crm.gateway.js';
-import { BitrixAdapterModule } from '@modules/crm-integration/bitrix-adapter.module.js';
-import type { BitrixConfig } from '@config/index.js';
 import { DealHistoryRepository } from '@modules/crm-integration/repositories/deal-history.repository.js';
 import { DealRefreshService } from '@modules/crm-integration/services/deal-refresh.service.js';
 import { DealRefreshHandler } from '@modules/crm-integration/workers/deal-refresh.handler.js';
@@ -79,7 +78,7 @@ import type { ScheduledTask } from '@modules/integration-reports/index.js';
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
 @Module({
-  imports: [TiktokDatabaseModule, QueueModule, workerBitrixAdapter()],
+  imports: [TiktokDatabaseModule, QueueModule, environmentBitrixAdapter()],
   providers: [
     ...REPORT_PROVIDERS,
     LeadRepository,
@@ -512,24 +511,3 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
   ],
 })
 export class TiktokWorkerModule {}
-
-function workerBitrixAdapter() {
-  const portalKey = process.env.BITRIX_PORTAL_KEY ?? 'mock-portal';
-  const requisitePresetId = Number(process.env.BITRIX24_REQUISITE_PRESET_ID ?? 0);
-  const bitrix: BitrixConfig = {
-    clientId: process.env.BITRIX24_CLIENT_ID ?? '',
-    clientSecret: process.env.BITRIX24_CLIENT_SECRET ?? '',
-    portalDomain: process.env.BITRIX24_DOMAIN ?? '',
-    requisitePresetId:
-      Number.isSafeInteger(requisitePresetId) && requisitePresetId >= 0 ? requisitePresetId : 0,
-    webhookUrl: process.env.BITRIX24_WEBHOOK_URL,
-    timeoutMs: 10_000,
-    stateTtlSeconds: 600,
-    refreshSkewSeconds: 60,
-  };
-  return BitrixAdapterModule.register({
-    portalKey,
-    namespace: `aasc-tiktok:${portalKey}`,
-    bitrix,
-  });
-}

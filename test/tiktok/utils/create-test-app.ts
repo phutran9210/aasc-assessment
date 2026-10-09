@@ -1,5 +1,5 @@
 import type { INestApplication } from '@nestjs/common';
-import type { Type } from '@nestjs/common';
+import type { DynamicModule, Type } from '@nestjs/common';
 
 import { createTiktokApp } from '@/apps/tiktok/bootstrap.js';
 
@@ -10,7 +10,7 @@ export type TestApp = {
 
 export async function createTestApp(
   envOverrides: Record<string, string>,
-  rootModule?: Type<unknown>,
+  rootModule?: Type<unknown> | DynamicModule,
 ): Promise<TestApp> {
   const previousValues = new Map<string, string | undefined>();
   for (const [key, value] of Object.entries(envOverrides)) {

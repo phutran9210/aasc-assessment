@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "auto_conversion": {
+    "enabled": true
+  },
+  "manual_conversion": {
+    "enabled": true,
+    "pipeline_id": 1,
+    "stage_id": "C1:NEW",
+    "probability": 10,
+    "fallback_sales_id": "1"
+  },
+  "stage_probabilities": [
+    {
+      "pipeline_id": 1,
+      "stage_id": "C1:NEW",
+      "probability": 10
+    },
+    {
+      "pipeline_id": 1,
+      "stage_id": "C1:WON",
+      "probability": 100
+    }
+  ],
+  "assignment": {
+    "strategy": "round_robin",
+    "fallback_sales_id": "1",
+    "sales_ids": [
+      "1"
+    ]
+  },
+  "quality_scoring": {
+    "weights": {
+      "email": 15,
+      "phone": 15,
+      "form": 20,
+      "interaction": 20,
+      "budget": 15,
+      "timeline": 15
+    },
+    "interaction_window_days": 30,
+    "interaction_points": 5,
+    "interaction_cap": 4
+  },
+  "feedback": {
+    "enabled": true,
+    "event_mapping": {
+      "lead_qualified": "QualifiedLead",
+      "deal_created": "DealCreated",
+      "deal_won": "Purchase"
+    },
+    "matching_keys": [
+      "email",
+      "phone",
+      "ttclid"
+    ],
+    "hash_email": true,
+    "hash_phone": true
+  },
+  "reporting": {
+    "timezone": "Asia/Ho_Chi_Minh"
+  },
+  "alerts": {
+    "enabled": true
+  },
+  "rules": [
+    {
+      "id": "spring-campaign-to-sales",
+      "priority": 10,
+      "enabled": true,
+      "conditions": {
+        "field": "lead.campaign_id",
+        "op": "in",
+        "value": [
+          "campaign-spring-2024"
+        ]
+      },
+      "action": "create_deal",
+      "pipeline_id": 1,
+      "stage_id": "C1:NEW",
+      "probability": 10,
+      "assignment": {
+        "sales_id": "1"
+      }
+    }
+  ]
+}

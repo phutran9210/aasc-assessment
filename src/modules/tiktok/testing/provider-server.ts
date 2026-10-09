@@ -39,10 +39,11 @@ export class ProviderServer {
     return `${this.origin}/tiktok`;
   }
 
-  async listen(port = 0): Promise<void> {
+  /** Binds to loopback unless a host is given, as a container needs to accept other services. */
+  async listen(port = 0, host = '127.0.0.1'): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       this.server.once('error', reject);
-      this.server.listen(port, '127.0.0.1', () => {
+      this.server.listen(port, host, () => {
         this.server.off('error', reject);
         const address = this.server.address();
         if (!address || typeof address === 'string') return reject(new Error('No TCP address'));

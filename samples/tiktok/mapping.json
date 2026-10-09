@@ -1,0 +1,26 @@
+{
+  "entries": [
+    {
+      "source": "name",
+      "target": "name",
+      "owner": "integration",
+      "transforms": [
+        "trim"
+      ]
+    },
+    {
+      "source": "email",
+      "target": "fm",
+      "subfield": "EMAIL",
+      "owner": "integration",
+      "transforms": []
+    },
+    {
+      "source": "phone",
+      "target": "fm",
+      "subfield": "PHONE",
+      "owner": "integration",
+      "transforms": []
+    }
+  ]
+}
