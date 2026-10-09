@@ -1,0 +1,5 @@
+advertiser_id,campaign_id,date,currency,spend,impressions,clicks
+mock-advertiser,cmp-spring,2026-07-01,VND,350000.5,12000,340
+mock-advertiser,cmp-spring,2026-07-02,VND,0,0,0
+mock-advertiser,cmp-spring,2026-07-03,VND,410000,15300,402
+mock-advertiser,cmp-summer,2026-07-05,VND,275000.2500,9800,251

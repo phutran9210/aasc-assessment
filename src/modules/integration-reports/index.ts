@@ -5,3 +5,7 @@ export { ArtifactService } from './services/artifact.service.js';
 export { ExportService } from './services/export.service.js';
 export { ExportHandler } from './workers/export.handler.js';
 export type * from './types/report.types.js';
+export { ReportRowErrorRepository } from './repositories/report-row-error.repository.js';
+export { CampaignCostImportService } from './services/campaign-cost-import.service.js';
+export { LeadImportService } from './services/lead-import.service.js';
+export { ImportHandler } from './workers/import.handler.js';

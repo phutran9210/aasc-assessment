@@ -7,6 +7,7 @@ import type { ConversionHandler } from '@modules/crm-integration/workers/convers
 import type { DealRefreshHandler } from '@modules/crm-integration/workers/deal-refresh.handler.js';
 import type { FeedbackHandler } from '@modules/tiktok/workers/feedback.handler.js';
 import type { ExportHandler } from '@modules/integration-reports/workers/export.handler.js';
+import type { ImportHandler } from '@modules/integration-reports/workers/import.handler.js';
 
 export const TIKTOK_WORKER_OPERATION_KINDS = [
   OPERATION_KINDS.tiktokIngest,
@@ -16,6 +17,8 @@ export const TIKTOK_WORKER_OPERATION_KINDS = [
   OPERATION_KINDS.bitrixDealRefresh,
   OPERATION_KINDS.tiktokFeedback,
   OPERATION_KINDS.integrationReport,
+  OPERATION_KINDS.historicalLeadImport,
+  OPERATION_KINDS.campaignCostImport,
 ] as const;
 
 export function createTiktokWorkerHandlers(
@@ -26,6 +29,7 @@ export function createTiktokWorkerHandlers(
   dealRefresh: DealRefreshHandler,
   feedback: FeedbackHandler,
   report: ExportHandler,
+  imports: ImportHandler,
 ): OperationHandlerRegistry {
   return new Map<string, OperationHandler>([
     ['tiktok_ingest', ingest],
@@ -35,5 +39,7 @@ export function createTiktokWorkerHandlers(
     ['bitrix_deal_refresh', dealRefresh],
     ['tiktok_feedback', feedback],
     ['integration_report', report],
+    ['historical_lead_import', imports],
+    ['campaign_cost_import', imports],
   ]);
 }

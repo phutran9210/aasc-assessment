@@ -9,6 +9,7 @@ import { OperationRepository } from '@core/queue/repositories/operation.reposito
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
 import { WebhookEventRepository } from '@core/queue/repositories/webhook-event.repository.js';
 import type { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
+import type { ProviderLead } from '@modules/tiktok/types/index.js';
 import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
 import { LeadEntity } from '../entities/lead.entity.js';
 import { SubmissionEntity } from '../entities/submission.entity.js';
@@ -29,6 +30,48 @@ import {
   LINK_INTERVAL_MS,
   LINK_MAX_AGE_MS,
 } from '../constants/flow.constants.js';
+
+/**
+ * Set only by the trusted historical import, never read from an event payload: it marks the
+ * submission as historical and carries the operator's choice for rules and feedback.
+ */
+export type HistoricalIngestOptions = { applyRules: boolean; sendFeedback: boolean };
+
+type LeadEventSource = Pick<
+  WebhookEventEntity,
+  'payload' | 'advertiserId' | 'scopeKey' | 'eventKey' | 'occurredAt'
+>;
+
+/** Maps a stored lead event to the provider-neutral input of `normalizeLead`. */
+export function toProviderLead(
+  event: LeadEventSource,
+  historical?: HistoricalIngestOptions,
+): ProviderLead {
+  const payload = event.payload;
+  const questions = record(payload.lead_data).custom_questions;
+  return {
+    id: stringValue(payload.provider_lead_id) ?? '',
+    advertiserId: event.advertiserId ?? event.scopeKey,
+    eventKey: event.eventKey,
+    occurredAt: event.occurredAt?.toISOString() ?? stringValue(payload.timestamp),
+    fields: payload,
+    campaign: pickObject(payload, 'campaign'),
+    ad: pickObject(payload, 'ad'),
+    form: pickObject(payload, 'form'),
+    utm: pickObject(payload, 'utm'),
+    consent: pickObject(payload, 'consent'),
+    customQuestions: Array.isArray(questions)
+      ? (questions as ProviderLead['customQuestions'])
+      : undefined,
+    ...(historical
+      ? {
+          isHistorical: true,
+          applyRules: historical.applyRules,
+          sendFeedback: historical.sendFeedback,
+        }
+      : {}),
+  };
+}
 
 @Injectable()
 export class LeadIngestService {
@@ -51,6 +94,7 @@ export class LeadIngestService {
     eventId: string,
     context: OperationContext,
     resolvedTargetLeadId?: string,
+    historical?: HistoricalIngestOptions,
   ): Promise<IngestOutcome> {
     await context.assertOwnership();
     return this.dataSource.transaction(async (manager) => {
@@ -65,31 +109,7 @@ export class LeadIngestService {
         return { outcome: 'quarantined', errorCode: 'EVENT_TYPE_UNSUPPORTED' };
       }
 
-      const payload = event.payload;
-      const providerLeadId = stringValue(payload.provider_lead_id);
-      const normalizedResult = normalizeLead(
-        {
-          id: providerLeadId ?? '',
-          advertiserId: event.advertiserId ?? event.scopeKey,
-          eventKey: event.eventKey,
-          occurredAt: event.occurredAt?.toISOString() ?? stringValue(payload.timestamp),
-          fields: payload,
-          campaign: pickObject(payload, 'campaign'),
-          ad: pickObject(payload, 'ad'),
-          form: pickObject(payload, 'form'),
-          utm: pickObject(payload, 'utm'),
-          consent: pickObject(payload, 'consent'),
-          customQuestions: Array.isArray(record(payload.lead_data).custom_questions)
-            ? (record(payload.lead_data).custom_questions as Array<{
-                question?: string;
-                questionId?: string;
-                questionText?: string;
-                answer: unknown;
-              }>)
-            : undefined,
-        },
-        this.region,
-      );
+      const normalizedResult = normalizeLead(toProviderLead(event, historical), this.region);
       if (normalizedResult.kind === 'quarantined') {
         const errorCode = normalizedResult.reason;
         await this.webhookEvents.updateStatus(event.id, 'quarantined', manager, errorCode);

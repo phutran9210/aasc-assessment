@@ -56,11 +56,17 @@ import { MockTiktokAdapter } from '@modules/tiktok/adapters/mock-tiktok.adapter.
 import {
   AnalyticsRepository,
   AnalyticsRevisionRepository,
+  CampaignCostRepository,
+  CampaignCostService,
   ScoreRecomputeSchedulerService,
   ScoreRecomputeService,
 } from '@modules/integration-analytics/index.js';
 
-import { ExportHandler, REPORT_PROVIDERS } from '@modules/integration-reports/index.js';
+import {
+  ExportHandler,
+  ImportHandler,
+  REPORT_PROVIDERS,
+} from '@modules/integration-reports/index.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
@@ -76,6 +82,13 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
       provide: AnalyticsRepository,
       inject: [getDataSourceToken('tiktok')],
       useFactory: (dataSource: DataSource) => new AnalyticsRepository(dataSource),
+    },
+    CampaignCostRepository,
+    {
+      provide: CampaignCostService,
+      inject: [CampaignCostRepository, AnalyticsRevisionRepository],
+      useFactory: (costs: CampaignCostRepository, revisions: AnalyticsRevisionRepository) =>
+        new CampaignCostService(costs, revisions),
     },
     {
       provide: ScoreRecomputeService,
@@ -411,6 +424,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         DealRefreshHandler,
         FeedbackHandler,
         ExportHandler,
+        ImportHandler,
       ],
       useFactory: createTiktokWorkerHandlers,
     },

@@ -23,9 +23,13 @@ import {
 } from '@modules/integration-auth/index.js';
 import type { AuthenticatedRequest } from '@modules/integration-auth/index.js';
 import { CreateExportDto, ExportQueryDto } from '../dto/export.dto.js';
+import { ReportRowErrorRepository } from '../repositories/report-row-error.repository.js';
 import { ArtifactService } from '../services/artifact.service.js';
 import { ExportService } from '../services/export.service.js';
 import type { ExportQuery } from '../types/report.types.js';
+
+/** Row diagnostics returned with an import job; the counters always cover every row. */
+const ROW_ERROR_PAGE_SIZE = 100;
 
 @Controller('api/v1/reports')
 @UseGuards(IntegrationJwtGuard, IntegrationRolesGuard)
@@ -35,6 +39,7 @@ export class ReportsController {
   constructor(
     private readonly exportService: ExportService,
     private readonly artifacts: ArtifactService,
+    private readonly rowErrors: ReportRowErrorRepository,
   ) {}
 
   @Get('export')
@@ -70,8 +75,19 @@ export class ReportsController {
   }
 
   @Get('jobs/:id')
-  job(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: AuthenticatedRequest) {
-    return this.exportService.getJob(id, request.user);
+  async job(@Param('id', new ParseUUIDPipe()) id: string, @Req() request: AuthenticatedRequest) {
+    const job = await this.exportService.getJob(id, request.user);
+    if (job.kind !== 'import') return job;
+    const rowErrors = await this.rowErrors.list(id, ROW_ERROR_PAGE_SIZE);
+    return {
+      ...job,
+      rowErrors: rowErrors.map((error) => ({
+        rowNumber: error.rowNumber,
+        sourceKey: error.sourceKey,
+        errorCode: error.errorCode,
+        detail: error.redactedDetail,
+      })),
+    };
   }
 
   @Get('jobs/:id/download')

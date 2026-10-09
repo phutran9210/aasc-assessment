@@ -1,0 +1,5 @@
+advertiser_id,source_record_id,occurred_at,full_name,email,phone,city,campaign_id,campaign_name,form_id,form_name,interests,crm_feedback_allowed
+mock-advertiser,hist-0001,2026-07-01T02:15:00+07:00,Nguyễn Văn An,an.nguyen@example.test,0901234567,Hà Nội,cmp-spring,Spring Sale 2026,form-1,Đăng ký tư vấn,loan;insurance,false
+mock-advertiser,hist-0002,2026-07-03T09:40:00+07:00,Trần Thị Bình,binh.tran@example.test,,Đà Nẵng,cmp-spring,Spring Sale 2026,form-1,Đăng ký tư vấn,,false
+mock-advertiser,hist-0003,2026-07-05T14:05:00+07:00,"Lê, Minh Châu",,+84912345678,"TP. Hồ Chí Minh",cmp-summer,Summer Promo,form-2,"Nhận báo giá
+(2 dòng)",savings,true
