@@ -156,6 +156,27 @@ describe('TikTok lead ingestion', () => {
     expect(association.nextLinkAttemptAt).toBeNull();
   });
 
+  it('ingests with the revisions the webhook inbox records when no scoring policy is stored', async () => {
+    const advertiserId = `advertiser-${randomUUID()}`;
+    const eventId = await saveLeadEvent(
+      advertiserId,
+      { name: 'First Run', email: 'first-run@example.test' },
+      0,
+    );
+
+    // The inbox stores 0 for every configuration key that has no revision yet.
+    const outcome = await ingest.process(eventId, {
+      ...context(),
+      revisions: { mapping: 0, rules: 0, scoring: 0 },
+    });
+
+    expect(outcome).toMatchObject({ outcome: 'succeeded' });
+    const lead = await infrastructure.database.dataSource
+      .getRepository(LeadEntity)
+      .findOneByOrFail({ advertiserId });
+    expect(lead.scoreVersion).toBe(1);
+  });
+
   it('quarantines a provider source key reused with changed lead content', async () => {
     const advertiserId = `advertiser-${randomUUID()}`;
     const providerLeadId = `provider-${randomUUID()}`;

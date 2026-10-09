@@ -69,7 +69,7 @@ export class ScoreRecomputeService {
 
     lead.score = score.total;
     lead.scoreBreakdown = score.breakdown;
-    lead.scoreVersion = revisions.scoring ?? lead.scoreVersion;
+    lead.scoreVersion = revisions.scoring || revisions.rules || lead.scoreVersion;
     lead.version += 1;
     await this.leads.save(lead, tx);
     const operation = await this.operations.ensure(

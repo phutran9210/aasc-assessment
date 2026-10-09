@@ -42,6 +42,15 @@ type LeadEventSource = Pick<
   'payload' | 'advertiserId' | 'scopeKey' | 'eventKey' | 'occurredAt'
 >;
 
+/**
+ * Revision of the scoring policy a score was computed with. The policy is part of the rules
+ * document, and operations record 0 for a configuration that has no revision yet, so the stored
+ * version falls back to the rules revision and is never below 1.
+ */
+export function scoreVersionOf(revisions: OperationContext['revisions']): number {
+  return Math.max(1, revisions.scoring || revisions.rules || 1);
+}
+
 /** Maps a stored lead event to the provider-neutral input of `normalizeLead`. */
 export function toProviderLead(
   event: LeadEventSource,
@@ -217,7 +226,7 @@ export class LeadIngestService {
                 city: normalized.city,
                 interests: [...new Set(normalized.interests)].slice(0, 100),
                 score: 0,
-                scoreVersion: context.revisions.scoring ?? 1,
+                scoreVersion: scoreVersionOf(context.revisions),
                 scoreBreakdown: {},
                 businessStatus: 'new',
                 syncStatus: 'pending',
@@ -319,7 +328,7 @@ export class LeadIngestService {
             new Date().toISOString(),
           );
           lead.score = score.total;
-          lead.scoreVersion = context.revisions.scoring ?? 1;
+          lead.scoreVersion = scoreVersionOf(context.revisions);
           lead.scoreBreakdown = score.breakdown;
           await this.leads.save(lead, manager);
           if (isNewLead || materialChange) {
@@ -472,7 +481,7 @@ export class LeadIngestService {
       lead.score !== score.total ||
       JSON.stringify(lead.scoreBreakdown) !== JSON.stringify(score.breakdown);
     lead.score = score.total;
-    lead.scoreVersion = context.revisions.scoring ?? 1;
+    lead.scoreVersion = scoreVersionOf(context.revisions);
     lead.scoreBreakdown = score.breakdown;
     if (touchChanged || scoreChanged) lead.version += 1;
     await this.leads.save(lead, manager);
