@@ -30,9 +30,14 @@ import {
     { provide: LOCAL_RATE_LIMITER, useFactory: () => new LocalRateLimiter() },
     {
       provide: INGRESS_LIMIT_OPTIONS,
-      useFactory: (): IngressLimitOptions => ({
-        trustedProxies: validateTiktokEnv(process.env).trustedProxies,
-      }),
+      useFactory: (): IngressLimitOptions => {
+        const config = validateTiktokEnv(process.env);
+        return {
+          trustedProxies: config.trustedProxies,
+          limit: config.ingressIpLimit,
+          advertiserLimit: config.webhookAdvertiserLimit,
+        };
+      },
     },
   ],
   exports: [REDIS_CONNECTION_FACTORY, RATE_LIMITER, LOCAL_RATE_LIMITER, INGRESS_LIMIT_OPTIONS],

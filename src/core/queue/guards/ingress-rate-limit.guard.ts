@@ -16,7 +16,10 @@ export const INGRESS_LIMIT_OPTIONS = Symbol('INGRESS_LIMIT_OPTIONS');
 export type IngressLimitOptions = {
   /** Reverse proxies whose X-Forwarded-For header may be believed. */
   trustedProxies: readonly string[];
+  /** Requests per minute per client address; defaults to 600. */
   limit?: number;
+  /** Verified webhooks per minute per advertiser; defaults to 120. */
+  advertiserLimit?: number;
 };
 
 /** Sets `Retry-After` and raises 429 when a window is exhausted. */

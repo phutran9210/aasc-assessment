@@ -63,9 +63,10 @@ pnpm tiktok:demo                             # end-to-end walk-through
 | `pnpm tiktok:user:create <username> <role[,role]>` | Create an account; the password is prompted, never an argument |
 | `pnpm tiktok:webhook` | Send one signed webhook (`TIKTOK_DEMO_SAMPLE=samples/tiktok/lead-generate.json` to use a file) |
 | `pnpm tiktok:demo` | Full demo flow; mock mode only |
-| `pnpm tiktok:load-probe` | Webhook latency probe (`TIKTOK_PROBE_COUNT`, `TIKTOK_PROBE_CONCURRENCY`) |
+| `pnpm tiktok:load-probe` | Webhook latency probe: `TIKTOK_PROBE_COUNT`/`TIKTOK_PROBE_CONCURRENCY`, or a fixed rate with `TIKTOK_PROBE_RATE` and `TIKTOK_PROBE_SECONDS` (raise `TIKTOK_INGRESS_IP_LIMIT` and `TIKTOK_WEBHOOK_ADVERTISER_LIMIT` on the API first) |
 | `pnpm tiktok:openapi` | Write `artifacts/tiktok/openapi.json` from the running code |
 | `pnpm test:tiktok:unit` / `:integration` / `:e2e` | Test suites (integration and E2E need the test containers below) |
+| `pnpm test:tiktok:cov` | All three suites in one run with the coverage thresholds |
 
 Tests use their own containers and never the demo or a real database:
 

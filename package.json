@@ -38,6 +38,7 @@
     "test:tiktok:unit": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/tiktok/jest-unit.config.mjs",
     "test:tiktok:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/tiktok/jest-e2e.config.mjs",
     "test:tiktok:integration": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/tiktok/jest-integration.config.mjs",
+    "test:tiktok:cov": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/tiktok/jest-coverage.config.mjs --coverage --runInBand",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.config.mjs",

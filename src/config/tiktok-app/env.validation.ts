@@ -36,6 +36,8 @@ const schema = z
     INTEGRATION_ARTIFACT_DIR: z.string().trim().min(1).default('data/tiktok-artifacts'),
     CORS_ORIGINS: z.string().default('*'),
     TIKTOK_TRUSTED_PROXIES: z.string().default(''),
+    TIKTOK_INGRESS_IP_LIMIT: z.coerce.number().int().min(1).max(100_000).default(600),
+    TIKTOK_WEBHOOK_ADVERTISER_LIMIT: z.coerce.number().int().min(1).max(100_000).default(120),
     TIKTOK_SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
   })
   .superRefine((env, context) => {
@@ -78,6 +80,10 @@ export type TiktokAppConfig = {
   artifactDir: string;
   /** Serve the OpenAPI UI at /docs; off by default in production. */
   swaggerEnabled: boolean;
+  /** Requests per minute per client address on unauthenticated endpoints. */
+  ingressIpLimit: number;
+  /** Verified TikTok webhooks per minute per advertiser. */
+  webhookAdvertiserLimit: number;
   /** Addresses of reverse proxies whose X-Forwarded-For header may be believed. */
   trustedProxies: string[];
   corsOrigins: string[] | '*';
@@ -117,6 +123,8 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     swaggerEnabled: env.TIKTOK_SWAGGER_ENABLED
       ? env.TIKTOK_SWAGGER_ENABLED === 'true'
       : process.env.NODE_ENV !== 'production',
+    ingressIpLimit: env.TIKTOK_INGRESS_IP_LIMIT,
+    webhookAdvertiserLimit: env.TIKTOK_WEBHOOK_ADVERTISER_LIMIT,
     trustedProxies: env.TIKTOK_TRUSTED_PROXIES.split(',')
       .map((address) => address.trim())
       .filter(Boolean),

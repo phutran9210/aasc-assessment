@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from 'node:crypto';
+import { createHmac, randomInt, randomUUID } from 'node:crypto';
 
 import { Temporal } from '@common/utils/temporal.util.js';
 import { DEMO_CAMPAIGN_ID, DEMO_MAPPING } from '../database/seed.js';
@@ -47,7 +47,12 @@ export function signWebhook(secret: string, body: Buffer, timestamp: number): st
   return `t=${timestamp},s=${digest}`;
 }
 
+/**
+ * A lead with its own email and phone number: leads are deduplicated by contact identity, so a
+ * shared number would merge every demo or probe submission into one lead.
+ */
 export function demoLeadPayload(advertiserId: string, eventId: string): Record<string, unknown> {
+  const phone = `+8490${String(randomInt(0, 10_000_000)).padStart(7, '0')}`;
   return {
     event_id: eventId,
     event: 'lead.generate',
@@ -58,7 +63,7 @@ export function demoLeadPayload(advertiserId: string, eventId: string): Record<s
     lead_data: {
       name: 'Nguyễn An (demo)',
       email: `${eventId}@example.test`,
-      phone_number: '+84901234567',
+      phone_number: phone,
       city: 'Hà Nội',
       custom_questions: [
         { question_id: 'budget', question_text: 'Ngân sách dự kiến', answer: '5-10 triệu VND' },

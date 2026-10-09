@@ -16,35 +16,54 @@ function boundedInteger(name: string, fallback: number, max: number): number {
 /**
  * Measures webhook acknowledgement latency against a mock deployment. The default of 50 requests
  * stays under the per-advertiser limit of 120 per minute; responses with 429 are reported, not
- * retried.
+ * retried. With `TIKTOK_PROBE_RATE` requests start at that fixed rate per second for
+ * `TIKTOK_PROBE_SECONDS`, independent of how fast responses return (open-loop load).
  */
 async function main(): Promise<void> {
   assertMockMode();
   const options = demoOptionsFromEnvironment();
-  const total = boundedInteger('TIKTOK_PROBE_COUNT', 50, 5_000);
+  const rate = process.env.TIKTOK_PROBE_RATE ? boundedInteger('TIKTOK_PROBE_RATE', 20, 500) : 0;
+  const seconds = boundedInteger('TIKTOK_PROBE_SECONDS', 60, 3_600);
+  const total = rate ? rate * seconds : boundedInteger('TIKTOK_PROBE_COUNT', 50, 5_000);
   const concurrency = boundedInteger('TIKTOK_PROBE_CONCURRENCY', 5, 50);
   const latencies: number[] = [];
   const statuses = new Map<number, number>();
-  let next = 0;
+  let failures = 0;
+
+  const send = async (): Promise<void> => {
+    const payload = demoLeadPayload(options.advertiserId, `probe-${randomUUID()}`);
+    const sentAt = performance.now();
+    try {
+      const response = await sendSignedWebhook(options.apiBaseUrl, options.webhookSecret, payload);
+      await response.arrayBuffer();
+      latencies.push(performance.now() - sentAt);
+      statuses.set(response.status, (statuses.get(response.status) ?? 0) + 1);
+    } catch {
+      failures += 1;
+    }
+  };
 
   const startedAt = performance.now();
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, total) }, async () => {
-      while (next < total) {
-        next += 1;
-        const payload = demoLeadPayload(options.advertiserId, `probe-${randomUUID()}`);
-        const sentAt = performance.now();
-        const response = await sendSignedWebhook(
-          options.apiBaseUrl,
-          options.webhookSecret,
-          payload,
-        );
-        await response.arrayBuffer();
-        latencies.push(performance.now() - sentAt);
-        statuses.set(response.status, (statuses.get(response.status) ?? 0) + 1);
-      }
-    }),
-  );
+  if (rate) {
+    const inFlight: Array<Promise<void>> = [];
+    for (let index = 0; index < total; index += 1) {
+      const dueAt = startedAt + (index * 1000) / rate;
+      const wait = dueAt - performance.now();
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+      inFlight.push(send());
+    }
+    await Promise.all(inFlight);
+  } else {
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, total) }, async () => {
+        while (next < total) {
+          next += 1;
+          await send();
+        }
+      }),
+    );
+  }
   const elapsedSeconds = (performance.now() - startedAt) / 1000;
   latencies.sort((left, right) => left - right);
 
@@ -52,7 +71,8 @@ async function main(): Promise<void> {
     JSON.stringify(
       {
         requests: total,
-        concurrency,
+        mode: rate ? `${rate} requests/second for ${seconds}s` : `concurrency ${concurrency}`,
+        transportFailures: failures,
         statuses: Object.fromEntries(statuses),
         requestsPerSecond: Number((total / elapsedSeconds).toFixed(1)),
         latencyMs: {
