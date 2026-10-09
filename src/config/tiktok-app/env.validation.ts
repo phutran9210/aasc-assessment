@@ -35,6 +35,7 @@ const schema = z
       .transform((v) => v === 'true'),
     INTEGRATION_ARTIFACT_DIR: z.string().trim().min(1).default('data/tiktok-artifacts'),
     CORS_ORIGINS: z.string().default('*'),
+    TIKTOK_TRUSTED_PROXIES: z.string().default(''),
   })
   .superRefine((env, context) => {
     if (
@@ -74,6 +75,8 @@ export type TiktokAppConfig = {
   workerEnabled: boolean;
   schedulerEnabled: boolean;
   artifactDir: string;
+  /** Addresses of reverse proxies whose X-Forwarded-For header may be believed. */
+  trustedProxies: string[];
   corsOrigins: string[] | '*';
 };
 
@@ -108,6 +111,9 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     workerEnabled: env.INTEGRATION_WORKER_ENABLED,
     schedulerEnabled: env.INTEGRATION_SCHEDULER_ENABLED,
     artifactDir: env.INTEGRATION_ARTIFACT_DIR,
+    trustedProxies: env.TIKTOK_TRUSTED_PROXIES.split(',')
+      .map((address) => address.trim())
+      .filter(Boolean),
     corsOrigins:
       env.CORS_ORIGINS === '*'
         ? '*'

@@ -9,6 +9,7 @@ import { OperationRunnerService } from '@core/queue/services/operation-runner.se
 import { RecoverySweeperService } from '@core/queue/services/recovery-sweeper.service.js';
 import { OutboxDispatcherService } from '@core/queue/services/outbox-dispatcher.service.js';
 import { WorkerLifecycleService } from '@core/queue/services/worker-lifecycle.service.js';
+import { WorkerHeartbeatService } from '@core/queue/services/worker-heartbeat.service.js';
 import { TiktokDatabaseModule } from './database/database.module.js';
 import { QueueModule } from '@core/queue/queue.module.js';
 import { createTiktokWorkerHandlers } from './worker-handlers.js';
@@ -70,6 +71,7 @@ import {
   NotificationService,
   REPORT_PROVIDERS,
   ReportScheduler,
+  RetentionService,
   SchedulerRegistryService,
 } from '@modules/integration-reports/index.js';
 import type { ScheduledTask } from '@modules/integration-reports/index.js';
@@ -130,13 +132,20 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         ),
     },
     {
+      // Lets API readiness see that this worker is alive.
+      provide: WorkerHeartbeatService,
+      inject: [REDIS_CONNECTION_FACTORY],
+      useFactory: (redis: RedisConnectionFactory) => new WorkerHeartbeatService(redis),
+    },
+    {
       // One registry owns the recurring work; each task is also guarded by its own database lock.
       provide: SchedulerRegistryService,
-      inject: [ReportScheduler, AlertService, ScoreRecomputeService],
+      inject: [ReportScheduler, AlertService, ScoreRecomputeService, RetentionService],
       useFactory: (
         reports: ReportScheduler,
         alerts: AlertService,
         scores: ScoreRecomputeService,
+        retention: RetentionService,
       ) => {
         const tasks: ScheduledTask[] = [
           { name: 'daily-report', intervalMs: 60_000, run: (now) => reports.tick(now) },
@@ -146,6 +155,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
             intervalMs: 24 * 60 * 60 * 1000,
             run: (now) => scores.run(now),
           },
+          { name: 'retention', intervalMs: 24 * 60 * 60 * 1000, run: (now) => retention.run(now) },
         ];
         return new SchedulerRegistryService(tasks, validateTiktokEnv(process.env).schedulerEnabled);
       },

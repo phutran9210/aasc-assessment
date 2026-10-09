@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { mkdirSync } from 'node:fs';
-import { lstat, mkdir, open, readFile, rename, rm, unlink } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, readFile, rename, rm, unlink } from 'node:fs/promises';
 import { extname, join, resolve, sep } from 'node:path';
 
 import {
@@ -94,6 +94,36 @@ export class ArtifactService {
   async purgeJob(jobId: string, area: ArtifactArea = 'exports'): Promise<void> {
     assertUuid(jobId);
     await rm(join(this.root, area, jobId), { recursive: true, force: true });
+  }
+
+  /**
+   * Retention removal of a job directory. A directory that is not a plain directory (for example
+   * a symlink leading out of the artifact root) is left alone and reported as skipped.
+   */
+  async removeJobDirectory(jobId: string, area: ArtifactArea): Promise<'removed' | 'skipped'> {
+    assertUuid(jobId);
+    const directory = join(this.root, area, jobId);
+    const stats = await lstat(directory).catch(() => null);
+    if (!stats) return 'removed';
+    if (!stats.isDirectory() || stats.isSymbolicLink()) return 'skipped';
+    await rm(directory, { recursive: true, force: true });
+    return 'removed';
+  }
+
+  /** Deletes plain files left under `tmp/` by crashed uploads or exports; returns how many. */
+  async sweepTemp(olderThan: Date): Promise<number> {
+    const directory = join(this.root, 'tmp');
+    const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
+    let removed = 0;
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const path = join(directory, entry.name);
+      const stats = await lstat(path).catch(() => null);
+      if (!stats || !stats.isFile() || stats.mtime.getTime() >= olderThan.getTime()) continue;
+      await rm(path, { force: true });
+      removed += 1;
+    }
+    return removed;
   }
 
   /** Reads the stored upload of an import job after checking it still matches its checksum. */

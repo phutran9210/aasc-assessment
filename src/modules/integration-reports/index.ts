@@ -20,3 +20,4 @@ export { ReportScheduler } from './services/report-scheduler.service.js';
 export { SchedulerRegistryService } from './services/scheduler-registry.service.js';
 export type { ScheduledTask } from './services/scheduler-registry.service.js';
 export { NotificationHandler } from './workers/notification.handler.js';
+export { RetentionService } from './services/retention.service.js';

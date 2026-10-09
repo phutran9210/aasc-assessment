@@ -308,3 +308,75 @@ describe('BitrixApiService', () => {
     });
   });
 });
+
+describe('BitrixApiService logging', () => {
+  const WEBHOOK = 'https://portal.bitrix24.com/rest/1/abcdef0123456789/';
+
+  it('sanitizes the upstream reason before it reaches any logger', async () => {
+    const { BITRIX_LOGGER } = await import('../ports/bitrix-logger.port.js');
+    const entries: Array<{ level: string; message: string; detail?: unknown }> = [];
+    const transport = { postRest: jest.fn() };
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        BitrixApiService,
+        { provide: BITRIX_REQUEST_LIMITER, useValue: new BitrixRateLimiter() },
+        { provide: BITRIX_INSTALLATION_STORE, useValue: { findCurrent: jest.fn() } },
+        { provide: BitrixOAuthService, useValue: {} },
+        { provide: BitrixHttpTransport, useValue: transport },
+        { provide: BITRIX_CONFIG, useValue: { webhookUrl: WEBHOOK } },
+        {
+          provide: BITRIX_LOGGER,
+          useValue: {
+            warn: (message: string, detail?: unknown) =>
+              entries.push({ level: 'warn', message, detail }),
+            error: (message: string, detail?: unknown) =>
+              entries.push({ level: 'error', message, detail }),
+          },
+        },
+      ],
+    }).compile();
+    transport.postRest.mockRejectedValue(
+      new BitrixHttpError(
+        `POST ${WEBHOOK}crm.item.add?auth=SECRETAUTH rejected lead person@example.com +84901234567`,
+        'ACCESS_DENIED',
+        403,
+      ),
+    );
+
+    await expect(
+      moduleRef.get(BitrixApiService).callBitrixApi('crm.item.add', {}),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+
+    const logged = JSON.stringify(entries);
+    expect(entries).toEqual([
+      expect.objectContaining({
+        level: 'error',
+        message: 'crm.item.add failed',
+        detail: expect.objectContaining({ errorCode: 'ACCESS_DENIED', status: 403 }),
+      }),
+    ]);
+    for (const secret of ['abcdef0123456789', 'SECRETAUTH', 'person@example.com', '+84901234567']) {
+      expect(logged).not.toContain(secret);
+    }
+  });
+
+  it('falls back to a Nest logger that prints the same sanitized detail', async () => {
+    const { NestBitrixLogger } = await import('../ports/bitrix-logger.port.js');
+    const { Logger } = await import('@nestjs/common');
+    const lines: string[] = [];
+    const spy = jest.spyOn(Logger.prototype, 'error').mockImplementation((line: unknown) => {
+      lines.push(String(line));
+    });
+
+    new NestBitrixLogger('Probe').error('crm.item.get failed', {
+      reason: 'gateway said no',
+      errorCode: 'INTERNAL',
+      status: 502,
+    });
+    spy.mockRestore();
+
+    expect(lines).toEqual([
+      'crm.item.get failed: gateway said no (errorCode=INTERNAL, status=502)',
+    ]);
+  });
+});

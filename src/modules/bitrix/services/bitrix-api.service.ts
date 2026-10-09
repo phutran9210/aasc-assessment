@@ -10,16 +10,20 @@ import {
   HttpStatus,
   Inject,
   Injectable,
-  Logger,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
+
+import { redactText } from '@common/logging/redact.js';
 
 import { BITRIX_RATE_LIMIT } from '../constants/index.js';
 import { BITRIX_MESSAGES } from '../messages/index.js';
 import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
 import { BITRIX_INSTALLATION_STORE } from '../ports/bitrix-installation-store.port.js';
 import type { BitrixInstallationStore } from '../ports/bitrix-installation-store.port.js';
+import { BITRIX_LOGGER, NestBitrixLogger } from '../ports/bitrix-logger.port.js';
+import type { BitrixLogger } from '../ports/bitrix-logger.port.js';
 import { BITRIX_REQUEST_LIMITER } from '../ports/bitrix-request-limiter.port.js';
 import type { BitrixRequestLimiter } from '../ports/bitrix-request-limiter.port.js';
 import type { BitrixCallOptions, BitrixResult } from '../types/bitrix-api.types.js';
@@ -34,7 +38,7 @@ import { BitrixOAuthService } from './bitrix-oauth.service.js';
 /** Generic gateway to the Bitrix24 REST API used by the feature modules. */
 @Injectable()
 export class BitrixApiService {
-  private readonly logger = new Logger(BitrixApiService.name);
+  private readonly logger: BitrixLogger;
 
   constructor(
     @Inject(BITRIX_INSTALLATION_STORE)
@@ -43,7 +47,10 @@ export class BitrixApiService {
     private readonly transport: BitrixHttpTransport,
     @Inject(BITRIX_REQUEST_LIMITER) private readonly rateLimiter: BitrixRequestLimiter,
     @Inject(BITRIX_CONFIG) private readonly config: Pick<BitrixConfig, 'webhookUrl'>,
-  ) {}
+    @Optional() @Inject(BITRIX_LOGGER) logger?: BitrixLogger,
+  ) {
+    this.logger = logger ?? new NestBitrixLogger(BitrixApiService.name);
+  }
 
   /** `webhook` when BITRIX24_WEBHOOK_URL is set, otherwise the installed OAuth application. */
   get mode(): 'webhook' | 'oauth' {
@@ -161,8 +168,9 @@ export class BitrixApiService {
           : backoffDelayMs(attempt, BITRIX_RATE_LIMIT.BASE_DELAY_MS);
         this.logger.warn(
           limited
-            ? `${method} rate limited by Bitrix24, retrying in ${delayMs}ms`
-            : `${method} failed temporarily, retrying in ${delayMs}ms`,
+            ? `${method} rate limited by Bitrix24, retrying`
+            : `${method} failed temporarily, retrying`,
+          { delayMs },
         );
         await sleep(delayMs);
       }
@@ -204,22 +212,27 @@ export class BitrixApiService {
     // Already an HTTP error of ours (gateway errors, 429 from the rate limiter).
     if (error instanceof HttpException) return error;
     if (this.isRateLimited(error)) {
-      this.logger.error(`${method} failed: Bitrix24 rate limit still exceeded after retries`);
+      this.logger.error(`${method} failed`, {
+        reason: 'Bitrix24 rate limit still exceeded after retries',
+      });
       return new HttpException(BITRIX_MESSAGES.ERROR.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS);
     }
     // crm.item.get/update/delete answer NOT_FOUND for a missing item instead of an empty result.
     if (error instanceof BitrixHttpError && error.code === 'NOT_FOUND') {
       return new NotFoundException(BITRIX_MESSAGES.ERROR.NOT_FOUND);
     }
-    // Log the upstream reason; the client only receives a generic gateway error.
+    // Log the upstream reason, scrubbed here so no logger behind the port ever sees a credential
+    // or contact detail; the client only receives a generic gateway error.
     if (error instanceof BitrixHttpError) {
-      this.logger.error(
-        `${method} failed: ${error.message} (code=${error.code ?? '-'}, status=${error.status ?? '-'})`,
-      );
+      this.logger.error(`${method} failed`, {
+        reason: redactText(error.message),
+        errorCode: error.code ?? undefined,
+        status: error.status ?? undefined,
+      });
     } else {
-      this.logger.error(
-        `${method} failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      this.logger.error(`${method} failed`, {
+        reason: redactText(error instanceof Error ? error.message : String(error)),
+      });
     }
     if (error instanceof BitrixHttpError && error.timeout) {
       return new GatewayTimeoutException(BITRIX_MESSAGES.ERROR.TIMEOUT);

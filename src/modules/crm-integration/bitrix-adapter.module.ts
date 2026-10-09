@@ -21,7 +21,9 @@ import {
   RedisBitrixLimiter,
   type RedisBitrixLimiterOptions,
 } from './gateways/redis-bitrix-limiter.js';
+import { RedactedBitrixLogger } from './gateways/redacted-bitrix-logger.js';
 import { RedisOAuthStateStore } from './gateways/redis-oauth-state-store.js';
+import { BITRIX_LOGGER } from '@modules/bitrix/ports/bitrix-logger.port.js';
 import { PostgresBitrixInstallationRepository } from './repositories/postgres-bitrix-installation.repository.js';
 import { IntegrationAuthModule } from '@modules/integration-auth/index.js';
 import { BITRIX_ADAPTER_CONFIG, BITRIX_REDIS_CLIENT } from './tokens.js';
@@ -36,6 +38,7 @@ export type BitrixAdapterConfig = {
 export function createBitrixAdapterProviders(config: BitrixAdapterConfig): Provider[] {
   return [
     { provide: BITRIX_CONFIG, useValue: config.bitrix },
+    { provide: BITRIX_LOGGER, useFactory: () => new RedactedBitrixLogger() },
     {
       provide: BITRIX_REDIS_CLIENT,
       inject: [REDIS_CONNECTION_FACTORY],

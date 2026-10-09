@@ -4,6 +4,8 @@ import type { OnApplicationShutdown } from '@nestjs/common';
 
 export class RedisConnectionFactory implements OnApplicationShutdown {
   private readonly clients = new Set<Redis>();
+  private sharedClient?: Redis;
+  private sharedConnecting?: Promise<void>;
 
   constructor(
     private readonly url: string,
@@ -29,6 +31,25 @@ export class RedisConnectionFactory implements OnApplicationShutdown {
     });
   }
 
+  /**
+   * One lazily connected client for short commands (cache, limits, heartbeats). Concurrent callers
+   * join the same connection attempt, and a failed attempt is retried on the next call.
+   */
+  async shared(): Promise<Redis> {
+    if (this.sharedClient?.status === 'end') this.sharedClient = undefined;
+    this.sharedClient ??= this.producer();
+    const client = this.sharedClient;
+    if (client.status === 'ready') return client;
+    if (!this.sharedConnecting) {
+      if (client.status !== 'wait') throw new Error('Redis is not connected');
+      this.sharedConnecting = client.connect().finally(() => {
+        this.sharedConnecting = undefined;
+      });
+    }
+    await this.sharedConnecting;
+    return client;
+  }
+
   async closeAll(): Promise<void> {
     await Promise.all(
       [...this.clients].map(async (client) => {
@@ -44,6 +65,7 @@ export class RedisConnectionFactory implements OnApplicationShutdown {
       }),
     );
     this.clients.clear();
+    this.sharedClient = undefined;
   }
 
   onApplicationShutdown(): Promise<void> {

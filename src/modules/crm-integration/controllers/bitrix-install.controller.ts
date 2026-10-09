@@ -17,6 +17,7 @@ import {
   IntegrationRolesGuard,
   Roles,
 } from '@modules/integration-auth/index.js';
+import { IngressRateLimitGuard } from '@core/queue/guards/ingress-rate-limit.guard.js';
 
 @Controller('install')
 export class TiktokBitrixInstallController {
@@ -41,6 +42,7 @@ export class TiktokBitrixInstallController {
 
   @Post()
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IngressRateLimitGuard)
   async install(@Body() body: Record<string, unknown>): Promise<{ status: string }> {
     await this.oauthService.install(body);
     return { status: 'ok' };

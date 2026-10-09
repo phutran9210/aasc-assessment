@@ -29,6 +29,7 @@ import { AlertService } from './services/alert.service.js';
 import { BITRIX_NOTIFIER, NotificationService } from './services/notification.service.js';
 import type { BitrixNotifier } from './services/notification.service.js';
 import { ReportScheduler } from './services/report-scheduler.service.js';
+import { RetentionService } from './services/retention.service.js';
 import { NotificationHandler } from './workers/notification.handler.js';
 import { ImportHandler } from './workers/import.handler.js';
 import { ExportRepository } from './repositories/export.repository.js';
@@ -142,6 +143,15 @@ export const REPORT_PROVIDERS: Provider[] = [
       outbox: OutboxRepository,
       configurations: ConfigurationRepository,
     ) => new ReportScheduler(dataSource, jobs, operations, outbox, configurations, exportScope()),
+  },
+  {
+    provide: RetentionService,
+    inject: [getDataSourceToken('tiktok'), ArtifactService, NotificationService],
+    useFactory: (
+      dataSource: DataSource,
+      artifacts: ArtifactService,
+      notifications: NotificationService,
+    ) => new RetentionService(dataSource, artifacts, notifications),
   },
   {
     provide: AlertService,
@@ -276,6 +286,7 @@ export const REPORT_PROVIDERS: Provider[] = [
     NotificationHandler,
     ReportScheduler,
     AlertService,
+    RetentionService,
   ],
 })
 export class IntegrationReportsModule {}

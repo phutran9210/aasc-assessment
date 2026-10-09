@@ -1,4 +1,6 @@
-import { Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import { Controller, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+
+import { IngressRateLimitGuard } from '@core/queue/guards/ingress-rate-limit.guard.js';
 import { BitrixDealInbox } from '../services/bitrix-deal-inbox.service.js';
 import type { RawRequest } from '../types/raw-request.type.js';
 
@@ -8,6 +10,7 @@ export class BitrixDealWebhookController {
 
   @Post()
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IngressRateLimitGuard)
   receive(@Req() request: RawRequest) {
     return this.inbox.receive(request.rawBody ?? request.body, request.headers);
   }

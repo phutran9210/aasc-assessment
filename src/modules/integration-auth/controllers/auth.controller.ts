@@ -6,10 +6,12 @@ import {
   HttpStatus,
   Ip,
   Post,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 
+import { IngressRateLimitGuard } from '@core/queue/guards/ingress-rate-limit.guard.js';
 import { IntegrationAuthService } from '../services/integration-auth.service.js';
 import { LoginDto } from '../dto/login.dto.js';
 
@@ -19,6 +21,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(IngressRateLimitGuard)
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true }))
   login(@Body() credentials: LoginDto, @Ip() ipAddress: string) {
     return this.auth.login(credentials, ipAddress);

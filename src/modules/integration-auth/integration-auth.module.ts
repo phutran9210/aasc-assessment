@@ -15,6 +15,9 @@ import { INTEGRATION_AUTH_CONFIG } from './constants/index.js';
 import { SessionService } from './services/session.service.js';
 import { IntegrationJwtGuard } from './guards/integration-jwt.guard.js';
 import { IntegrationRolesGuard } from './guards/roles.guard.js';
+import { IntegrationRateLimitGuard } from './guards/integration-rate-limit.guard.js';
+import { LOCAL_RATE_LIMITER, RATE_LIMITER } from '@core/queue/services/rate-limiter.service.js';
+import type { LocalRateLimiter, RateLimiter } from '@core/queue/services/rate-limiter.service.js';
 
 @Module({
   imports: [
@@ -57,6 +60,12 @@ import { IntegrationRolesGuard } from './guards/roles.guard.js';
         new SessionService(factory.producer(), config.queuePrefix),
     },
     IntegrationAuthService,
+    {
+      provide: IntegrationRateLimitGuard,
+      inject: [RATE_LIMITER, LOCAL_RATE_LIMITER],
+      useFactory: (limiter: RateLimiter, local: LocalRateLimiter) =>
+        new IntegrationRateLimitGuard(limiter, local),
+    },
     IntegrationJwtGuard,
     IntegrationRolesGuard,
   ],
@@ -64,6 +73,7 @@ import { IntegrationRolesGuard } from './guards/roles.guard.js';
     IntegrationAuthService,
     IntegrationJwtGuard,
     IntegrationRolesGuard,
+    IntegrationRateLimitGuard,
     IntegrationUserRepository,
     SessionService,
   ],
