@@ -55,6 +55,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cron": "4.4.0",
+    "decimal.js": "^10.6.0",
     "helmet": "^8.3.0",
     "ioredis": "^5.11.1",
     "libphonenumber-js": "^1.13.14",
