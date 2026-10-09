@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 
-import { BitrixOAuthService } from '@modules/bitrix/index.js';
+import { BitrixOAuthService } from '@modules/bitrix/services/bitrix-oauth.service.js';
 import {
   IntegrationJwtGuard,
   IntegrationRolesGuard,
