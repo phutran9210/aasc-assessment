@@ -18,7 +18,7 @@ import { SubmissionRepository } from '../repositories/submission.repository.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { normalizeLead } from '../domain/normalize-lead.js';
 import { mergeLead } from '../domain/merge-lead.js';
-import { scoreLead } from '../domain/lead-score.js';
+import { scoreInputFromSubmissions, scoreLead } from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
@@ -444,24 +444,7 @@ export class LeadIngestService {
   ): Promise<void> {
     const submissions = await this.submissions.findForLead(lead.id, manager);
     const score = scoreLead(
-      {
-        email: lead.email,
-        phone_e164: lead.phone,
-        form_complete: submissions.some((item) => item.engagement.event === 'form_complete'),
-        interactions: submissions.flatMap((item) =>
-          typeof item.engagement.event === 'string' && item.engagement.event !== 'form_complete'
-            ? [
-                {
-                  event_id: item.eventId,
-                  occurred_at: item.occurredAt.toISOString(),
-                  event: item.engagement.event,
-                },
-              ]
-            : [],
-        ),
-        budget_match: false,
-        timeline_match: false,
-      },
+      scoreInputFromSubmissions(lead, submissions),
       await this.scorePolicy(manager, context.revisions.rules ?? 0),
       new Date().toISOString(),
     );

@@ -10,6 +10,37 @@ const DEFAULT_INTERACTION_ALLOWLIST = [
   'share',
 ];
 
+type ScoredSubmission = {
+  eventId: string;
+  occurredAt: Date;
+  engagement: Record<string, unknown>;
+};
+
+/** Builds the score input of a lead from its stored submissions and interaction events. */
+export function scoreInputFromSubmissions(
+  lead: { email: string | null; phone: string | null },
+  submissions: readonly ScoredSubmission[],
+): ScoreInput {
+  return {
+    email: lead.email,
+    phone_e164: lead.phone,
+    form_complete: submissions.some((item) => item.engagement.event === 'form_complete'),
+    interactions: submissions.flatMap((item) =>
+      typeof item.engagement.event === 'string' && item.engagement.event !== 'form_complete'
+        ? [
+            {
+              event_id: item.eventId,
+              occurred_at: item.occurredAt.toISOString(),
+              event: item.engagement.event,
+            },
+          ]
+        : [],
+    ),
+    budget_match: false,
+    timeline_match: false,
+  };
+}
+
 export function scoreLead(input: ScoreInput, policy: ScorePolicy, now: string): ScoreResult {
   const evaluatedAt = new Date(now);
   if (Number.isNaN(evaluatedAt.getTime())) throw new RangeError('Invalid scoring timestamp');

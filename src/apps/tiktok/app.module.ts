@@ -6,6 +6,7 @@ import { TiktokHealthModule } from './health/health.module.js';
 import { TiktokRedisModule } from '@core/queue/redis.module.js';
 import { IntegrationAuthModule } from '@modules/integration-auth/index.js';
 import { TiktokModule } from '@modules/tiktok/tiktok.module.js';
+import { IntegrationAnalyticsModule } from '@modules/integration-analytics/index.js';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { TiktokModule } from '@modules/tiktok/tiktok.module.js';
     IntegrationAuthModule,
     TiktokHealthModule,
     TiktokModule,
+    IntegrationAnalyticsModule,
   ],
 })
 export class TiktokAppModule {}

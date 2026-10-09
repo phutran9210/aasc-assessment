@@ -53,7 +53,12 @@ import { FeedbackHandler } from '@modules/tiktok/workers/feedback.handler.js';
 import { TIKTOK_FEEDBACK_PROVIDER } from '@modules/tiktok/ports/tiktok-feedback-provider.port.js';
 import type { TiktokFeedbackProvider } from '@modules/tiktok/types/index.js';
 import { MockTiktokAdapter } from '@modules/tiktok/adapters/mock-tiktok.adapter.js';
-import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
+import {
+  AnalyticsRepository,
+  AnalyticsRevisionRepository,
+  ScoreRecomputeSchedulerService,
+  ScoreRecomputeService,
+} from '@modules/integration-analytics/index.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
@@ -64,6 +69,50 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
     LeadIdentityRepository,
     SubmissionRepository,
     AnalyticsRevisionRepository,
+    {
+      provide: AnalyticsRepository,
+      inject: [getDataSourceToken('tiktok')],
+      useFactory: (dataSource: DataSource) => new AnalyticsRepository(dataSource),
+    },
+    {
+      provide: ScoreRecomputeService,
+      inject: [
+        getDataSourceToken('tiktok'),
+        AnalyticsRepository,
+        LeadRepository,
+        SubmissionRepository,
+        ConfigurationRepository,
+        OperationRepository,
+        OutboxRepository,
+        AnalyticsRevisionRepository,
+      ],
+      useFactory: (
+        dataSource: DataSource,
+        analytics: AnalyticsRepository,
+        leads: LeadRepository,
+        submissions: SubmissionRepository,
+        configurations: ConfigurationRepository,
+        operations: OperationRepository,
+        outbox: OutboxRepository,
+        revisions: AnalyticsRevisionRepository,
+      ) =>
+        new ScoreRecomputeService(
+          dataSource,
+          analytics,
+          leads,
+          submissions,
+          configurations,
+          operations,
+          outbox,
+          revisions,
+        ),
+    },
+    {
+      provide: ScoreRecomputeSchedulerService,
+      inject: [ScoreRecomputeService],
+      useFactory: (recompute: ScoreRecomputeService) =>
+        new ScoreRecomputeSchedulerService(recompute),
+    },
     AssignmentCursorRepository,
     AssignmentService,
     DealRepository,

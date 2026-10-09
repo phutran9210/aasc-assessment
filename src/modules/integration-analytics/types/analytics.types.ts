@@ -86,3 +86,90 @@ export type CampaignCostGroup = {
   sources: CampaignCostSource[];
   fetchedAt: IsoInstant | null;
 };
+
+export type AnalyticsScope = {
+  advertiserId: string;
+  portalKey: string;
+  tiktokMode: 'mock' | 'business-api';
+  bitrixMode: 'mock' | 'real';
+  /** Advertiser timezone that daily cost rows are reported in. */
+  reportTimezone: string;
+};
+
+export type ConversionRatesQuery = PeriodQuery & { campaignId?: string };
+
+export type CampaignPerformanceQuery = PeriodQuery & {
+  campaignId?: string;
+  currency?: string;
+  page: number;
+  limit: number;
+};
+
+export type RateNullReason = 'zero_leads' | 'zero_converted_leads';
+
+export type CohortCounts = {
+  leads: number;
+  submissions: number;
+  convertedLeads: number;
+  wonLeads: number;
+  everWonLeads: number;
+  openDeals: number;
+  lostDeals: number;
+  deletedDeals: number;
+};
+
+export type CohortRates = {
+  leadToDealRate: DecimalString | null;
+  leadToWonRate: DecimalString | null;
+  dealToWonRate: DecimalString | null;
+  reasons: Partial<Record<'leadToDealRate' | 'leadToWonRate' | 'dealToWonRate', RateNullReason>>;
+};
+
+export type ReportMeta = {
+  period: { from: IsoInstant; to: IsoInstant; timezone: string };
+  generatedAt: IsoInstant;
+  /** Instant of the single database snapshot every figure of the response was read from. */
+  dataAsOf: IsoInstant;
+  attributionModel: 'first_touch';
+  revenueBasis: 'cohort_to_date';
+  providerMode: { tiktok: AnalyticsScope['tiktokMode']; bitrix: AnalyticsScope['bitrixMode'] };
+  revision: string;
+  /** True while work accepted more than 30 seconds before `dataAsOf` is still unprocessed. */
+  stale: boolean;
+  oldestPendingAt: IsoInstant | null;
+};
+
+export type ConversionMetrics = ReportMeta &
+  CohortCounts &
+  CohortRates & { campaignId: string | null };
+
+export type CampaignFinancials = FinancialMetrics & {
+  currency: string | null;
+  impressions: string | null;
+  clicks: string | null;
+  coveredDays: number;
+  requestedDays: number;
+  sources: CampaignCostSource[];
+  costFetchedAt: IsoInstant | null;
+};
+
+export type CampaignMetrics = CohortCounts &
+  CohortRates & {
+    campaignId: string;
+    /** Average lead score of the cohort, null when the campaign has no lead in the period. */
+    qualityScore: DecimalString | null;
+    spendComplete: boolean;
+    revenueComplete: boolean;
+    /** Won deals of the cohort without an amount or currency; they make revenue incomplete. */
+    missingAmountDeals: number;
+    financials: CampaignFinancials[];
+  };
+
+export type CampaignPerformance = ReportMeta & {
+  items: CampaignMetrics[];
+  total: number;
+  page: number;
+  limit: number;
+  /** Leads of the period without a first-touch campaign; they appear in no campaign row. */
+  unattributedLeads: number;
+};
