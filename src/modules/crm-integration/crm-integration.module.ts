@@ -318,7 +318,8 @@ export class CrmIntegrationModule {
         ...(options.providers ?? []),
       ],
       exports: [
-        ConfigurationRepository,
+        // Nest only re-exports another module's providers through the module itself.
+        ConfigurationPersistenceModule,
         ConfigurationService,
         CRM_GATEWAY,
         ConversionService,
