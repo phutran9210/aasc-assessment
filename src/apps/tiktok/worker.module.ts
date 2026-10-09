@@ -58,15 +58,21 @@ import {
   AnalyticsRevisionRepository,
   CampaignCostRepository,
   CampaignCostService,
-  ScoreRecomputeSchedulerService,
   ScoreRecomputeService,
 } from '@modules/integration-analytics/index.js';
 
 import {
+  AlertService,
+  ConversionNotificationListener,
   ExportHandler,
   ImportHandler,
+  NotificationHandler,
+  NotificationService,
   REPORT_PROVIDERS,
+  ReportScheduler,
+  SchedulerRegistryService,
 } from '@modules/integration-reports/index.js';
+import type { ScheduledTask } from '@modules/integration-reports/index.js';
 
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
@@ -124,10 +130,25 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         ),
     },
     {
-      provide: ScoreRecomputeSchedulerService,
-      inject: [ScoreRecomputeService],
-      useFactory: (recompute: ScoreRecomputeService) =>
-        new ScoreRecomputeSchedulerService(recompute),
+      // One registry owns the recurring work; each task is also guarded by its own database lock.
+      provide: SchedulerRegistryService,
+      inject: [ReportScheduler, AlertService, ScoreRecomputeService],
+      useFactory: (
+        reports: ReportScheduler,
+        alerts: AlertService,
+        scores: ScoreRecomputeService,
+      ) => {
+        const tasks: ScheduledTask[] = [
+          { name: 'daily-report', intervalMs: 60_000, run: (now) => reports.tick(now) },
+          { name: 'alerts', intervalMs: 60_000, run: (now) => alerts.evaluate(now) },
+          {
+            name: 'score-recompute',
+            intervalMs: 24 * 60 * 60 * 1000,
+            run: (now) => scores.run(now),
+          },
+        ];
+        return new SchedulerRegistryService(tasks, validateTiktokEnv(process.env).schedulerEnabled);
+      },
     },
     AssignmentCursorRepository,
     AssignmentService,
@@ -233,7 +254,13 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         ),
     },
     FeedbackRepository,
-    { provide: CONVERSION_FEEDBACK, useExisting: ConversionFeedbackService },
+    {
+      // Operators are notified of conversion milestones next to the TikTok feedback schedule.
+      provide: CONVERSION_FEEDBACK,
+      inject: [NotificationService, ConversionFeedbackService],
+      useFactory: (notifications: NotificationService, feedback: ConversionFeedbackService) =>
+        new ConversionNotificationListener(notifications, feedback),
+    },
     FeedbackHandler,
     WebhookEventRepository,
     RemoteReconciliationService,
@@ -425,6 +452,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         FeedbackHandler,
         ExportHandler,
         ImportHandler,
+        NotificationHandler,
       ],
       useFactory: createTiktokWorkerHandlers,
     },

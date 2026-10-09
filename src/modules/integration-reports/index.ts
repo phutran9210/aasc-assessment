@@ -9,3 +9,14 @@ export { ReportRowErrorRepository } from './repositories/report-row-error.reposi
 export { CampaignCostImportService } from './services/campaign-cost-import.service.js';
 export { LeadImportService } from './services/lead-import.service.js';
 export { ImportHandler } from './workers/import.handler.js';
+export { NotificationRepository } from './repositories/notification.repository.js';
+export { AlertService } from './services/alert.service.js';
+export {
+  BITRIX_NOTIFIER,
+  ConversionNotificationListener,
+  NotificationService,
+} from './services/notification.service.js';
+export { ReportScheduler } from './services/report-scheduler.service.js';
+export { SchedulerRegistryService } from './services/scheduler-registry.service.js';
+export type { ScheduledTask } from './services/scheduler-registry.service.js';
+export { NotificationHandler } from './workers/notification.handler.js';

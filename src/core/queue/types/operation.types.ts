@@ -23,6 +23,7 @@ export type OperationPayload = {
   dealId?: UUID;
   remoteId?: string;
   reportJobId?: UUID;
+  notificationId?: UUID;
   sourceOperationId?: UUID;
   timelineId?: UUID;
   reconciliationAttempt?: number;

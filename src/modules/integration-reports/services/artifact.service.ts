@@ -182,11 +182,15 @@ export class ArtifactService {
   }
 }
 
-/** Owner or administrator; anyone else learns nothing beyond the refusal. */
+/**
+ * A job belongs to its requester; administrators may read any job. A scheduled report has no
+ * requester and is addressed to operators.
+ */
 export function assertJobAccess(job: ReportJobEntity, actor: Actor): void {
-  if (job.requesterId !== actor.sub && !actor.roles.includes('integration_admin')) {
-    throw new ForbiddenException('Report job belongs to another user');
-  }
+  if (actor.roles.includes('integration_admin')) return;
+  if (job.requesterId !== null && job.requesterId === actor.sub) return;
+  if (job.kind === 'scheduled' && actor.roles.includes('integration_operator')) return;
+  throw new ForbiddenException('Report job belongs to another user');
 }
 
 function assertUuid(value: string): void {

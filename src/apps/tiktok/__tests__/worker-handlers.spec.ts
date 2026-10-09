@@ -12,6 +12,7 @@ describe('TikTok worker handlers', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     expect([...handlers.keys()].sort()).toEqual([...TIKTOK_WORKER_OPERATION_KINDS].sort());
@@ -26,6 +27,8 @@ describe('TikTok worker handlers', () => {
         OPERATION_KINDS.integrationReport,
         OPERATION_KINDS.historicalLeadImport,
         OPERATION_KINDS.campaignCostImport,
+        OPERATION_KINDS.integrationNotification,
+        OPERATION_KINDS.integrationDlq,
       ]),
     );
     expect(new Set(TIKTOK_WORKER_OPERATION_KINDS).size).toBe(TIKTOK_WORKER_OPERATION_KINDS.length);

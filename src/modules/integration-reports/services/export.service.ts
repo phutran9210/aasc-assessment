@@ -32,6 +32,7 @@ import type {
 } from '../types/report.types.js';
 import { ArtifactService, assertJobAccess } from './artifact.service.js';
 import { createExportWriter } from './export-writers.js';
+import type { NotificationService } from './notification.service.js';
 
 export const SYNC_EXPORT_ROW_LIMIT = 10_000;
 export const ASYNC_EXPORT_ROW_LIMIT = 100_000;
@@ -73,6 +74,7 @@ export class ExportService {
     private readonly outbox: OutboxRepository,
     private readonly scope: ExportScope,
     options: ExportServiceOptions = {},
+    private readonly notifications?: Pick<NotificationService, 'ensure'>,
   ) {
     this.syncLimit = options.syncLimit ?? SYNC_EXPORT_ROW_LIMIT;
     this.asyncLimit = options.asyncLimit ?? ASYNC_EXPORT_ROW_LIMIT;
@@ -164,7 +166,7 @@ export class ExportService {
    */
   async execute(jobId: string, context: OperationContext): Promise<OperationOutcome> {
     const job = await this.jobs.findById(jobId);
-    if (!job || job.kind !== 'export') {
+    if (!job || (job.kind !== 'export' && job.kind !== 'scheduled')) {
       return { outcome: 'quarantined', errorCode: 'REPORT_JOB_NOT_FOUND' };
     }
     if (job.status === 'completed') return { outcome: 'succeeded' };
@@ -185,12 +187,34 @@ export class ExportService {
       );
       await context.assertOwnership?.();
       const artifact = await this.artifacts.finalize(tempPath, jobId);
-      await this.jobs.complete(jobId, {
-        artifactPath: artifact.path,
-        artifactHash: artifact.hash,
-        totalRows: written.rowCount,
-        snapshotAt: written.snapshotAt,
-        expiresAt: new Date(Date.now() + EXPORT_ARTIFACT_TTL_MS),
+      await this.dataSource.transaction(async (tx) => {
+        await this.jobs.complete(
+          jobId,
+          {
+            artifactPath: artifact.path,
+            artifactHash: artifact.hash,
+            totalRows: written.rowCount,
+            snapshotAt: written.snapshotAt,
+            expiresAt: new Date(Date.now() + EXPORT_ARTIFACT_TTL_MS),
+          },
+          tx,
+        );
+        if (job.kind !== 'scheduled') return;
+        // The link is announced in the transaction that makes the artifact downloadable.
+        await this.notifications?.ensure(
+          {
+            dedupKey: `report-ready/${jobId}`,
+            type: 'report.ready',
+            payload: {
+              jobId,
+              reportType: job.filters.reportType,
+              period: job.filters.period,
+              rows: written.rowCount,
+              link: `/api/v1/reports/jobs/${jobId}/download`,
+            },
+          },
+          tx,
+        );
       });
       return { outcome: 'succeeded' };
     } catch (error) {

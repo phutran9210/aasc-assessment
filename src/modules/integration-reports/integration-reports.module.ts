@@ -18,17 +18,34 @@ import { LeadIngestService } from '@modules/crm-integration/services/lead-ingest
 import { IntegrationAnalyticsModule } from '@modules/integration-analytics/integration-analytics.module.js';
 import { CampaignCostService } from '@modules/integration-analytics/services/campaign-cost.service.js';
 import { ImportsController } from './controllers/imports.controller.js';
+import { NotificationsController } from './controllers/notifications.controller.js';
 import { ReportsController } from './controllers/reports.controller.js';
+import { NotificationRepository } from './repositories/notification.repository.js';
 import { ReportRowErrorRepository } from './repositories/report-row-error.repository.js';
 import { CampaignCostImportService } from './services/campaign-cost-import.service.js';
 import { ImportJobSupport } from './services/import-job.support.js';
 import { LeadImportService } from './services/lead-import.service.js';
+import { AlertService } from './services/alert.service.js';
+import { BITRIX_NOTIFIER, NotificationService } from './services/notification.service.js';
+import type { BitrixNotifier } from './services/notification.service.js';
+import { ReportScheduler } from './services/report-scheduler.service.js';
+import { NotificationHandler } from './workers/notification.handler.js';
 import { ImportHandler } from './workers/import.handler.js';
 import { ExportRepository } from './repositories/export.repository.js';
 import { ReportJobRepository } from './repositories/report-job.repository.js';
 import { ArtifactService } from './services/artifact.service.js';
 import { ExportService } from './services/export.service.js';
 import { ExportHandler } from './workers/export.handler.js';
+
+function exportScope() {
+  const config = validateTiktokEnv(process.env);
+  return {
+    advertiserId: config.advertiserId,
+    tiktokMode: config.tiktokMode,
+    bitrixMode: config.bitrixMode,
+    reportTimezone: config.reportTimezone,
+  };
+}
 
 /** Report providers shared by the API and the worker composition roots. */
 export const REPORT_PROVIDERS: Provider[] = [
@@ -57,6 +74,7 @@ export const REPORT_PROVIDERS: Provider[] = [
       ArtifactService,
       OperationRepository,
       OutboxRepository,
+      NotificationService,
     ],
     useFactory: (
       dataSource: DataSource,
@@ -65,15 +83,77 @@ export const REPORT_PROVIDERS: Provider[] = [
       artifacts: ArtifactService,
       operations: OperationRepository,
       outbox: OutboxRepository,
-    ) => {
-      const config = validateTiktokEnv(process.env);
-      return new ExportService(dataSource, exports, jobs, artifacts, operations, outbox, {
-        advertiserId: config.advertiserId,
-        tiktokMode: config.tiktokMode,
-        bitrixMode: config.bitrixMode,
-        reportTimezone: config.reportTimezone,
-      });
-    },
+      notifications: NotificationService,
+    ) =>
+      new ExportService(
+        dataSource,
+        exports,
+        jobs,
+        artifacts,
+        operations,
+        outbox,
+        exportScope(),
+        {},
+        notifications,
+      ),
+  },
+  {
+    provide: NotificationRepository,
+    inject: [getDataSourceToken('tiktok')],
+    useFactory: (dataSource: DataSource) => new NotificationRepository(dataSource),
+  },
+  {
+    provide: NotificationService,
+    inject: [
+      getDataSourceToken('tiktok'),
+      NotificationRepository,
+      OperationRepository,
+      OutboxRepository,
+      // The Bitrix channel exists only where a composition root provides a notifier.
+      { token: BITRIX_NOTIFIER, optional: true },
+    ],
+    useFactory: (
+      dataSource: DataSource,
+      notifications: NotificationRepository,
+      operations: OperationRepository,
+      outbox: OutboxRepository,
+      bitrix?: BitrixNotifier,
+    ) => new NotificationService(dataSource, notifications, operations, outbox, bitrix),
+  },
+  {
+    provide: NotificationHandler,
+    inject: [getDataSourceToken('tiktok'), NotificationService],
+    useFactory: (dataSource: DataSource, notifications: NotificationService) =>
+      new NotificationHandler(dataSource, notifications),
+  },
+  {
+    provide: ReportScheduler,
+    inject: [
+      getDataSourceToken('tiktok'),
+      ReportJobRepository,
+      OperationRepository,
+      OutboxRepository,
+      ConfigurationRepository,
+    ],
+    useFactory: (
+      dataSource: DataSource,
+      jobs: ReportJobRepository,
+      operations: OperationRepository,
+      outbox: OutboxRepository,
+      configurations: ConfigurationRepository,
+    ) => new ReportScheduler(dataSource, jobs, operations, outbox, configurations, exportScope()),
+  },
+  {
+    provide: AlertService,
+    inject: [getDataSourceToken('tiktok'), NotificationService, NotificationRepository],
+    useFactory: (
+      dataSource: DataSource,
+      notifications: NotificationService,
+      rows: NotificationRepository,
+    ) =>
+      new AlertService(dataSource, notifications, rows, {
+        advertiserId: validateTiktokEnv(process.env).advertiserId,
+      }),
   },
   LeadIdentityRepository,
   AuditEventRepository,
@@ -181,7 +261,7 @@ export const REPORT_PROVIDERS: Provider[] = [
     ConfigurationPersistenceModule,
     IntegrationAnalyticsModule,
   ],
-  controllers: [ReportsController, ImportsController],
+  controllers: [ReportsController, ImportsController, NotificationsController],
   providers: [...REPORT_PROVIDERS],
   exports: [
     ReportJobRepository,
@@ -192,6 +272,10 @@ export const REPORT_PROVIDERS: Provider[] = [
     LeadImportService,
     CampaignCostImportService,
     ImportHandler,
+    NotificationService,
+    NotificationHandler,
+    ReportScheduler,
+    AlertService,
   ],
 })
 export class IntegrationReportsModule {}
