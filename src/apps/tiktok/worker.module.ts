@@ -60,11 +60,14 @@ import {
   ScoreRecomputeService,
 } from '@modules/integration-analytics/index.js';
 
+import { ExportHandler, REPORT_PROVIDERS } from '@modules/integration-reports/index.js';
+
 export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
 
 @Module({
   imports: [TiktokDatabaseModule, QueueModule, workerBitrixAdapter()],
   providers: [
+    ...REPORT_PROVIDERS,
     LeadRepository,
     LeadIdentityRepository,
     SubmissionRepository,
@@ -407,6 +410,7 @@ export const TIKTOK_OPERATION_HANDLERS = Symbol('TIKTOK_OPERATION_HANDLERS');
         ConversionHandler,
         DealRefreshHandler,
         FeedbackHandler,
+        ExportHandler,
       ],
       useFactory: createTiktokWorkerHandlers,
     },

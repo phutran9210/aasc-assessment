@@ -10,6 +10,7 @@ describe('TikTok worker handlers', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
     );
 
     expect([...handlers.keys()].sort()).toEqual([...TIKTOK_WORKER_OPERATION_KINDS].sort());
@@ -21,6 +22,7 @@ describe('TikTok worker handlers', () => {
         OPERATION_KINDS.bitrixDealConvert,
         OPERATION_KINDS.bitrixDealRefresh,
         OPERATION_KINDS.tiktokFeedback,
+        OPERATION_KINDS.integrationReport,
       ]),
     );
     expect(new Set(TIKTOK_WORKER_OPERATION_KINDS).size).toBe(TIKTOK_WORKER_OPERATION_KINDS.length);
