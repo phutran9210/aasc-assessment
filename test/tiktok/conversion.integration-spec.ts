@@ -9,6 +9,8 @@ import { BITRIX_REQUEST_LIMITER } from '@modules/bitrix/ports/bitrix-request-lim
 import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
+import { Like } from 'typeorm';
+
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { DealEntity } from '@modules/crm-integration/entities/deal.entity.js';
@@ -183,7 +185,8 @@ describe('TikTok lead conversion saga', () => {
       stageId: 'C1:NEW',
       assignedById: '1',
       probability: 10,
-      UF_CRM_TIKTOK_EXTERNAL_ID: `aasc-tiktok/deal/${deal.id}`,
+      originatorId: 'aasc-tiktok',
+      originId: `aasc-tiktok/deal/${deal.id}`,
     });
     expect(
       crmStore.calls.filter(
@@ -284,6 +287,98 @@ describe('TikTok lead conversion saga', () => {
     ).toHaveLength(multipleDealCreatesBefore);
   });
 
+  it('retries a deal create that Bitrix refused instead of asking an operator to reconcile', async () => {
+    const leadId = await saveLead();
+    const receipt = await conversions.request(leadId, 'manual');
+    if (!receipt || receipt.status !== 'pending') throw new Error('expected a pending conversion');
+    crmStore.injectFault('crm.item.add', 'rate_limit');
+
+    await expect(conversions.execute(receipt.operationId, context())).resolves.toMatchObject({
+      outcome: 'retry_wait',
+      errorCode: 'CRM_RATE_LIMITED',
+    });
+    await expect(
+      infrastructure.database.dataSource
+        .getRepository(DealEntity)
+        .findOneByOrFail({ id: receipt.dealId }),
+    ).resolves.toMatchObject({ conversionStatus: 'retry_wait', bitrixDealId: null });
+    await expect(conversions.execute(receipt.operationId, context())).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+  });
+
+  it('never creates a deal again after an unknown create outcome until an operator confirms', async () => {
+    const leadId = await saveLead();
+    const receipt = await conversions.request(leadId, 'manual');
+    if (!receipt || receipt.status !== 'pending') throw new Error('expected a pending conversion');
+    const dealCreates = () =>
+      crmStore.calls.filter(
+        (call) => call.method === 'crm.item.add' && call.payload.entityTypeId === 2,
+      ).length;
+    const createsBefore = dealCreates();
+    crmStore.injectFault('crm.item.add', 'timeout_without_persist');
+
+    await expect(conversions.execute(receipt.operationId, context())).resolves.toMatchObject({
+      outcome: 'reconcile_required',
+      errorCode: 'DEAL_CREATE_AMBIGUOUS',
+    });
+    const operations = infrastructure.database.dataSource.getRepository(OperationEntity);
+    for (const attempt of [1, 2, 3]) {
+      const checkpoint = await operations.findOneByOrFail({
+        operationKey: `convert/${leadId}/reconcile/1/${attempt}`,
+      });
+      await expect(conversions.execute(checkpoint.id, context())).resolves.toMatchObject({
+        outcome: 'reconcile_required',
+        errorCode: attempt < 3 ? 'DEAL_CREATE_AMBIGUOUS' : 'DEAL_RECONCILIATION_EXHAUSTED',
+      });
+    }
+
+    expect(dealCreates()).toBe(createsBefore + 1);
+    expect(await operations.countBy({ operationKey: Like(`convert/${leadId}/reconcile/%`) })).toBe(
+      3,
+    );
+    await expect(
+      infrastructure.database.dataSource
+        .getRepository(DealEntity)
+        .findOneByOrFail({ id: receipt.dealId }),
+    ).resolves.toMatchObject({ conversionStatus: 'reconcile_required', bitrixDealId: null });
+  });
+
+  it('adopts the deal and finishes the saga once the ambiguous create turns out to exist', async () => {
+    const leadId = await saveLead();
+    const receipt = await conversions.request(leadId, 'manual');
+    if (!receipt || receipt.status !== 'pending') throw new Error('expected a pending conversion');
+    crmStore.injectFault('crm.item.add', 'timeout_without_persist');
+    await conversions.execute(receipt.operationId, context());
+    const deals = infrastructure.database.dataSource.getRepository(DealEntity);
+    const leads = infrastructure.database.dataSource.getRepository(LeadEntity);
+    const pending = await deals.findOneByOrFail({ id: receipt.dealId });
+    const lead = await leads.findOneByOrFail({ id: leadId });
+    const remote = await gateway.createDeal(
+      {
+        title: pending.title,
+        leadId: lead.bitrixLeadId,
+        categoryId: Number(pending.pipelineId),
+        stageId: pending.stageId,
+        assignedById: pending.assignedTo,
+        probability: pending.probability,
+      },
+      `aasc-tiktok/deal/${pending.id}`,
+    );
+
+    await expect(conversions.execute(receipt.operationId, context())).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    await expect(deals.findOneByOrFail({ id: receipt.dealId })).resolves.toMatchObject({
+      bitrixDealId: remote.id,
+      conversionStatus: 'completed',
+    });
+    await expect(leads.findOneByOrFail({ id: leadId })).resolves.toMatchObject({
+      businessStatus: 'converted',
+      convertedAt: expect.any(Date),
+    });
+  });
+
   it('retries Lead completion without creating a second deal and preserves the assignment snapshot', async () => {
     const leadId = await saveLead();
     const receipt = await conversions.request(leadId, 'manual');
@@ -297,7 +392,7 @@ describe('TikTok lead conversion saga', () => {
     const completionCallsBefore = crmStore.calls.filter(
       (call) =>
         call.method === 'crm.item.update' &&
-        (call.payload.fields as Record<string, unknown> | undefined)?.statusId === 'CONVERTED',
+        (call.payload.fields as Record<string, unknown> | undefined)?.stageId === 'CONVERTED',
     ).length;
     crmStore.injectFault('crm.item.update', 'rate_limit');
     await expect(conversions.execute(receipt.operationId, context())).resolves.toMatchObject({
@@ -314,7 +409,7 @@ describe('TikTok lead conversion saga', () => {
       crmStore.calls.filter(
         (call) =>
           call.method === 'crm.item.update' &&
-          (call.payload.fields as Record<string, unknown> | undefined)?.statusId === 'CONVERTED',
+          (call.payload.fields as Record<string, unknown> | undefined)?.stageId === 'CONVERTED',
       ).length,
     ).toBe(completionCallsBefore + 2);
     await expect(

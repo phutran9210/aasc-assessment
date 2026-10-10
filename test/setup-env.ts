@@ -29,3 +29,5 @@ process.env.GOOGLE_AUTH_MODE = 'service_account';
 process.env.GOOGLE_OAUTH_CLIENT_ID = '';
 process.env.GOOGLE_OAUTH_CLIENT_SECRET = '';
 process.env.GOOGLE_OAUTH_REDIRECT_URI = '';
+// The TikTok app must not read the developer's .env in tests either.
+process.env.TIKTOK_APP_ENV_FILE ??= '/dev/null';

@@ -1,8 +1,17 @@
-import { BadRequestException, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 
 import type { CrmGateway } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
+import { DEFAULT_MAPPING, FALLBACK_MAPPING } from '../constants/flow.constants.js';
+import { importAssignmentConfig, isAssignmentConfig } from '../domain/assignment-config-import.js';
 import { compileMapping } from '../domain/mapping-compiler.js';
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
 import { mappingSchema } from '../schemas/mapping.schema.js';
@@ -20,14 +29,22 @@ export class ConfigurationService {
 
   async read(key: string): Promise<VersionedConfig> {
     this.validateKey(key);
-    const active = await this.repository.findActive(key);
-    return {
-      key,
-      revision: active.entity.revision,
-      etag: etag(active.entity.revision),
-      value: active.value,
-      compiled: active.compiled,
-    };
+    let active: Awaited<ReturnType<ConfigurationRepository['findActive']>>;
+    try {
+      active = await this.repository.findActive(key);
+    } catch (error) {
+      // Leads are synced with the built-in mapping until one is stored, so that is what is shown.
+      // Revision 0 is also the If-Match value that creates the first stored mapping.
+      if (key !== 'mapping' || !(error instanceof NotFoundException)) throw error;
+      return {
+        key,
+        revision: 0,
+        etag: etag(0),
+        value: DEFAULT_MAPPING,
+        compiled: FALLBACK_MAPPING,
+      };
+    }
+    return this.versioned(key, active);
   }
 
   async replaceFromIfMatch(
@@ -50,6 +67,10 @@ export class ConfigurationService {
       throw new BadRequestException('Expected configuration revision is invalid');
     }
 
+    if (isAssignmentConfig(value)) {
+      return this.replaceFromAssignment(key, value, expectedRevision, actorId);
+    }
+
     // Provider metadata is read before the transaction so upstream latency does not hold a DB lock.
     const parsed = this.validateValue(key, value);
     const metadata = await this.crm.metadata();
@@ -63,6 +84,80 @@ export class ConfigurationService {
       compiled,
       actorId,
     });
+    return this.versioned(key, stored);
+  }
+
+  /**
+   * Stores a document in the format of the assignment (`field_mapping`, `deal_rules`). The field
+   * mapping becomes the mapping configuration. Deal rules replace the rule list of the active rules
+   * policy; its other sections (assignment, scoring, feedback...) have no counterpart in that
+   * format and are kept. Everything is validated before the first write.
+   */
+  private async replaceFromAssignment(
+    key: string,
+    value: unknown,
+    expectedRevision: number,
+    actorId: string,
+  ): Promise<VersionedConfig> {
+    if (key !== 'mapping' && key !== 'rules') {
+      throw new BadRequestException('Configuration key is not supported yet');
+    }
+    const metadata = await this.crm.metadata();
+    const imported = importAssignmentConfig(value, metadata.stages);
+    if (key === 'mapping' && !imported.mapping) {
+      throw new BadRequestException('field_mapping is required');
+    }
+    if (key === 'rules' && !imported.rules) {
+      throw new BadRequestException('deal_rules is required');
+    }
+
+    let rules: { value: Record<string, unknown>; expectedRevision: number } | null = null;
+    if (imported.rules) {
+      let active: Awaited<ReturnType<ConfigurationRepository['findActive']>>;
+      try {
+        active = await this.repository.findActive('rules');
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) throw error;
+        throw new BadRequestException(
+          'deal_rules extend a rules policy: store one with PUT /api/v1/config/rules first',
+        );
+      }
+      const next = this.validateValue('rules', { ...active.value, rules: imported.rules });
+      validateRulesMetadata(next, metadata);
+      rules = {
+        value: next,
+        expectedRevision: key === 'rules' ? expectedRevision : active.entity.revision,
+      };
+    }
+
+    let stored: Awaited<ReturnType<ConfigurationRepository['compareAndSet']>> | null = null;
+    if (key === 'mapping' && imported.mapping) {
+      stored = await this.repository.compareAndSet({
+        key: 'mapping',
+        expectedRevision,
+        value: imported.mapping,
+        compiled: compileMapping(imported.mapping, metadata),
+        actorId,
+      });
+    }
+    if (rules) {
+      const storedRules = await this.repository.compareAndSet({
+        key: 'rules',
+        expectedRevision: rules.expectedRevision,
+        value: rules.value,
+        compiled: null,
+        actorId,
+      });
+      stored ??= storedRules;
+    }
+    if (!stored) throw new BadRequestException('Nothing to store');
+    return this.versioned(key, stored);
+  }
+
+  private versioned(
+    key: string,
+    stored: Awaited<ReturnType<ConfigurationRepository['findActive']>>,
+  ): VersionedConfig {
     return {
       key,
       revision: stored.entity.revision,

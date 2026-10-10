@@ -156,6 +156,34 @@ describe('Bitrix lead synchronization', () => {
     ).toBe(1);
   });
 
+  it.each([
+    ['rate_limit', 'CRM_RATE_LIMITED'],
+    ['auth_invalid', 'CRM_CREATE_REJECTED'],
+  ] as const)(
+    'retries a create that Bitrix refused with %s instead of asking an operator to reconcile',
+    async (fault, errorCode) => {
+      const leadId = await saveLead(1, `Refused ${fault}`);
+      const createsBefore = crmStore.calls.filter((call) => call.method === 'crm.item.add').length;
+      crmStore.injectFault('crm.item.add', fault);
+
+      await expect(syncService.sync(leadId, 1, context())).resolves.toMatchObject({
+        outcome: 'retry_wait',
+        errorCode,
+      });
+      expect(
+        await infrastructure.database.dataSource
+          .getRepository(LeadEntity)
+          .findOneByOrFail({ id: leadId }),
+      ).not.toMatchObject({ syncStatus: 'reconcile_required' });
+      await expect(syncService.sync(leadId, 1, context())).resolves.toMatchObject({
+        outcome: 'succeeded',
+      });
+      expect(crmStore.calls.filter((call) => call.method === 'crm.item.add')).toHaveLength(
+        createsBefore + 2,
+      );
+    },
+  );
+
   it('does not create when marker lookup is rate limited and reconciles existing markers first', async () => {
     const leadId = await saveLead(1, 'Lookup failure');
     const createsBefore = crmStore.calls.filter((call) => call.method === 'crm.item.add').length;
@@ -228,6 +256,61 @@ describe('Bitrix lead synchronization', () => {
     expect(crmStore.calls.filter((call) => call.method === 'crm.item.add')).toHaveLength(
       createsBefore + 2,
     );
+  });
+
+  it('quarantines a contact match that already belongs to another local lead', async () => {
+    const leads = infrastructure.database.dataSource.getRepository(LeadEntity);
+    const ownerId = await saveLead(1, 'Owner of the remote lead');
+    await expect(syncService.sync(ownerId, 1, context())).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    const owner = await leads.findOneByOrFail({ id: ownerId });
+    const newcomerId = await saveLead(1, 'Shares the contact');
+    await leads.update(newcomerId, { email: owner.email });
+    const updatesBefore = crmStore.calls.filter((call) => call.method === 'crm.item.update').length;
+
+    await expect(syncService.sync(newcomerId, 1, context())).resolves.toMatchObject({
+      outcome: 'quarantined',
+      errorCode: 'CRM_DUPLICATE_OWNED_BY_OTHER_LEAD',
+    });
+    expect(crmStore.calls.filter((call) => call.method === 'crm.item.update')).toHaveLength(
+      updatesBefore,
+    );
+    await expect(gateway.getLead(owner.bitrixLeadId as string)).resolves.toMatchObject({
+      marker: `aasc-tiktok/${ownerId}`,
+    });
+    await expect(leads.findOneByOrFail({ id: newcomerId })).resolves.toMatchObject({
+      syncStatus: 'failed',
+      bitrixLeadId: null,
+    });
+  });
+
+  it('never adopts a remote lead that carries the origin of another integration', async () => {
+    const leads = infrastructure.database.dataSource.getRepository(LeadEntity);
+    const leadId = await saveLead(1, 'Same contact as a Google Sheets lead');
+    const lead = await leads.findOneByOrFail({ id: leadId });
+    crmStore.execute('crm.item.add', {
+      entityTypeId: 1,
+      fields: {
+        title: 'Lead of the Google Sheets sync',
+        originatorId: 'google-sheets',
+        originId: 'row-7',
+        fm: [{ typeId: 'EMAIL', valueType: 'WORK', value: lead.email }],
+      },
+    });
+    const updatesBefore = crmStore.calls.filter((call) => call.method === 'crm.item.update').length;
+
+    await expect(syncService.sync(leadId, 1, context())).resolves.toMatchObject({
+      outcome: 'quarantined',
+      errorCode: 'CRM_DUPLICATE_OWNED_BY_OTHER_LEAD',
+    });
+    expect(crmStore.calls.filter((call) => call.method === 'crm.item.update')).toHaveLength(
+      updatesBefore,
+    );
+    await expect(leads.findOneByOrFail({ id: leadId })).resolves.toMatchObject({
+      syncStatus: 'failed',
+      bitrixLeadId: null,
+    });
   });
 
   it('recovers a stored remote ID that now returns 404 by reconciling before creating again', async () => {

@@ -48,7 +48,7 @@ describe('demo tools', () => {
 
   it('reads every demo setting from the environment and names the missing one', () => {
     Object.assign(process.env, {
-      BITRIX24_WEBHOOK_URL: 'http://127.0.0.1:3002/rest/1/mock/',
+      TIKTOK_BITRIX24_WEBHOOK_URL: 'http://127.0.0.1:3002/rest/1/mock/',
       TIKTOK_ADVERTISER_ID: 'adv-1',
       TIKTOK_WEBHOOK_SECRET: 'demo-tools-webhook-secret',
       BITRIX_MOCK_EVENT_SECRET: 'demo-tools-bitrix-secret',

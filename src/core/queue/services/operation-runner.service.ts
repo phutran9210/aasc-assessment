@@ -80,7 +80,10 @@ export class OperationRunnerService {
       await context.assertOwnership();
       const outcome = await handler.handle(context);
       await context.assertOwnership();
-      return await this.finish(operation, outcome);
+      return await this.finish(
+        operation,
+        this.retryPolicy.enforce(outcome, operation.attempt, new Date()),
+      );
     } catch (error) {
       if (controller.signal.aborted || error instanceof OwnershipLostError) return null;
       const failure =
@@ -215,6 +218,7 @@ export class OperationRunnerService {
         operation.lastErrorCode = null;
       } else if (outcome.outcome === 'retry_wait') {
         operation.nextAttemptAt = outcome.nextAttemptAt;
+        if (outcome.deferred) operation.attempt -= 1;
         await this.outbox.append(
           operation.id,
           OPERATION_QUEUE[operation.kind],

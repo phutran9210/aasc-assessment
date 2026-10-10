@@ -57,9 +57,10 @@ export class ScoreRecomputeService {
     const lead = await this.leads.findByIdForUpdate(leadId, tx);
     if (!lead) return false;
     const revisions = await this.configurations.revisions(tx);
+    const policy = await this.policy(revisions.rules ?? 0, tx);
     const score = scoreLead(
-      scoreInputFromSubmissions(lead, await this.submissions.findForLead(lead.id, tx)),
-      await this.policy(revisions.rules ?? 0, tx),
+      scoreInputFromSubmissions(lead, await this.submissions.findForLead(lead.id, tx), policy),
+      policy,
       asOf,
     );
     // jsonb does not keep key order, so the breakdown is compared structurally.

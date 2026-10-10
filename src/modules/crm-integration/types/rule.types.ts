@@ -44,6 +44,9 @@ export type ScorePolicy = {
   interaction_points: number;
   interaction_cap: number;
   interaction_allowlist?: string[];
+  // Form answers that earn the budget and timeline points. Without a list the component scores 0.
+  budget_values?: string[];
+  timeline_values?: string[];
 };
 export type ScoreInput = {
   email: string | null;

@@ -3,7 +3,14 @@ import type { OperationEntity } from '../entities/operation.entity.js';
 
 export type OperationOutcome =
   | { outcome: 'succeeded'; remoteId?: string | null }
-  | { outcome: 'retry_wait'; nextAttemptAt: Date; errorCode: string }
+  | {
+      outcome: 'retry_wait';
+      nextAttemptAt: Date;
+      errorCode: string;
+      // Waiting for something that is not a failure, such as a busy aggregate lease. A deferred
+      // retry does not spend the attempt budget.
+      deferred?: true;
+    }
   | { outcome: 'reconcile_required'; errorCode: string }
   | { outcome: 'quarantined'; errorCode: string }
   | { outcome: 'dead_letter'; errorCode: string };

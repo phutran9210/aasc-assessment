@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 
 import { BitrixApiService } from '@modules/bitrix/services/bitrix-api.service.js';
@@ -21,12 +22,16 @@ import type {
   RemoteLead,
   TimelineEntry,
   TimelineInput,
+  TimelineQuery,
 } from '../ports/crm-gateway.port.js';
+import { REMOTE_ORIGINATOR, remoteMarkerFields } from '../constants/flow.constants.js';
 import type { ExternalId } from '../types/integration.types.js';
 
 const LEAD_TYPE_ID = 1;
 const DEAL_TYPE_ID = 2;
-const EXTERNAL_ID_FIELD = 'UF_CRM_TIKTOK_EXTERNAL_ID';
+// Custom fields keep their `UF_CRM_...` names in requests and answers, as mappings name them.
+const ORIGINAL_NAMES = { useOriginalUfNames: 'Y' } as const;
+const TIMELINE_MARKER_PREFIX = 'ref: ';
 
 @Injectable()
 export class BitrixCrmGateway implements CrmGateway {
@@ -37,10 +42,7 @@ export class BitrixCrmGateway implements CrmGateway {
       this.call('crm.item.fields', { entityTypeId: LEAD_TYPE_ID, useOriginalUfNames: 'Y' }),
       this.call('crm.item.fields', { entityTypeId: DEAL_TYPE_ID, useOriginalUfNames: 'Y' }),
       this.call('crm.category.list', { entityTypeId: DEAL_TYPE_ID }),
-      this.call('user.get', {
-        FILTER: { ACTIVE: 'Y' },
-        select: ['ID', 'NAME', 'LAST_NAME', 'ACTIVE'],
-      }),
+      this.users(),
     ]);
     const categoryIds = listValue(this.record(categories).categories).map((value) =>
       safeInteger(this.record(value).id, 'category id'),
@@ -62,12 +64,7 @@ export class BitrixCrmGateway implements CrmGateway {
           id: requiredString(item.STATUS_ID, 'stage id'),
           name: requiredString(item.NAME, 'stage name'),
           categoryId,
-          semantic:
-            typeof extra?.SEMANTICS === 'string'
-              ? extra.SEMANTICS
-              : typeof item.SEMANTICS === 'string'
-                ? item.SEMANTICS
-                : null,
+          semantic: stageSemantic(extra?.SEMANTICS ?? item.SEMANTICS),
         };
       }),
     );
@@ -75,22 +72,45 @@ export class BitrixCrmGateway implements CrmGateway {
       lead: { entityTypeId: LEAD_TYPE_ID, fields: this.parseFields(leadFields) },
       deal: { entityTypeId: DEAL_TYPE_ID, fields: this.parseFields(dealFields) },
       stages: parsedStages,
-      users: listValue(users).map((value): CrmUser => {
-        const item = this.record(value);
-        const id = externalId(item.ID, 'user id');
-        const name = [item.NAME, item.LAST_NAME]
-          .filter((part) => typeof part === 'string')
-          .join(' ');
-        return { id, name, active: item.ACTIVE === true || item.ACTIVE === 'Y' };
-      }),
+      users,
     };
+  }
+
+  /**
+   * Active users, to validate configured assignees. Listing users needs the `user` scope; a
+   * connection that only has `crm` still knows its own user through `profile`, so only that user
+   * can be validated as an assignee.
+   */
+  private async users(): Promise<CrmUser[]> {
+    let rows: unknown[];
+    try {
+      rows = listValue(
+        await this.call('user.get', {
+          FILTER: { ACTIVE: 'Y' },
+          select: ['ID', 'NAME', 'LAST_NAME', 'ACTIVE'],
+        }),
+      );
+    } catch (error) {
+      if (!(error instanceof UnprocessableEntityException)) throw error;
+      rows = [{ ...this.record(await this.call('profile', {})), ACTIVE: true }];
+    }
+    return rows.map((value): CrmUser => {
+      const item = this.record(value);
+      const name = [item.NAME, item.LAST_NAME].filter((part) => typeof part === 'string').join(' ');
+      return {
+        id: externalId(item.ID, 'user id'),
+        name,
+        active: item.ACTIVE === true || item.ACTIVE === 'Y',
+      };
+    });
   }
 
   async findLeadCandidates(query: CrmCandidateQuery): Promise<RemoteLead[]> {
     const response = await this.call('crm.item.list', {
       entityTypeId: LEAD_TYPE_ID,
       filter: this.filter(query),
-      select: ['*', EXTERNAL_ID_FIELD],
+      select: ['*', 'UF_*'],
+      ...ORIGINAL_NAMES,
       order: { id: 'ASC' },
       start: this.offset(query),
     });
@@ -122,7 +142,11 @@ export class BitrixCrmGateway implements CrmGateway {
   }
 
   async getLead(id: ExternalId): Promise<RemoteLead> {
-    const response = await this.call('crm.item.get', { entityTypeId: LEAD_TYPE_ID, id });
+    const response = await this.call('crm.item.get', {
+      entityTypeId: LEAD_TYPE_ID,
+      id,
+      ...ORIGINAL_NAMES,
+    });
     const item = response === null ? null : (this.record(response).item ?? response);
     if (!item) throw new NotFoundException('Bitrix lead was not found');
     return this.parseLead(item);
@@ -131,7 +155,8 @@ export class BitrixCrmGateway implements CrmGateway {
   async createLead(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteLead> {
     const response = await this.call('crm.item.add', {
       entityTypeId: LEAD_TYPE_ID,
-      fields: { ...fields, [EXTERNAL_ID_FIELD]: marker },
+      fields: { ...fields, ...remoteMarkerFields(marker) },
+      ...ORIGINAL_NAMES,
     });
     const lead = this.parseLead(this.record(response).item ?? response);
     if (lead.marker !== marker)
@@ -144,6 +169,7 @@ export class BitrixCrmGateway implements CrmGateway {
       entityTypeId: LEAD_TYPE_ID,
       id,
       fields: patch,
+      ...ORIGINAL_NAMES,
     });
     return this.parseLead(this.record(response).item ?? response);
   }
@@ -152,7 +178,8 @@ export class BitrixCrmGateway implements CrmGateway {
     const response = await this.call('crm.item.list', {
       entityTypeId: DEAL_TYPE_ID,
       filter: this.filter(query),
-      select: ['*', EXTERNAL_ID_FIELD],
+      select: ['*', 'UF_*'],
+      ...ORIGINAL_NAMES,
       order: { id: 'ASC' },
       start: this.offset(query),
     });
@@ -171,7 +198,8 @@ export class BitrixCrmGateway implements CrmGateway {
     const response = await this.call('crm.item.list', {
       entityTypeId: DEAL_TYPE_ID,
       filter,
-      select: ['*', EXTERNAL_ID_FIELD],
+      select: ['*', 'UF_*'],
+      ...ORIGINAL_NAMES,
       order: { id: 'ASC' },
       start: query.offset,
     });
@@ -181,7 +209,11 @@ export class BitrixCrmGateway implements CrmGateway {
   }
 
   async getDeal(id: ExternalId): Promise<RemoteDeal> {
-    const response = await this.call('crm.item.get', { entityTypeId: DEAL_TYPE_ID, id });
+    const response = await this.call('crm.item.get', {
+      entityTypeId: DEAL_TYPE_ID,
+      id,
+      ...ORIGINAL_NAMES,
+    });
     const item = response === null ? null : (this.record(response).item ?? response);
     if (!item) throw new NotFoundException('Bitrix deal was not found');
     return this.parseDeal(item);
@@ -190,7 +222,8 @@ export class BitrixCrmGateway implements CrmGateway {
   async createDeal(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteDeal> {
     const response = await this.call('crm.item.add', {
       entityTypeId: DEAL_TYPE_ID,
-      fields: { ...fields, [EXTERNAL_ID_FIELD]: marker },
+      fields: { ...fields, ...remoteMarkerFields(marker) },
+      ...ORIGINAL_NAMES,
     });
     const deal = this.parseDeal(this.record(response).item ?? response);
     if (deal.marker !== marker)
@@ -199,41 +232,45 @@ export class BitrixCrmGateway implements CrmGateway {
   }
 
   async completeLead(id: ExternalId, stage: string): Promise<RemoteLead> {
-    return this.updateLead(id, { statusId: stage });
+    // In `crm.item` the lead status is the item's stage.
+    return this.updateLead(id, { stageId: stage });
   }
 
-  async findTimeline(marker: ExternalId): Promise<TimelineEntry[]> {
-    const response = await this.call('crm.timeline.comment.list', { filter: { marker } });
-    const values = Array.isArray(response) ? response : this.record(response).items;
-    return listValue(values).map((value) => {
+  /**
+   * Timeline comments have no field for an external ID and can only be listed per CRM record, so
+   * the marker travels as the last line of the comment and is looked up there.
+   */
+  async findTimeline(query: TimelineQuery): Promise<TimelineEntry[]> {
+    const response = await this.call('crm.timeline.comment.list', {
+      filter: { ENTITY_ID: query.entityId, ENTITY_TYPE: query.entityType },
+      select: ['ID', 'COMMENT'],
+    });
+    const suffix = `${TIMELINE_MARKER_PREFIX}${query.marker}`;
+    return listValue(response).flatMap((value): TimelineEntry[] => {
       const item = this.record(value);
-      const entityType = item.ENTITY_TYPE ?? item.entityType;
-      if (entityType !== 'lead' && entityType !== 'deal')
-        throw new TypeError('Invalid timeline entity type');
-      return {
-        id: externalId(item.ID ?? item.id, 'timeline id'),
-        entityType,
-        entityId: externalId(item.ENTITY_ID ?? item.entityId, 'timeline entity id'),
-        marker: requiredString(item.MARKER ?? item.marker, 'timeline marker'),
-        comment: requiredString(item.COMMENT ?? item.comment, 'timeline comment'),
-      };
+      const text = typeof item.COMMENT === 'string' ? item.COMMENT.trimEnd() : '';
+      if (!text.endsWith(suffix)) return [];
+      return [
+        {
+          id: externalId(item.ID, 'timeline id'),
+          entityType: query.entityType,
+          entityId: query.entityId,
+          marker: query.marker,
+          comment: text.slice(0, -suffix.length).trimEnd(),
+        },
+      ];
     });
   }
 
   async addTimeline(input: TimelineInput): Promise<TimelineEntry> {
     const response = await this.call('crm.timeline.comment.add', {
       fields: {
-        ENTITY_TYPE: input.entityType,
         ENTITY_ID: input.entityId,
-        MARKER: input.marker,
-        COMMENT: input.comment,
+        ENTITY_TYPE: input.entityType,
+        COMMENT: `${input.comment}\n${TIMELINE_MARKER_PREFIX}${input.marker}`,
       },
     });
-    const item = this.record(response).item ?? response;
-    return {
-      id: externalId(this.record(item).id ?? this.record(item).ID, 'timeline id'),
-      ...input,
-    };
+    return { id: externalId(response, 'timeline id'), ...input };
   }
 
   private async call(method: string, payload: Record<string, unknown>): Promise<unknown> {
@@ -249,6 +286,10 @@ export class BitrixCrmGateway implements CrmGateway {
         if (error.timeout) throw new GatewayTimeoutException('Bitrix CRM request timed out');
         if (error.status === 429)
           throw new HttpException('Bitrix CRM rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS);
+        if (error.code === 'NOT_FOUND') throw new NotFoundException('Bitrix item was not found');
+        // Bitrix answered and refused: the request was not executed, unlike a 5xx or no answer.
+        if (error.status !== undefined && error.status >= 400 && error.status < 500)
+          throw new UnprocessableEntityException('Bitrix CRM rejected the request');
         throw new BadGatewayException('Bitrix CRM request failed');
       }
       throw error;
@@ -257,7 +298,10 @@ export class BitrixCrmGateway implements CrmGateway {
 
   private filter(query: CrmCandidateQuery): Record<string, string> {
     const filter: Record<string, string> = {};
-    if (query.marker) filter[`=${EXTERNAL_ID_FIELD}`] = query.marker;
+    if (query.marker) {
+      filter['=originatorId'] = REMOTE_ORIGINATOR;
+      filter['=originId'] = query.marker;
+    }
     if (query.leadId) filter['=leadId'] = query.leadId;
     if (query.email) filter['=EMAIL'] = query.email;
     if (query.phone) filter['=PHONE'] = query.phone;
@@ -312,14 +356,10 @@ export class BitrixCrmGateway implements CrmGateway {
           : typeof fields.title === 'string'
             ? fields.title
             : '',
-      marker:
-        typeof item[EXTERNAL_ID_FIELD] === 'string'
-          ? item[EXTERNAL_ID_FIELD]
-          : typeof item.marker === 'string'
-            ? item.marker
-            : null,
+      marker: ownMarker(fields),
       fields,
       ...(item.stale === true ? { stale: true } : {}),
+      ...(hasForeignOrigin(fields) ? { foreignOrigin: true } : {}),
     };
   }
 
@@ -334,12 +374,7 @@ export class BitrixCrmGateway implements CrmGateway {
           : typeof fields.title === 'string'
             ? fields.title
             : '',
-      marker:
-        typeof item[EXTERNAL_ID_FIELD] === 'string'
-          ? item[EXTERNAL_ID_FIELD]
-          : typeof item.marker === 'string'
-            ? item.marker
-            : null,
+      marker: ownMarker(fields),
       fields: { ...fields },
     };
   }
@@ -356,6 +391,30 @@ export class BitrixCrmGateway implements CrmGateway {
     }
     return value as Record<string, unknown>;
   }
+}
+
+/** Marker of a record this integration created or adopted; null for anyone else's record. */
+function ownMarker(fields: Record<string, unknown>): ExternalId | null {
+  return fields.originatorId === REMOTE_ORIGINATOR &&
+    typeof fields.originId === 'string' &&
+    fields.originId
+    ? fields.originId
+    : null;
+}
+
+function hasForeignOrigin(fields: Record<string, unknown>): boolean {
+  return (
+    typeof fields.originatorId === 'string' &&
+    fields.originatorId !== '' &&
+    fields.originatorId !== REMOTE_ORIGINATOR
+  );
+}
+
+/** Bitrix24 names stage semantics `process`, `success`, `failure` and `apology`. */
+function stageSemantic(value: unknown): string | null {
+  if (value === 'success' || value === 'S') return 'won';
+  if (value === 'failure' || value === 'apology' || value === 'F') return 'lost';
+  return null;
 }
 
 function listValue(value: unknown): unknown[] {

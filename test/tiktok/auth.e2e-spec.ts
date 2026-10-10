@@ -55,11 +55,11 @@ describe('TikTok authentication and RBAC (e2e)', () => {
   it('logs in, authorizes the current role, denies missing roles and rejects AASC JWTs', async () => {
     const [login, concurrentLogin] = await Promise.all([
       request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'analyst-test', password: PASSWORD })
         .expect(200),
       request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'analyst-test', password: PASSWORD })
         .expect(200),
     ]);
@@ -92,18 +92,18 @@ describe('TikTok authentication and RBAC (e2e)', () => {
       .set('Authorization', `Bearer ${wrongIssuerToken}`)
       .expect(401);
 
-    await request(testApp.app.getHttpServer()).post('/auth/register').expect(404);
+    await request(testApp.app.getHttpServer()).post('/api/v1/auth/register').expect(404);
   });
 
   it('revokes and replays sessions, and returns 204 for repeated logout', async () => {
     const login = await request(testApp.app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username: 'analyst-test', password: PASSWORD })
       .expect(200);
     const authorization = `Bearer ${login.body.accessToken}`;
 
     await request(testApp.app.getHttpServer())
-      .post('/auth/logout')
+      .post('/api/v1/auth/logout')
       .set('Authorization', authorization)
       .expect(204);
     await request(testApp.app.getHttpServer())
@@ -111,14 +111,14 @@ describe('TikTok authentication and RBAC (e2e)', () => {
       .set('Authorization', authorization)
       .expect(401);
     await request(testApp.app.getHttpServer())
-      .post('/auth/logout')
+      .post('/api/v1/auth/logout')
       .set('Authorization', authorization)
       .expect(204);
   });
 
   it('invalidates a session after the user roles and auth version change', async () => {
     const login = await request(testApp.app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username: 'analyst-test', password: PASSWORD })
       .expect(200);
     await dataSource
@@ -133,7 +133,7 @@ describe('TikTok authentication and RBAC (e2e)', () => {
 
   it('invalidates a session when the user is disabled', async () => {
     const login = await request(testApp.app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username: 'analyst-test', password: PASSWORD })
       .expect(200);
     await dataSource.getRepository(IntegrationUserEntity).update({ id: userId }, { active: false });
@@ -153,7 +153,7 @@ describe('TikTok authentication and RBAC (e2e)', () => {
     });
     try {
       await request(downApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'analyst-test', password: PASSWORD })
         .expect(503);
     } finally {

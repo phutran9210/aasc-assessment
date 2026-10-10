@@ -38,7 +38,7 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
       .setTitle('AASC TikTok – Bitrix24 integration')
       .setDescription(
         'Signed TikTok lead webhooks, Bitrix24 lead/deal synchronisation, analytics, reports and ' +
-          'operations. Protected routes need a bearer token from POST /auth/login.',
+          'operations. Protected routes need a bearer token from POST /api/v1/auth/login.',
       )
       .setVersion('1.0.0')
       .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')

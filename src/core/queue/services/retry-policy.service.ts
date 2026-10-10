@@ -1,4 +1,5 @@
 import type { OperationFailureKind, RetryDecision } from '../types/retry-policy.types.js';
+import type { OperationOutcome } from '../types/worker.types.js';
 
 export type { OperationFailureKind, RetryDecision } from '../types/retry-policy.types.js';
 
@@ -55,6 +56,23 @@ export class RetryPolicy {
       nextAttemptAt: new Date(now.getTime() + Math.max(delayMs, retryAfterMs)),
       errorCode: error.code,
     };
+  }
+
+  /**
+   * Applies the attempt budget and backoff to a retry a handler asked for itself, so a failure the
+   * handler reports is bounded exactly like one it throws.
+   */
+  enforce(outcome: OperationOutcome, attempt: number, now: Date): OperationOutcome {
+    if (outcome.outcome !== 'retry_wait' || outcome.deferred) return outcome;
+    const decision = this.decide(
+      new OperationFailure('transient', outcome.errorCode),
+      attempt,
+      now,
+    );
+    if (decision.outcome !== 'retry_wait') return decision;
+    return decision.nextAttemptAt > outcome.nextAttemptAt
+      ? decision
+      : { ...decision, nextAttemptAt: outcome.nextAttemptAt };
   }
 
   private clampRandom(value: number): number {

@@ -33,9 +33,7 @@ export class ConversionFeedbackService {
     const { lead, submission } = await this.feedbackData.findLeadContext(leadId, tx);
     if (!lead) return;
     const consented =
-      submission?.sendFeedback === true &&
-      submission.isHistorical === false &&
-      submission.consent.crm_feedback_allowed === true;
+      submission?.sendFeedback === true && submission.consent.crm_feedback_allowed === true;
 
     let policy: FeedbackPolicy = { enabled: false };
     let rulesRevision = 0;

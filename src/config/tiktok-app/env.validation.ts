@@ -1,7 +1,11 @@
 import { z } from 'zod';
 
+const blankAsUnset = (value: unknown): unknown =>
+  typeof value === 'string' && value.trim() === '' ? undefined : value;
+
 const schema = z
   .object({
+    NODE_ENV: z.string().optional(),
     TIKTOK_APP_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
     TIKTOK_DATABASE_URL: z.url().startsWith('postgres'),
     TIKTOK_DATABASE_SCHEMA: z
@@ -20,8 +24,12 @@ const schema = z
     TIKTOK_EVENT_SOURCE_ID: z.string().trim().min(1).optional(),
     BITRIX_PORTAL_KEY: z.string().trim().min(1).default('mock-portal'),
     BITRIX_MOCK_EVENT_SECRET: z.string().min(16),
-    BITRIX24_OUTGOING_TOKEN: z.string().trim().min(16).optional(),
-    BITRIX24_WEBHOOK_URL: z.url().optional(),
+    TIKTOK_BITRIX24_OUTGOING_TOKEN: z.preprocess(
+      blankAsUnset,
+      z.string().trim().min(16).optional(),
+    ),
+    // Blank counts as not set, so an env file may keep these lines with no value.
+    TIKTOK_BITRIX24_WEBHOOK_URL: z.preprocess(blankAsUnset, z.url().optional()),
     DEFAULT_PHONE_REGION: z.string().length(2).default('VN'),
     REPORT_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
     INTEGRATION_QUEUE_PREFIX: z.string().trim().min(1).default('aasc-tiktok'),
@@ -41,14 +49,51 @@ const schema = z
     TIKTOK_SWAGGER_ENABLED: z.enum(['true', 'false']).optional(),
   })
   .superRefine((env, context) => {
+    if (env.NODE_ENV === 'production') {
+      // Values copied unchanged from .env.example are published, so they are not secrets.
+      for (const key of [
+        'TIKTOK_JWT_SECRET',
+        'TIKTOK_WEBHOOK_SECRET',
+        'BITRIX_MOCK_EVENT_SECRET',
+      ] as const) {
+        if (env[key].includes('change-me')) {
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'still holds the placeholder from the example file',
+          });
+        }
+      }
+      if (env.CORS_ORIGINS.trim() === '*') {
+        context.addIssue({
+          code: 'custom',
+          path: ['CORS_ORIGINS'],
+          message: 'must list the allowed origins in production',
+        });
+      }
+    }
+    // The Bitrix24 gateway is verified on a live portal through an incoming webhook. The OAuth
+    // application path has only run against the mock, so production must not rely on it yet.
     if (
       env.BITRIX_INTEGRATION_MODE === 'real' &&
-      env.BITRIX24_WEBHOOK_URL &&
-      !env.BITRIX24_OUTGOING_TOKEN
+      env.NODE_ENV === 'production' &&
+      !env.TIKTOK_BITRIX24_WEBHOOK_URL
     ) {
       context.addIssue({
         code: 'custom',
-        path: ['BITRIX24_OUTGOING_TOKEN'],
+        path: ['BITRIX_INTEGRATION_MODE'],
+        message:
+          'real mode in production needs TIKTOK_BITRIX24_WEBHOOK_URL: the OAuth path is not verified on a live portal',
+      });
+    }
+    if (
+      env.BITRIX_INTEGRATION_MODE === 'real' &&
+      env.TIKTOK_BITRIX24_WEBHOOK_URL &&
+      !env.TIKTOK_BITRIX24_OUTGOING_TOKEN
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['TIKTOK_BITRIX24_OUTGOING_TOKEN'],
         message: 'is required when real Bitrix callbacks use webhook mode',
       });
     }
@@ -112,8 +157,8 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     eventSourceId: env.TIKTOK_EVENT_SOURCE_ID,
     portalKey: env.BITRIX_PORTAL_KEY,
     bitrixMockEventSecret: env.BITRIX_MOCK_EVENT_SECRET,
-    bitrixOutgoingEventToken: env.BITRIX24_OUTGOING_TOKEN,
-    bitrixWebhookUrl: env.BITRIX24_WEBHOOK_URL,
+    bitrixOutgoingEventToken: env.TIKTOK_BITRIX24_OUTGOING_TOKEN,
+    bitrixWebhookUrl: env.TIKTOK_BITRIX24_WEBHOOK_URL,
     defaultPhoneRegion: env.DEFAULT_PHONE_REGION,
     reportTimezone: env.REPORT_TIMEZONE,
     queuePrefix: env.INTEGRATION_QUEUE_PREFIX,

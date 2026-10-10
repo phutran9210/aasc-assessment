@@ -22,10 +22,7 @@ function project(displayName, config) {
  * Most of this code talks to PostgreSQL and Redis and is proven by the integration suites, so a
  * unit-only percentage would say little; the thresholds therefore apply to the combined run.
  *
- * Statements, functions and lines are held at 85 %. Branches are held at their measured level
- * (75 %), below the 80 % the specification asks for: the gap is mostly error and fallback paths
- * in the operation control service and the Bitrix24 gateway, and is recorded as open work rather
- * than hidden by excluding files.
+ * All four metrics are held at 85 % across the combined suite.
  *
  * @type {import('jest').Config}
  */
@@ -35,5 +32,5 @@ export default {
   collectCoverageFrom: TIKTOK_COVERAGE_SCOPE,
   coverageDirectory: '<rootDir>/coverage-tiktok/combined',
   coverageReporters: ['text-summary', 'json-summary', 'lcov'],
-  coverageThreshold: { global: { statements: 85, functions: 85, lines: 85, branches: 74 } },
+  coverageThreshold: { global: { statements: 85, functions: 85, lines: 85, branches: 85 } },
 };

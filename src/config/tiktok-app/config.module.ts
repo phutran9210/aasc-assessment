@@ -7,7 +7,8 @@ import { validateTiktokEnv } from './env.validation.js';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.TIKTOK_APP_ENV_FILE ?? '.env.tiktok',
+      // The one configuration file of the repository; tests point this elsewhere.
+      envFilePath: process.env.TIKTOK_APP_ENV_FILE ?? '.env',
       validate: validateTiktokEnv,
     }),
   ],

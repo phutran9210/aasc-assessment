@@ -42,6 +42,7 @@ export const EXPORT_ARTIFACT_TTL_MS = 24 * 60 * 60 * 1000;
 export const MAX_ACTIVE_EXPORT_JOBS = 2;
 export const EXPORT_PAGE_SIZE = 1_000;
 const MAX_ATTEMPTS = 5;
+const WORKER_ABANDONED = 'REPORT_WORKER_ABANDONED';
 const RETRY_BASE_MS = 2_000;
 const RETRY_CAP_MS = 60_000;
 
@@ -171,6 +172,13 @@ export class ExportService {
     }
     if (job.status === 'completed') return { outcome: 'succeeded' };
     if (job.status === 'failed') return { outcome: 'quarantined', errorCode: 'REPORT_JOB_FAILED' };
+    if (context.attempt > MAX_ATTEMPTS) {
+      // Earlier attempts died without reporting. The job is closed so it stops counting against
+      // the requester's active jobs.
+      await this.artifacts.purgeJob(jobId);
+      await this.jobs.update(jobId, { status: 'failed', errorSummary: WORKER_ABANDONED });
+      return { outcome: 'dead_letter', errorCode: WORKER_ABANDONED };
+    }
 
     await context.assertOwnership?.();
     await this.jobs.update(jobId, { status: 'running' });

@@ -60,9 +60,15 @@ export function normalizeLead(input: ProviderLead, region: string): Normalizatio
         first(fields, 'campaign_name', 'campaignName'),
       255,
     ).value,
-    adId: normalizedId(input.ad?.id ?? first(ad, 'ad_id', 'id') ?? first(fields, 'ad_id', 'adId')),
+    // The assignment's payload carries the ad inside `campaign`.
+    adId: normalizedId(
+      input.ad?.id ?? first(ad, 'ad_id', 'id') ?? first(fields, 'ad_id', 'adId') ?? campaign.ad_id,
+    ),
     adName: normalizeText(
-      input.ad?.name ?? first(ad, 'ad_name', 'name') ?? first(fields, 'ad_name', 'adName'),
+      input.ad?.name ??
+        first(ad, 'ad_name', 'name') ??
+        first(fields, 'ad_name', 'adName') ??
+        campaign.ad_name,
       255,
     ).value,
     formId: normalizedId(
@@ -75,7 +81,7 @@ export function normalizeLead(input: ProviderLead, region: string): Normalizatio
       255,
     ).value,
     ttclid: normalizedId(first(leadFields, 'ttclid') ?? fields.ttclid),
-    utm: normalizeUtm(input.utm ?? fields.utm),
+    utm: normalizeUtm(input.utm ?? fields.utm ?? inlineUtm(leadFields)),
     customAnswers: normalizeAnswers(
       input.customQuestions ?? leadFields.custom_questions ?? fields.custom_questions,
     ),
@@ -133,6 +139,11 @@ function normalizeUtm(value: unknown): Record<string, string> {
     return normalized ? [[key, normalized] as const] : [];
   });
   return Object.fromEntries(entries);
+}
+
+/** UTM values sent as `utm_source`, `utm_campaign`, ... next to the contact fields. */
+function inlineUtm(leadFields: RecordValue): RecordValue {
+  return Object.fromEntries(Object.entries(leadFields).filter(([key]) => key.startsWith('utm_')));
 }
 
 function normalizeAnswers(value: unknown): Record<string, unknown> {

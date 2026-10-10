@@ -13,14 +13,15 @@ export function environmentBitrixAdapter(): DynamicModule {
     portalDomain: process.env.BITRIX24_DOMAIN ?? '',
     requisitePresetId:
       Number.isSafeInteger(requisitePresetId) && requisitePresetId >= 0 ? requisitePresetId : 0,
-    webhookUrl: process.env.BITRIX24_WEBHOOK_URL,
+    webhookUrl: process.env.TIKTOK_BITRIX24_WEBHOOK_URL,
     timeoutMs: 10_000,
     stateTtlSeconds: 600,
     refreshSkewSeconds: 60,
   };
   return BitrixAdapterModule.register({
     portalKey,
-    namespace: `aasc-tiktok:${portalKey}`,
+    // Shares the queue prefix so two deployments on one Redis never pace each other's requests.
+    namespace: `${process.env.INTEGRATION_QUEUE_PREFIX?.trim() || 'aasc-tiktok'}:${portalKey}`,
     bitrix,
   });
 }

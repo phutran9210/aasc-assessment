@@ -4,9 +4,7 @@
       "source": "name",
       "target": "name",
       "owner": "integration",
-      "transforms": [
-        "trim"
-      ]
+      "transforms": []
     },
     {
       "source": "email",
@@ -19,6 +17,30 @@
       "source": "phone",
       "target": "fm",
       "subfield": "PHONE",
+      "owner": "integration",
+      "transforms": []
+    },
+    {
+      "source": "city",
+      "target": "UF_CRM_CITY",
+      "owner": "integration",
+      "transforms": []
+    },
+    {
+      "source": "campaignName",
+      "target": "UF_CRM_UTM_CAMPAIGN",
+      "owner": "integration",
+      "transforms": []
+    },
+    {
+      "source": "adName",
+      "target": "UF_CRM_AD_NAME",
+      "owner": "integration",
+      "transforms": []
+    },
+    {
+      "source": "ttclid",
+      "target": "UF_CRM_TTCLID",
       "owner": "integration",
       "transforms": []
     }

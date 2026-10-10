@@ -1,67 +1,219 @@
-# TikTok – Bitrix24 integration demo (mock providers).
-#   cp .env.tiktok.example .env.tiktok
-#   docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml up -d --build --wait
-#   docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml run --rm demo
-# (--env-file feeds the ${...} placeholders below; env_file feeds the containers.)
-# The project name keeps these containers and volumes apart from the AASC app and the tests.
-name: aasc-tiktok-demo
+# TikTok – Bitrix24 integration: every way of running it, in one file.
+#
+# Settings come from .env (create it with `cp .env.example .env`), which Compose reads by default.
+# COMPOSE_PROFILES in it chooses the mode; see Part 2 of .env.example.
+#
+#   Start the mode .env describes (demo by default: mock TikTok + mock Bitrix24, seeded)
+#     docker compose -f docker-compose.tiktok.yml up -d --build --wait
+#     docker compose -f docker-compose.tiktok.yml run --rm demo          # demo mode only
+#
+#   Create an account (the password is prompted)
+#     docker compose -f docker-compose.tiktok.yml run --rm create-user <name> integration_admin
+#
+#   Throwaway PostgreSQL and Redis for the test suites, whatever .env says
+#     docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml --profile test up -d --wait
+#     docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml port test-postgres 5432
+name: ${TIKTOK_COMPOSE_PROJECT:-aasc-tiktok}
 
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
+# Every container that runs the application image. Hardening: an init process that forwards signals
+# and reaps children, a read-only root filesystem (data lives in the volumes), no Linux
+# capabilities, no privilege gain, and bounded memory, processes and logs.
 x-app: &app
   build:
     context: .
     dockerfile: Dockerfile.tiktok
-  image: aasc-tiktok:local
-  env_file: .env.tiktok
-  environment: &app-env
-    # Mock mode with demo accounts is a development setup; real mode must use NODE_ENV=production.
-    NODE_ENV: development
-    TIKTOK_DATABASE_URL: postgres://${TIKTOK_POSTGRES_USER:-tiktok}:${TIKTOK_POSTGRES_PASSWORD:?set TIKTOK_POSTGRES_PASSWORD in .env.tiktok}@postgres:5432/${TIKTOK_POSTGRES_DB:-tiktok}
-    TIKTOK_REDIS_URL: redis://redis:6379
-    BITRIX24_WEBHOOK_URL: http://mock:3002/rest/1/mock/
-    TIKTOK_MOCK_BASE_URL: http://mock:3002/tiktok
+  # Set TIKTOK_IMAGE to run an image built and scanned by CI instead of building here.
+  image: ${TIKTOK_IMAGE:-aasc-tiktok:local}
+  # The shared file also holds the settings of the AASC app; this app ignores those.
+  env_file: .env
+  environment: &app-env # Inside Compose the data stores are always these two services.
+    TIKTOK_DATABASE_URL: postgres://${TIKTOK_POSTGRES_USER:-tiktok}:${TIKTOK_POSTGRES_PASSWORD:-}@postgres:5432/${TIKTOK_POSTGRES_DB:-tiktok}
+    TIKTOK_REDIS_URL: redis://${TIKTOK_REDIS_PASSWORD:+:${TIKTOK_REDIS_PASSWORD}@}redis:6379
     INTEGRATION_ARTIFACT_DIR: /app/data/tiktok-artifacts
     # The API reports itself ready only while a worker heartbeat is fresh.
     INTEGRATION_WORKER_ENABLED: 'true'
+  networks:
+    - backend
   restart: unless-stopped
+  init: true
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  stop_grace_period: 30s
+  mem_limit: 512m
+  pids_limit: 200
+  logging: *logging
+
+# One-shot commands (migrations, seed, tools): never restarted, no health check.
+x-job: &job
+  <<: *app
+  restart: 'no'
+  mem_limit: 384m
+  healthcheck:
+    disable: true
+
+# The API and the worker also join `edge` for outbound calls, share the artifact volume, and wait
+# for the schema. The seed and the mock are waited for only in the modes that start them.
+x-runtime: &runtime
+  <<: *app
+  profiles: ['app']
+  networks:
+    - backend
+    - edge
+  volumes:
+    - tiktok-artifacts:/app/data/tiktok-artifacts
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+    redis:
+      condition: service_healthy
+    seed:
+      condition: service_completed_successfully
+      required: false
+    mock:
+      condition: service_healthy
+      required: false
+
+x-postgres: &postgres
+  image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+  # The entrypoint starts as root to prepare the data directory, then drops to `postgres`.
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
+
+x-redis: &redis
+  image: redis:7.4.3-alpine@sha256:f773b35a95e170d92dd4214a3ec4859b1b7960bf56896ae687646d695f311187
+  # Started as the redis user directly: the image's entrypoint would otherwise need the
+  # capabilities dropped below to switch away from root.
+  user: redis
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging: *logging
 
 services:
+  # ── Data stores: no published port, on a network without a route to the outside ──────────
   postgres:
-    image: postgres:16.10-alpine
+    <<: *postgres
+    profiles: ['app']
     environment:
       POSTGRES_USER: ${TIKTOK_POSTGRES_USER:-tiktok}
-      POSTGRES_PASSWORD: ${TIKTOK_POSTGRES_PASSWORD:?set TIKTOK_POSTGRES_PASSWORD in .env.tiktok}
+      POSTGRES_PASSWORD: ${TIKTOK_POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${TIKTOK_POSTGRES_DB:-tiktok}
     volumes:
       - tiktok-postgres:/var/lib/postgresql/data
+    networks:
+      - backend
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
-      interval: 5s
+      interval: 10s
       timeout: 3s
-      retries: 20
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
+    stop_grace_period: 60s
+    mem_limit: ${TIKTOK_POSTGRES_MEMORY:-1g}
+    pids_limit: 200
 
   redis:
-    image: redis:7.4.3-alpine
+    <<: *redis
+    profiles: ['app']
     # Append-only persistence: queued jobs survive a restart. The source of truth stays PostgreSQL.
-    command: ['redis-server', '--appendonly', 'yes', '--appendfsync', 'everysec']
+    # BullMQ needs `noeviction`: at the memory cap Redis refuses writes instead of dropping jobs.
+    # The password is optional and read inside the container, so it is not part of the command
+    # that `docker inspect` shows.
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server --appendonly yes --appendfsync everysec
+        --maxmemory 384mb --maxmemory-policy noeviction
+        $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
+    environment:
+      REDIS_PASSWORD: ${TIKTOK_REDIS_PASSWORD:-}
+      # Read by redis-cli in the health check.
+      REDISCLI_AUTH: ${TIKTOK_REDIS_PASSWORD:-}
     volumes:
       - tiktok-redis:/data
+    networks:
+      - backend
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
+      interval: 10s
       timeout: 3s
-      retries: 20
+      retries: 12
     restart: unless-stopped
+    mem_limit: 512m
+    pids_limit: 100
 
-  # Local stand-in for the TikTok and Bitrix24 APIs. Never deploy it next to real credentials.
+  # ── Application ──────────────────────────────────────────────────────────────────────────
+  # One-shot: applies migrations under an advisory lock, so several hosts may start it at once.
+  migrate:
+    <<: *job
+    profiles: ['app']
+    command: ['node', 'dist-tiktok/apps/tiktok/database/migration-runner.js']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *runtime
+    command: ['node', 'dist-tiktok/apps/tiktok/main.js']
+    environment:
+      <<: *app-env
+      TIKTOK_APP_PORT: '3001'
+    # Loopback only: put a TLS-terminating reverse proxy in front and list it in
+    # TIKTOK_TRUSTED_PROXIES.
+    ports:
+      - '127.0.0.1:${TIKTOK_APP_PORT:-3001}:3001'
+    mem_limit: ${TIKTOK_API_MEMORY:-512m}
+
+  worker:
+    <<: *runtime
+    command: ['node', 'dist-tiktok/apps/tiktok/worker.js']
+    environment:
+      <<: *app-env
+      INTEGRATION_SCHEDULER_ENABLED: 'true'
+    mem_limit: ${TIKTOK_WORKER_MEMORY:-768m}
+    # The worker has no HTTP port; the API's /health/ready reports its heartbeat.
+    healthcheck:
+      disable: true
+
+  # Run on demand. The password is read from the terminal, or from the first line of standard
+  # input when piped (add -T).
+  create-user:
+    <<: *job
+    profiles: ['tools']
+    entrypoint: ['node', 'dist-tiktok/modules/integration-auth/cli/create-integration-user.js']
+    command: []
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # ── Mock providers and demo data (never next to real credentials for the mocked side) ────
+  # Local stand-in for the TikTok and Bitrix24 APIs.
   mock:
     <<: *app
+    profiles: ['mock']
     command: ['node', 'dist-tiktok/apps/tiktok/cli/mock-server.js']
+    env_file: []
     environment:
       NODE_ENV: development
       TIKTOK_MOCK_HOST: 0.0.0.0
       TIKTOK_MOCK_PORT: '3002'
-    env_file: []
+    mem_limit: 256m
     healthcheck:
       test:
         - CMD
@@ -72,68 +224,20 @@ services:
       timeout: 3s
       retries: 20
 
-  # One-shot: applies migrations (under an advisory lock) before anything else starts.
-  migrate:
-    <<: *app
-    command: ['node', 'dist-tiktok/apps/tiktok/database/migration-runner.js']
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: 'no'
-    healthcheck:
-      disable: true
-
-  # One-shot: demo identity, accounts, rules and campaign cost. Idempotent; mock mode only.
+  # One-shot: demo identity, accounts, rules and campaign cost. Idempotent; refuses production
+  # and any mode that is not fully mocked.
   seed:
-    <<: *app
+    <<: *job
+    profiles: ['demo']
     command: ['node', 'dist-tiktok/apps/tiktok/cli/seed.js']
     depends_on:
       migrate:
         condition: service_completed_successfully
-    restart: 'no'
-    healthcheck:
-      disable: true
 
-  api:
-    <<: *app
-    command: ['node', 'dist-tiktok/apps/tiktok/main.js']
-    ports:
-      - '127.0.0.1:${TIKTOK_APP_PORT:-3001}:3001'
-    environment:
-      <<: *app-env
-      TIKTOK_APP_PORT: '3001'
-    volumes:
-      - tiktok-artifacts:/app/data/tiktok-artifacts
-    depends_on:
-      seed:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      mock:
-        condition: service_healthy
-
-  worker:
-    <<: *app
-    command: ['node', 'dist-tiktok/apps/tiktok/worker.js']
-    environment:
-      <<: *app-env
-      INTEGRATION_SCHEDULER_ENABLED: 'true'
-    volumes:
-      - tiktok-artifacts:/app/data/tiktok-artifacts
-    depends_on:
-      seed:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      mock:
-        condition: service_healthy
-    healthcheck:
-      disable: true
-
-  # Run on demand: docker compose --env-file .env.tiktok -f docker-compose.tiktok.yml run --rm demo
+  # Run on demand: sends one signed webhook and follows it to a won deal and the exports.
   demo:
-    <<: *app
-    profiles: ['demo']
+    <<: *job
+    profiles: ['tools']
     command: ['node', 'dist-tiktok/apps/tiktok/cli/run-demo.js']
     environment:
       <<: *app-env
@@ -141,9 +245,49 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    restart: 'no'
+
+  # ── Test infrastructure: nothing is kept, ports are random loopback ports ────────────────
+  # The credentials are fixed test values; never point a real database at these two.
+  test-postgres:
+    <<: *postgres
+    profiles: ['test']
+    environment:
+      POSTGRES_USER: tiktok_test
+      POSTGRES_PASSWORD: tiktok_test_only
+      POSTGRES_DB: tiktok_test
+    ports:
+      - '127.0.0.1::5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - test
     healthcheck:
-      disable: true
+      test: ['CMD-SHELL', 'pg_isready -U tiktok_test -d tiktok_test']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  test-redis:
+    <<: *redis
+    profiles: ['test']
+    command: ['redis-server', '--appendonly', 'no', '--save', '']
+    ports:
+      - '127.0.0.1::6379'
+    networks:
+      - test
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+networks:
+  # Data stores, jobs and the mock: containers here cannot reach the outside.
+  backend:
+    internal: true
+  # Outbound calls (Bitrix24, TikTok) and the published API port.
+  edge:
+  test:
 
 volumes:
   tiktok-postgres:

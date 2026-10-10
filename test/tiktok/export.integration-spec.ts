@@ -415,6 +415,23 @@ describe('lead export', () => {
     await expect(exporter.schedule({ ...range, format: 'csv' }, actor)).resolves.toBeDefined();
   });
 
+  it('fails the job when every earlier attempt died without reporting', async () => {
+    await seed(1);
+    const actor = analyst();
+    const exporter = service();
+    const job = await exporter.schedule({ ...range, format: 'csv' }, actor);
+    await jobs.update(job.id, { status: 'running' });
+
+    expect(await exporter.execute(job.id, { ...context, attempt: 6 })).toEqual({
+      outcome: 'dead_letter',
+      errorCode: 'REPORT_WORKER_ABANDONED',
+    });
+    expect(await exporter.getJob(job.id, actor)).toMatchObject({
+      status: 'failed',
+      errorSummary: 'REPORT_WORKER_ABANDONED',
+    });
+  });
+
   describe('artifact authorization', () => {
     async function completedJob(actor: Actor) {
       await seed(1);

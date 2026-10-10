@@ -99,7 +99,7 @@ function mapping(title = 'NAME') {
       { source: title, target: 'name', owner: 'integration', transforms: ['trim'] },
       { source: 'EMAIL', target: 'fm', subfield: 'EMAIL', owner: 'integration' },
       { source: 'PHONE', target: 'fm', subfield: 'PHONE', owner: 'integration' },
-      { source: 'company', target: 'UF_CRM_TIKTOK_EXTERNAL_ID', owner: 'manual' },
+      { source: 'company', target: 'UF_CRM_CITY', owner: 'manual' },
     ],
   };
 }
@@ -157,11 +157,11 @@ describe('TikTok configuration ETag API', () => {
     ]);
     const [admin, analyst] = await Promise.all([
       request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'configuration-admin', password: PASSWORD })
         .expect(200),
       request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'configuration-analyst', password: PASSWORD })
         .expect(200),
     ]);
@@ -177,21 +177,28 @@ describe('TikTok configuration ETag API', () => {
 
   it('requires an admin and If-Match, then returns the mapping revision and ETag', async () => {
     await request(testApp.app.getHttpServer())
-      .get('/configuration/mapping')
+      .get('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${analystToken}`)
       .expect(403);
-    await request(testApp.app.getHttpServer())
-      .get('/configuration/mapping')
+    const initial = await request(testApp.app.getHttpServer())
+      .get('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
-      .expect(404);
+      .expect(200);
+    expect(initial.headers.etag).toBe('"0"');
+    expect(initial.body).toMatchObject({ key: 'mapping', revision: 0 });
+    expect(initial.body.value.entries.map((entry: { source: string }) => entry.source)).toEqual([
+      'name',
+      'email',
+      'phone',
+    ]);
     await request(testApp.app.getHttpServer())
-      .put('/configuration/mapping')
+      .put('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ value: mapping() })
       .expect(428);
 
     const response = await request(testApp.app.getHttpServer())
-      .put('/configuration/mapping')
+      .put('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"0"')
       .send({ value: mapping() })
@@ -210,7 +217,7 @@ describe('TikTok configuration ETag API', () => {
     });
     expect(response.body.compiled.titleMaxLength).toBe(180);
     await request(testApp.app.getHttpServer())
-      .get('/configuration/mapping')
+      .get('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200)
       .expect(({ headers, body }) => {
@@ -222,25 +229,25 @@ describe('TikTok configuration ETag API', () => {
   it('allows only one concurrent PUT with the same revision and rejects stale ETags', async () => {
     const writes = await Promise.all([
       request(testApp.app.getHttpServer())
-        .put('/configuration/mapping')
+        .put('/api/v1/config/mappings')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('If-Match', '"0"')
         .send({ value: mapping('NAME') }),
       request(testApp.app.getHttpServer())
-        .put('/configuration/mapping')
+        .put('/api/v1/config/mappings')
         .set('Authorization', `Bearer ${adminToken}`)
         .set('If-Match', '"0"')
         .send({ value: mapping('FIRST_NAME') }),
     ]);
     expect(writes.map((response) => response.status).sort()).toEqual([200, 409]);
     const active = await request(testApp.app.getHttpServer())
-      .get('/configuration/mapping')
+      .get('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(active.body.revision).toBe(1);
 
     await request(testApp.app.getHttpServer())
-      .put('/configuration/mapping')
+      .put('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"0"')
       .send({ value: mapping() })
@@ -249,28 +256,133 @@ describe('TikTok configuration ETag API', () => {
 
   it('does not advance the active revision when CRM metadata validation fails', async () => {
     await request(testApp.app.getHttpServer())
-      .put('/configuration/mapping')
+      .put('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"0"')
       .send({ value: mapping() })
       .expect(200);
     crmStore.injectFault('crm.item.fields', 'auth_invalid');
     const response = await request(testApp.app.getHttpServer())
-      .put('/configuration/mapping')
+      .put('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"1"')
       .send({ value: mapping('FIRST_NAME') });
     expect(response.status).toBeGreaterThanOrEqual(400);
     await request(testApp.app.getHttpServer())
-      .get('/configuration/mapping')
+      .get('/api/v1/config/mappings')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200)
       .expect(({ body }) => expect(body.revision).toBe(1));
   });
 
+  describe('configuration document of the assignment', () => {
+    const assignment = {
+      field_mapping: {
+        'lead_data.full_name': 'NAME',
+        'lead_data.email': 'EMAIL[0][VALUE]',
+        'lead_data.phone': 'PHONE[0][VALUE]',
+        'lead_data.city': 'UF_CRM_CITY',
+        'campaign.campaign_name': 'UF_CRM_UTM_CAMPAIGN',
+        'campaign.ad_name': 'UF_CRM_AD_NAME',
+        'lead_data.ttclid': 'UF_CRM_TTCLID',
+      },
+      deal_rules: [
+        {
+          condition: "campaign.campaign_name CONTAINS 'sale'",
+          action: 'create_deal',
+          pipeline_id: '1',
+          stage_id: 'NEW',
+          probability: 30,
+        },
+      ],
+    };
+    const put = (path: string, etag: string, body: object) =>
+      request(testApp.app.getHttpServer())
+        .put(path)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('If-Match', etag)
+        .send(body);
+    const get = (path: string) =>
+      request(testApp.app.getHttpServer()).get(path).set('Authorization', `Bearer ${adminToken}`);
+
+    it('is accepted as it is printed and becomes the mapping and the deal rules', async () => {
+      await put('/api/v1/config/rules', '"0"', { value: rules() }).expect(200);
+
+      const stored = await put('/api/v1/config/mappings', '"0"', assignment).expect(200);
+
+      expect(stored.headers.etag).toBe('"1"');
+      expect(stored.body.value.entries).toEqual(
+        expect.arrayContaining([
+          { source: 'name', target: 'name', owner: 'integration', transforms: [] },
+          {
+            source: 'email',
+            target: 'fm',
+            subfield: 'EMAIL',
+            owner: 'integration',
+            transforms: [],
+          },
+          { source: 'city', target: 'UF_CRM_CITY', owner: 'integration', transforms: [] },
+          { source: 'ttclid', target: 'UF_CRM_TTCLID', owner: 'integration', transforms: [] },
+        ]),
+      );
+      const policy = await get('/api/v1/config/rules').expect(200);
+      expect(policy.headers.etag).toBe('"2"');
+      expect(policy.body.value.rules).toEqual([
+        {
+          id: 'deal-rule-1',
+          priority: 10,
+          enabled: true,
+          conditions: { field: 'lead.campaign_name', op: 'contains', value: 'sale' },
+          action: 'create_deal',
+          pipeline_id: 1,
+          stage_id: 'C1:NEW',
+          probability: 30,
+          assignment: {},
+        },
+      ]);
+      // Sections the assignment's format cannot express are kept.
+      expect(policy.body.value.assignment).toEqual(rules().assignment);
+    });
+
+    it('accepts the deal rules on the rules endpoint too', async () => {
+      await put('/api/v1/config/rules', '"0"', { value: rules() }).expect(200);
+
+      const stored = await put('/api/v1/config/rules', '"1"', {
+        deal_rules: assignment.deal_rules,
+      }).expect(200);
+
+      expect(stored.headers.etag).toBe('"2"');
+      expect(stored.body.value.rules).toHaveLength(1);
+      expect(stored.body.value.rules[0]).toMatchObject({ id: 'deal-rule-1', stage_id: 'C1:NEW' });
+    });
+
+    it('writes nothing when one half of the document is invalid', async () => {
+      await put('/api/v1/config/rules', '"0"', { value: rules() }).expect(200);
+
+      await put('/api/v1/config/mappings', '"0"', {
+        ...assignment,
+        deal_rules: [{ ...assignment.deal_rules[0], stage_id: 'MISSING' }],
+      }).expect(400);
+      await put('/api/v1/config/mappings', '"0"', {
+        ...assignment,
+        field_mapping: { 'lead_data.full_name': 'UF_CRM_DOES_NOT_EXIST' },
+      }).expect(400);
+
+      expect((await get('/api/v1/config/mappings').expect(200)).headers.etag).toBe('"0"');
+      expect((await get('/api/v1/config/rules').expect(200)).headers.etag).toBe('"1"');
+    });
+
+    it('asks for a rules policy before deal rules can extend it', async () => {
+      await put('/api/v1/config/mappings', '"0"', assignment).expect(400);
+      await put('/api/v1/config/mappings', '"0"', {
+        field_mapping: assignment.field_mapping,
+      }).expect(200);
+    });
+  });
+
   it('stores canonical rules only after pipeline, stage, probability, and active sales validation', async () => {
     const response = await request(testApp.app.getHttpServer())
-      .put('/configuration/rules')
+      .put('/api/v1/config/rules')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"0"')
       .send({ value: rules() })
@@ -278,7 +390,7 @@ describe('TikTok configuration ETag API', () => {
     expect(response.headers.etag).toBe('"1"');
     expect(response.body.value).toEqual(rules());
     const read = await request(testApp.app.getHttpServer())
-      .get('/configuration/rules')
+      .get('/api/v1/config/rules')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(read.headers.etag).toBe('"1"');
@@ -287,7 +399,7 @@ describe('TikTok configuration ETag API', () => {
     const invalidPipeline = rules();
     invalidPipeline.rules[0].pipeline_id = 0;
     await request(testApp.app.getHttpServer())
-      .put('/configuration/rules')
+      .put('/api/v1/config/rules')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"1"')
       .send({ value: invalidPipeline })
@@ -295,7 +407,7 @@ describe('TikTok configuration ETag API', () => {
     const invalidProbability = rules();
     invalidProbability.rules[0].probability = 101;
     await request(testApp.app.getHttpServer())
-      .put('/configuration/rules')
+      .put('/api/v1/config/rules')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"1"')
       .send({ value: invalidProbability })
@@ -303,7 +415,7 @@ describe('TikTok configuration ETag API', () => {
     const inactiveSales = rules();
     inactiveSales.assignment.sales_ids = ['999'];
     await request(testApp.app.getHttpServer())
-      .put('/configuration/rules')
+      .put('/api/v1/config/rules')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '"1"')
       .send({ value: inactiveSales })

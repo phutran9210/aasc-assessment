@@ -33,6 +33,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode,
       error: STATUS_CODES[statusCode] ?? 'Error',
       message: this.resolveMessage(exception, request),
+      ...this.resolveCode(exception),
       path: request.path,
       timestamp: nowIso(),
     };
@@ -76,6 +77,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (typeof message === 'string') return withoutQuery(message);
     if (Array.isArray(message)) return message.map((item) => withoutQuery(String(item)));
     return withoutQuery(exception.message);
+  }
+
+  private resolveCode(exception: unknown): { code?: string } {
+    if (!(exception instanceof HttpException)) return {};
+    const payload = exception.getResponse();
+    if (typeof payload !== 'object' || payload === null) return {};
+    const { code } = payload as { code?: unknown };
+    return typeof code === 'string' ? { code } : {};
   }
 
   /** 5xx are server faults (error + stack trace); 4xx are client faults (warn). */

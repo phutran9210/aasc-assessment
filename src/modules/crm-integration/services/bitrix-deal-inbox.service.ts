@@ -100,8 +100,10 @@ export class BitrixDealInbox {
       throw new UnauthorizedException('Mock Bitrix callback format is disabled in real mode');
 
     if (this.api.mode === 'webhook') {
+      // An outgoing webhook proves itself with the application token in its body
+      // (`auth[application_token]`); Bitrix24 sends no credential header.
       const token = config.bitrixOutgoingEventToken;
-      if (!token || !safeEqual(header(headers, 'x-bitrix-outgoing-token'), token))
+      if (!token || !safeEqual(event.applicationToken, token))
         throw new UnauthorizedException('Invalid Bitrix outgoing callback credential');
       return;
     }

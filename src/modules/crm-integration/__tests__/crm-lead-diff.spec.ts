@@ -96,4 +96,53 @@ describe('buildLeadDiff', () => {
 
     expect(result.patch).toEqual({});
   });
+
+  it('does not duplicate an existing CRM multifield or overwrite a manually owned phone', () => {
+    const email = { typeId: 'EMAIL', valueType: 'WORK', value: 'ada@example.test' };
+    const phone = { typeId: 'PHONE', valueType: 'WORK', value: '+84901234567' };
+    const result = buildLeadDiff({ fm: [email, phone] }, { fm: [email] }, {}, compiled);
+
+    expect(result.patch).toEqual({});
+    expect(result.lastWrittenFields).toEqual({});
+  });
+
+  it('keeps sales-owned scalar changes while updating another integration-owned field', () => {
+    const result = buildLeadDiff(
+      { name: 'Current TikTok name', city: 'Hanoi' },
+      { name: 'Sales name', city: 'Hue' },
+      { name: 'Old TikTok name', city: 'Hue' },
+      compiled,
+    );
+
+    expect(result.patch).toEqual({ city: 'Hanoi' });
+    expect(result.lastWrittenFields).toEqual({ name: 'Old TikTok name', city: 'Hanoi' });
+  });
+
+  it('accepts uppercase CRM multifield keys and ignores entries without a usable type or value', () => {
+    const result = buildLeadDiff(
+      {
+        fm: [
+          { TYPE_ID: 'EMAIL', VALUE_TYPE: 'WORK', VALUE: 'ada@example.test' },
+          { TYPE_ID: '', VALUE: 'ignored@example.test' },
+          { TYPE_ID: 'EMAIL', VALUE: null },
+          null,
+        ],
+      },
+      { fm: [{ TYPE_ID: 'PHONE', VALUE_TYPE: 42, VALUE: '+84901234567' }] },
+      { fm: [{ TYPE_ID: null, VALUE: 'old' }] },
+      compiled,
+    );
+
+    expect(result.patch.fm).toEqual([
+      { TYPE_ID: 'PHONE', VALUE_TYPE: 42, VALUE: '+84901234567' },
+      { TYPE_ID: 'EMAIL', VALUE_TYPE: 'WORK', VALUE: 'ada@example.test' },
+    ]);
+  });
+
+  it('updates a nonempty integration-owned array field', () => {
+    const result = buildLeadDiff({ tags: ['new'] }, { tags: ['old'] }, { tags: ['old'] }, compiled);
+
+    expect(result.patch).toEqual({ tags: ['new'] });
+    expect(result.lastWrittenFields.tags).toEqual(['new']);
+  });
 });

@@ -5,6 +5,7 @@ import type {
   RemoteDeal,
   RemoteLead,
   TimelineEntry,
+  TimelineQuery,
 } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import type { ReconcileResult } from '../types/reconcile-result.type.js';
@@ -16,9 +17,12 @@ export class RemoteReconciliationService {
   async find(
     kind: 'lead' | 'deal' | 'timeline',
     marker: string,
+    // A timeline comment can only be looked up on the record it was written to.
+    entity?: Pick<TimelineQuery, 'entityType' | 'entityId'>,
   ): Promise<ReconcileResult<RemoteLead | RemoteDeal | TimelineEntry>> {
     if (kind === 'timeline') {
-      const entries = await this.gateway.findTimeline(marker);
+      if (!entity) throw new TypeError('A timeline lookup needs its CRM record');
+      const entries = await this.gateway.findTimeline({ ...entity, marker });
       return classify(entries);
     }
     if (kind === 'deal') {

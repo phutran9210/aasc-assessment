@@ -38,6 +38,8 @@ export type RemoteLead = {
   marker: ExternalId | null;
   fields: Record<string, unknown>;
   stale?: boolean;
+  // The record carries the origin of another integration and must not be adopted.
+  foreignOrigin?: boolean;
 };
 
 export type RemoteDeal = {
@@ -55,6 +57,7 @@ export type TimelineInput = {
 };
 
 export type TimelineEntry = TimelineInput & { id: ExternalId };
+export type TimelineQuery = Pick<TimelineInput, 'entityType' | 'entityId' | 'marker'>;
 
 export type CrmGateway = {
   metadata(): Promise<CrmMetadata>;
@@ -68,6 +71,6 @@ export type CrmGateway = {
   getDeal(id: ExternalId): Promise<RemoteDeal>;
   createDeal(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteDeal>;
   completeLead(id: ExternalId, stage: string): Promise<RemoteLead>;
-  findTimeline(marker: ExternalId): Promise<TimelineEntry[]>;
+  findTimeline(query: TimelineQuery): Promise<TimelineEntry[]>;
   addTimeline(input: TimelineInput): Promise<TimelineEntry>;
 };

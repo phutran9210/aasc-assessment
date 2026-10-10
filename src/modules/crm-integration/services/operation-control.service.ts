@@ -110,20 +110,29 @@ export class OperationControlService {
         throw new ConflictException('Operation state changed during resolution');
       const before = auditState(operation);
 
+      // Linking a lead or a deal only records which remote record is ours. The operation then
+      // runs again so the rest of its work (field sync, rules, lead completion, feedback) still
+      // happens; it finds the linked record and never creates another one.
+      let resume = false;
       if (input.action === 'link_remote') {
         if (!input.remoteId) throw new ConflictException('remoteId is required');
         await this.linkRemote(manager, operation, input.remoteId);
+        resume = operation.kind === 'bitrix_lead_sync' || operation.kind === 'bitrix_deal_convert';
+        if (resume && operation.aggregateId)
+          await this.assertNoActiveAggregateOperation(manager, operation.id, operation.aggregateId);
       }
-      operation.status = 'succeeded';
+      operation.status = resume ? 'pending' : 'succeeded';
       operation.remoteId =
         input.action === 'link_remote' && input.remoteId ? input.remoteId : operation.remoteId;
       operation.lastErrorCode = null;
       operation.lastErrorDetail = null;
       operation.nextAttemptAt = null;
-      operation.completedAt = new Date();
+      operation.completedAt = resume ? null : new Date();
       operation.leaseUntil = null;
       operation.leaseToken = null;
       await this.operations.save(operation, manager);
+      if (resume)
+        await this.outbox.append(operation.id, queueFor(operation.kind), new Date(), manager);
       await this.audit(
         manager,
         operation,
@@ -301,7 +310,8 @@ export class OperationControlService {
       if (collision && collision.id !== lead.id)
         throw new ConflictException('Remote lead is linked to another local lead');
       lead.bitrixLeadId = remoteId;
-      lead.syncStatus = 'synced';
+      // An ingest operation has no sync step of its own to run again, so it keeps the old result.
+      lead.syncStatus = operation.kind === 'bitrix_lead_sync' ? 'pending' : 'synced';
       lead.lastErrorCode = null;
       await this.leads.save(lead, manager);
     } else if (operation.kind === 'bitrix_deal_convert') {
@@ -315,8 +325,9 @@ export class OperationControlService {
       const collision = await this.deals.findByPortalRemote(deal.portalKey, remoteId, manager);
       if (collision && collision.id !== deal.id)
         throw new ConflictException('Remote deal is linked to another local deal');
-      deal.bitrixDealId = remoteId;
-      deal.conversionStatus = 'completed';
+      // The saga stores the remote ID itself, together with the lead completion and feedback that
+      // belong to it. This status lets it adopt the verified deal but never create one.
+      deal.conversionStatus = 'reconcile_required';
       await this.deals.save(deal, manager);
     } else {
       throw new ConflictException('This operation cannot link a remote CRM record');

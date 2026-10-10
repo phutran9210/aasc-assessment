@@ -24,7 +24,7 @@ function required(name: string): string {
 export function demoOptionsFromEnvironment(): DemoOptions {
   return {
     apiBaseUrl: (process.env.TIKTOK_DEMO_BASE_URL ?? 'http://127.0.0.1:3001').replace(/\/$/, ''),
-    bitrixRestUrl: required('BITRIX24_WEBHOOK_URL'),
+    bitrixRestUrl: required('TIKTOK_BITRIX24_WEBHOOK_URL'),
     advertiserId: required('TIKTOK_ADVERTISER_ID'),
     portalKey: process.env.BITRIX_PORTAL_KEY ?? 'mock-portal',
     webhookSecret: required('TIKTOK_WEBHOOK_SECRET'),

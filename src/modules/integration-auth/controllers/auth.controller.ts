@@ -15,7 +15,7 @@ import { IngressRateLimitGuard } from '@core/queue/guards/ingress-rate-limit.gua
 import { IntegrationAuthService } from '../services/integration-auth.service.js';
 import { LoginDto } from '../dto/login.dto.js';
 
-@Controller('auth')
+@Controller('api/v1/auth')
 export class AuthController {
   constructor(private readonly auth: IntegrationAuthService) {}
 

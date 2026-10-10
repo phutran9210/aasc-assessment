@@ -2,8 +2,6 @@ import type {
   CrmFieldMetadata,
   RemoteDeal,
   RemoteLead,
-  TimelineEntry,
-  TimelineInput,
 } from '@modules/crm-integration/ports/crm-gateway.port.js';
 
 export type ProviderFault =
@@ -30,7 +28,12 @@ export class BitrixStore {
   private nextTimelineId = 1;
   private readonly leads = new Map<string, RemoteLead>();
   private readonly deals = new Map<string, RemoteDeal>();
-  private readonly timelines: TimelineEntry[] = [];
+  private readonly timelines: Array<{
+    ID: string;
+    ENTITY_ID: string;
+    ENTITY_TYPE: string;
+    COMMENT: string;
+  }> = [];
   private readonly faults = new Map<string, ProviderFault[]>();
   readonly calls: Array<{ method: string; payload: Record<string, unknown> }> = [];
   pageSize = 2;
@@ -104,7 +107,9 @@ export class BitrixStore {
         return [{ ID: '1', NAME: 'Demo Sales', LAST_NAME: 'User', ACTIVE: true }];
       case 'crm.timeline.comment.list':
         return this.timelines.filter(
-          (entry) => entry.marker === String(this.record(payload.filter).marker),
+          (entry) =>
+            entry.ENTITY_ID === String(this.record(payload.filter).ENTITY_ID) &&
+            entry.ENTITY_TYPE === String(this.record(payload.filter).ENTITY_TYPE),
         );
       case 'crm.timeline.comment.add':
         return this.addTimeline(this.record(payload.fields));
@@ -119,10 +124,18 @@ export class BitrixStore {
       title: FIELD('title', 'string', 'Title'),
       name: FIELD('name', 'string', 'Name'),
       fm: FIELD('fm', 'crm_multifield', 'Phone and email'),
-      UF_CRM_TIKTOK_EXTERNAL_ID: FIELD('UF_CRM_TIKTOK_EXTERNAL_ID', 'string', 'External ID'),
+      originatorId: FIELD('originatorId', 'string', 'External source'),
+      originId: FIELD('originId', 'string', 'ID in the external source'),
     };
     return entityTypeId === 1
-      ? common
+      ? {
+          ...common,
+          // Custom lead fields named by the mapping of the assignment.
+          UF_CRM_CITY: FIELD('UF_CRM_CITY', 'string', 'City'),
+          UF_CRM_UTM_CAMPAIGN: FIELD('UF_CRM_UTM_CAMPAIGN', 'string', 'Campaign'),
+          UF_CRM_AD_NAME: FIELD('UF_CRM_AD_NAME', 'string', 'Ad'),
+          UF_CRM_TTCLID: FIELD('UF_CRM_TTCLID', 'string', 'TikTok click ID'),
+        }
       : {
           ...common,
           categoryId: FIELD('categoryId', 'crm_category'),
@@ -154,8 +167,10 @@ export class BitrixStore {
   private listItems(entityTypeId: number, payload: Record<string, unknown>): unknown {
     const filter = this.record(payload.filter);
     const items = [...this.items(entityTypeId).values()].filter((item) => {
-      const marker = filter['=UF_CRM_TIKTOK_EXTERNAL_ID'];
-      if (typeof marker === 'string' && item.marker !== marker) return false;
+      const marker = filter['=originId'];
+      if (typeof marker === 'string' && item.fields.originId !== marker) return false;
+      const originator = filter['=originatorId'];
+      if (typeof originator === 'string' && item.fields.originatorId !== originator) return false;
       const email = filter['=EMAIL'];
       if (typeof email === 'string' && item.fields.email !== email) return false;
       const phone = filter['=PHONE'];
@@ -190,7 +205,7 @@ export class BitrixStore {
   }
 
   private addItem(entityTypeId: number, fields: Record<string, unknown>): RemoteLead | RemoteDeal {
-    const marker = stringValue(fields.UF_CRM_TIKTOK_EXTERNAL_ID);
+    const marker = stringValue(fields.originId);
     if (entityTypeId === 1) {
       const item: RemoteLead = {
         id: String(this.nextLeadId++),
@@ -227,23 +242,23 @@ export class BitrixStore {
     const updated = {
       ...current,
       title: stringValue(fields.title, current.title),
-      marker: stringValue(fields.UF_CRM_TIKTOK_EXTERNAL_ID, current.marker ?? '') || null,
+      marker: stringValue(fields.originId, current.marker ?? '') || null,
       fields,
     };
     target.set(id, updated);
     return updated;
   }
 
-  private addTimeline(fields: Record<string, unknown>): TimelineEntry {
-    const input: TimelineInput = {
-      entityType: fields.ENTITY_TYPE === 'deal' ? 'deal' : 'lead',
-      entityId: stringValue(fields.ENTITY_ID),
-      marker: stringValue(fields.MARKER),
-      comment: stringValue(fields.COMMENT),
-    };
-    const entry = { id: String(this.nextTimelineId++), ...input };
-    this.timelines.push(entry);
-    return entry;
+  /** Like Bitrix24: a comment has an ID, a CRM record and a text, and the answer is the ID. */
+  private addTimeline(fields: Record<string, unknown>): number {
+    const id = this.nextTimelineId++;
+    this.timelines.push({
+      ID: String(id),
+      ENTITY_ID: stringValue(fields.ENTITY_ID),
+      ENTITY_TYPE: fields.ENTITY_TYPE === 'deal' ? 'deal' : 'lead',
+      COMMENT: stringValue(fields.COMMENT),
+    });
+    return id;
   }
 
   private items(entityTypeId: number): Map<string, RemoteLead | RemoteDeal> {

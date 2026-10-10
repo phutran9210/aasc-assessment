@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 
+import { isRemoteRejection } from '../domain/remote-rejection.js';
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
@@ -27,10 +28,12 @@ import { OPERATION_KINDS, QUEUE_NAMES } from '@core/queue/constants/operation.co
 import { RemoteReconciliationService } from './remote-reconciliation.service.js';
 import { TimelineService } from './timeline.service.js';
 import {
-  EXTERNAL_MARKER_FIELD,
+  remoteMarkerFields,
   FALLBACK_MAPPING,
   LEAD_SYNC_RECONCILIATION_DELAYS_MS,
 } from '../constants/flow.constants.js';
+
+const LEAD_MARKER_PREFIX = 'aasc-tiktok/';
 
 @Injectable()
 export class LeadSyncService {
@@ -60,6 +63,7 @@ export class LeadSyncService {
         outcome: 'retry_wait',
         nextAttemptAt: new Date(Date.now() + 5_000),
         errorCode: 'LEAD_SYNC_LEASE_BUSY',
+        deferred: true,
       };
     }
     try {
@@ -71,7 +75,7 @@ export class LeadSyncService {
         return { outcome: 'succeeded' };
       }
 
-      const marker = `aasc-tiktok/${lead.id}`;
+      const marker = `${LEAD_MARKER_PREFIX}${lead.id}`;
       const lookup = await this.reconciliation.find('lead', marker);
       if (lookup.status === 'ambiguous') {
         await this.markSyncState(lead.id, 'reconcile_required', 'LEAD_MARKER_AMBIGUOUS');
@@ -115,6 +119,10 @@ export class LeadSyncService {
           return { outcome: 'quarantined', errorCode: 'CRM_DUPLICATE_CANDIDATES_AMBIGUOUS' };
         }
         remote = duplicates.candidates[0] ?? null;
+        if (remote && (await this.ownedByAnotherLead(lead, remote, marker))) {
+          await this.markSyncState(lead.id, 'failed', 'CRM_DUPLICATE_OWNED_BY_OTHER_LEAD');
+          return { outcome: 'quarantined', errorCode: 'CRM_DUPLICATE_OWNED_BY_OTHER_LEAD' };
+        }
       }
 
       let lastWrittenFields: Record<string, unknown>;
@@ -123,7 +131,9 @@ export class LeadSyncService {
         try {
           remote = await this.gateway.createLead(fields, marker);
           lastWrittenFields = fields;
-        } catch {
+        } catch (error) {
+          // A refused create wrote nothing, so it is retried without involving an operator.
+          if (isRemoteRejection(error)) return this.retryOutcome(error, 'CRM_CREATE_REJECTED');
           const afterCreate = await this.reconcileAfterCreate(marker);
           if (afterCreate.kind === 'found') {
             remote = afterCreate.value;
@@ -141,7 +151,7 @@ export class LeadSyncService {
         const diff = buildLeadDiff(fields, remote.fields, lead.lastWrittenFields, compiled);
         lastWrittenFields = diff.lastWrittenFields;
         const patch = { ...diff.patch };
-        if (remote.marker !== marker) patch[EXTERNAL_MARKER_FIELD] = marker;
+        if (remote.marker !== marker) Object.assign(patch, remoteMarkerFields(marker));
         if (Object.keys(patch).length) {
           await context.assertOwnership();
           remote = await this.gateway.updateLead(remote.id, patch);
@@ -163,6 +173,25 @@ export class LeadSyncService {
     } finally {
       await context.releaseAggregateLease(lease);
     }
+  }
+
+  /**
+   * A remote lead that belongs to another integration (the Google Sheets sync marks its own), or
+   * carries another local lead's marker or link, must never be adopted.
+   */
+  private async ownedByAnotherLead(
+    lead: LeadEntity,
+    remote: RemoteLead,
+    marker: string,
+  ): Promise<boolean> {
+    if (remote.foreignOrigin) return true;
+    if (remote.marker?.startsWith(LEAD_MARKER_PREFIX) && remote.marker !== marker) return true;
+    const linked = await this.leads.findByPortalRemote(
+      lead.portalKey,
+      remote.id,
+      this.dataSource.manager,
+    );
+    return Boolean(linked && linked.id !== lead.id);
   }
 
   private async findContactDuplicates(

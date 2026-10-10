@@ -64,4 +64,76 @@ describe('parseBitrixDealEvent', () => {
       }),
     ).toThrow('Invalid Bitrix deal event');
   });
+
+  it.each(['ONCRMDEALADD', 'ONCRMDEALDELETE'])('accepts authenticated %s callbacks', (kind) => {
+    const event = parseBitrixDealEvent({
+      event: kind,
+      data: { fields: { id: 77 } },
+      ts: 1736405807,
+      auth: { domain: 'crm.example.test', member_id: 'm1', application_token: 'secret' },
+    });
+
+    expect(event).toMatchObject({
+      eventType: kind === 'ONCRMDEALADD' ? 'deal.add' : 'deal.delete',
+      remoteId: '77',
+      eventKey: `${kind}:77:1736405807`,
+    });
+  });
+
+  it.each([
+    { event: 'deal.add', deal_id: 0, event_id: 'id', portal_key: 'portal' },
+    { event: 'deal.add', deal_id: 3, event_id: '', portal_key: 'portal' },
+    { event: 'deal.add', deal_id: 3, event_id: 'id', portal_key: '' },
+    { event: 'deal.add', deal_id: 3, event_id: 'id', portal_key: 'portal', timestamp: 'invalid' },
+  ])('rejects incomplete or malformed mock event %#', (invalid) => {
+    expect(() =>
+      parseBitrixDealEvent({ timestamp: '2026-10-08T12:00:00.000Z', ...invalid }),
+    ).toThrow('Invalid Bitrix deal event');
+  });
+
+  it('rejects unauthenticated real events and malformed raw JSON', () => {
+    const real = {
+      event: 'ONCRMDEALUPDATE',
+      data: { FIELDS: { ID: '42' } },
+      ts: '1736405807',
+      auth: { domain: 'crm.example.test', member_id: 'm1' },
+    };
+
+    expect(() => parseBitrixDealEvent(real)).toThrow('Invalid Bitrix deal event');
+    expect(() => parseBitrixDealEvent(Buffer.from('{bad-json'))).toThrow(
+      'Invalid Bitrix deal event',
+    );
+  });
+
+  it('parses nested form paths and takes the first value of repeated keys', () => {
+    const form =
+      'event=ONCRMDEALUPDATE&data%5BFIELDS%5D%5BID%5D=42&data%5BFIELDS%5D%5BID%5D=99' +
+      '&ts=1736405807&auth%5Bdomain%5D=crm.example.test&auth%5Bmember_id%5D=m1' +
+      '&auth%5Bapplication_token%5D=secret';
+
+    expect(parseBitrixDealEvent(form)).toMatchObject({ remoteId: '42', eventType: 'deal.update' });
+  });
+
+  it('ignores blank form keys while parsing a valid signed callback', () => {
+    const form =
+      '=ignored&event=ONCRMDEALUPDATE&data%5BFIELDS%5D%5BID%5D=42&ts=1736405807' +
+      '&auth%5Bdomain%5D=crm.example.test&auth%5Bmember_id%5D=m1' +
+      '&auth%5Bapplication_token%5D=secret';
+
+    expect(parseBitrixDealEvent(form)).toMatchObject({ remoteId: '42' });
+  });
+
+  it('rejects a missing event or timestamp even when the CRM ID and credentials are present', () => {
+    const signed = {
+      data: { FIELDS: { ID: '42' } },
+      auth: { domain: 'crm.example.test', member_id: 'm1', application_token: 'secret' },
+    };
+
+    expect(() => parseBitrixDealEvent({ ...signed, ts: '1736405807' })).toThrow(
+      'Invalid Bitrix deal event',
+    );
+    expect(() => parseBitrixDealEvent({ ...signed, event: 'ONCRMDEALUPDATE' })).toThrow(
+      'Invalid Bitrix deal event',
+    );
+  });
 });

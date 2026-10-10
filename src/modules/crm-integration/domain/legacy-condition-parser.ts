@@ -2,8 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 
 import type { Predicate } from '../types/rule.types.js';
 
+// The value may be quoted either way: the assignment writes `CONTAINS 'sale'`.
 const LEGACY_CONTAINS =
-  /^\s*([A-Za-z][A-Za-z0-9_.-]{0,127})\s+CONTAINS\s+"((?:[^"\\]|\\["\\])*)"\s*$/i;
+  /^\s*([A-Za-z][A-Za-z0-9_.-]{0,127})\s+CONTAINS\s+(?:"((?:[^"\\]|\\["\\])*)"|'((?:[^'\\]|\\['\\])*)')\s*$/i;
 
 export function parseLegacyCondition(text: string): Predicate {
   const match = LEGACY_CONTAINS.exec(text);
@@ -11,6 +12,6 @@ export function parseLegacyCondition(text: string): Predicate {
   return {
     field: match[1],
     op: 'contains',
-    value: match[2].replace(/\\(["\\])/g, '$1'),
+    value: (match[2] ?? match[3]).replace(/\\(["'\\])/g, '$1'),
   };
 }

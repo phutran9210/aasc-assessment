@@ -39,7 +39,10 @@ export class TimelineService {
     if (!timeline) return { outcome: 'quarantined', errorCode: 'TIMELINE_NOT_FOUND' };
 
     try {
-      const result = await this.reconciliation.find('timeline', timeline.marker);
+      const result = await this.reconciliation.find('timeline', timeline.marker, {
+        entityType: timeline.entityType,
+        entityId: timeline.remoteEntityId ?? '',
+      });
       if (result.status === 'ambiguous') {
         await this.timelines.update(
           timeline.id,

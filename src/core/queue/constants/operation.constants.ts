@@ -57,6 +57,18 @@ export const RETRYABLE_OPERATION_KINDS = [
   OPERATION_KINDS.crmTimeline,
 ] as const;
 
+// Kinds whose handler changes nothing outside this database, or resumes from its own checkpoint,
+// so running one again after its worker died cannot duplicate a remote mutation.
+export const REPLAY_SAFE_OPERATION_KINDS = [
+  OPERATION_KINDS.tiktokIngest,
+  OPERATION_KINDS.bitrixDealRefresh,
+  OPERATION_KINDS.integrationReport,
+  OPERATION_KINDS.integrationNotification,
+  OPERATION_KINDS.integrationDlq,
+  OPERATION_KINDS.historicalLeadImport,
+  OPERATION_KINDS.campaignCostImport,
+] as const;
+
 export function retryQueueForOperation(
   kind: string,
 ): (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES] | undefined {

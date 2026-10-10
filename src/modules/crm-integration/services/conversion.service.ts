@@ -10,6 +10,8 @@ import {
 import type { DataSource } from 'typeorm';
 import { v7 as uuidv7 } from 'uuid';
 
+import { formAnswer } from '../domain/form-answers.js';
+import { isRateLimited, isRemoteRejection } from '../domain/remote-rejection.js';
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
 import { OutboxRepository } from '@core/queue/repositories/outbox.repository.js';
@@ -243,6 +245,7 @@ export class ConversionService {
         outcome: 'retry_wait',
         nextAttemptAt: new Date(Date.now() + 5_000),
         errorCode: 'CONVERSION_LEASE_BUSY',
+        deferred: true,
       };
     try {
       await context.assertOwnership();
@@ -276,6 +279,15 @@ export class ConversionService {
             await this.updateDeal(deal.id, { conversionStatus: 'reconcile_required' });
             return { outcome: 'reconcile_required', errorCode: 'DEAL_CREATE_ALREADY_ATTEMPTED' };
           }
+          if (deal.conversionStatus === 'reconcile_required') {
+            // An earlier create had an unknown outcome. Not finding the deal yet does not prove
+            // that create never ran, so it is only looked up again until an operator confirms.
+            const scheduled = await this.scheduleRetry(deal.id, operation);
+            return {
+              outcome: 'reconcile_required',
+              errorCode: scheduled ? 'DEAL_CREATE_AMBIGUOUS' : 'DEAL_RECONCILIATION_EXHAUSTED',
+            };
+          }
           await context.assertOwnership();
           await this.updateDeal(deal.id, { conversionStatus: 'creating_deal' });
           try {
@@ -290,12 +302,21 @@ export class ConversionService {
               },
               marker,
             );
-          } catch {
+          } catch (error) {
+            // A refused create wrote nothing, so the saga may simply try the create again.
+            if (isRemoteRejection(error)) {
+              await this.updateDeal(deal.id, { conversionStatus: 'retry_wait' });
+              return {
+                outcome: 'retry_wait',
+                nextAttemptAt: new Date(Date.now() + 5_000),
+                errorCode: isRateLimited(error) ? 'CRM_RATE_LIMITED' : 'DEAL_CREATE_REJECTED',
+              };
+            }
             const found = await this.reconciliation.find('deal', marker);
             if (found.status === 'found') remote = found.value as RemoteDeal;
             else {
               await this.updateDeal(deal.id, { conversionStatus: 'reconcile_required' });
-              await this.scheduleRetry(deal.id, operation, context);
+              await this.scheduleRetry(deal.id, operation);
               return { outcome: 'reconcile_required', errorCode: 'DEAL_CREATE_AMBIGUOUS' };
             }
           }
@@ -395,33 +416,41 @@ export class ConversionService {
     return this.metadataPending;
   }
 
-  private async scheduleRetry(
-    dealId: string,
-    operation: OperationEntity,
-    context: OperationContext,
-  ): Promise<void> {
+  /** Queues the next read-only lookup of a deal whose create had an unknown outcome. */
+  private async scheduleRetry(dealId: string, operation: OperationEntity): Promise<boolean> {
+    // Only a lookup operation carries its own position in the series; an operator resolution
+    // stores an unrelated counter under the same name.
+    const previous = operation.operationKey.includes('/reconcile/')
+      ? (operation.payload.reconciliationAttempt ?? 0)
+      : 0;
+    const attempt = previous + 1;
+    const delayMs = CONVERSION_RETRY_DELAYS_MS[attempt - 1];
+    if (delayMs === undefined) return false;
     await this.dataSource.transaction(async (manager) => {
       const deal = await this.deals.findByIdForUpdate(dealId, manager);
       if (!deal) return;
-      const attempt = Math.min(deal.version, CONVERSION_RETRY_DELAYS_MS.length);
-      const when = new Date(Date.now() + (CONVERSION_RETRY_DELAYS_MS[attempt - 1] ?? 5_000));
       const retry = await this.operations.ensure(
         {
-          operationKey: `convert/${deal.leadId}/reconcile/${attempt}`,
+          // The deal version changes when an operator resolves the conversion, which starts a
+          // fresh series of lookups should a later create be ambiguous again.
+          operationKey: `convert/${deal.leadId}/reconcile/${deal.version}/${attempt}`,
           kind: OPERATION_KINDS.bitrixDealConvert,
           aggregateId: deal.leadId,
           targetVersion: operation.targetVersion ?? undefined,
-          payload: { leadId: deal.leadId, dealId: deal.id },
+          payload: { leadId: deal.leadId, dealId: deal.id, reconciliationAttempt: attempt },
           configRevisions: operation.configRevisions,
           actorId: operation.actorId ?? undefined,
         },
         manager,
       );
-      await this.outbox.append(retry.id, QUEUE_NAMES.bitrixDealConvert, when, manager);
-      deal.version += 1;
-      await this.deals.save(deal, manager);
-      void context;
+      await this.outbox.append(
+        retry.id,
+        QUEUE_NAMES.bitrixDealConvert,
+        new Date(Date.now() + delayMs),
+        manager,
+      );
     });
+    return true;
   }
 }
 
@@ -445,8 +474,8 @@ function ruleContext(
       ad_id: submission?.adId,
       form_id: submission?.formId,
       city: lead.city,
-      budget: submission?.customAnswers.budget,
-      timeline: submission?.customAnswers.timeline,
+      budget: submission ? formAnswer(submission.customAnswers, 'budget') : undefined,
+      timeline: submission ? formAnswer(submission.customAnswers, 'timeline') : undefined,
       quality_score: lead.score,
       email: lead.email,
       phone: lead.phone,

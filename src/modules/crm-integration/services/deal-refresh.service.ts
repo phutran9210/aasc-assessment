@@ -39,6 +39,7 @@ export class DealRefreshService {
         outcome: 'retry_wait',
         nextAttemptAt: new Date(Date.now() + 5_000),
         errorCode: 'DEAL_REFRESH_LEASE_BUSY',
+        deferred: true,
       };
 
     try {

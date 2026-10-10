@@ -11,10 +11,17 @@ import type { DataSource } from 'typeorm';
 
 import { runDemo } from '@/apps/tiktok/cli/demo-flow.js';
 import type { DemoSummary } from '@/apps/tiktok/cli/demo-flow.js';
-import { DEMO_PASSWORD, DEMO_RULES, seedDemo } from '@/apps/tiktok/database/seed.js';
+import {
+  DEMO_FIELD_MAPPING,
+  DEMO_PASSWORD,
+  DEMO_RULES,
+  seedDemo,
+} from '@/apps/tiktok/database/seed.js';
 import { assertDeploymentIdentity } from '@/apps/tiktok/deployment-identity.js';
 import { buildOpenApiDocument } from '@/apps/tiktok/openapi.js';
 import { validateTiktokEnv } from '@config/tiktok-app/env.validation.js';
+import { importAssignmentConfig } from '@modules/crm-integration/domain/assignment-config-import.js';
+import { parseWebhookEnvelope } from '@modules/tiktok/domain/webhook-envelope.js';
 import { rulesSchema } from '@modules/crm-integration/schemas/rules.schema.js';
 import { mappingSchema } from '@modules/crm-integration/schemas/mapping.schema.js';
 import { ConfigurationEntity } from '@modules/crm-integration/entities/configuration.entity.js';
@@ -67,7 +74,7 @@ describe('reproducible demo', () => {
       TIKTOK_WEBHOOK_SECRET: WEBHOOK_SECRET,
       BITRIX_MOCK_EVENT_SECRET: BITRIX_EVENT_SECRET,
       BITRIX_PORTAL_KEY: 'mock-portal',
-      BITRIX24_WEBHOOK_URL: mock.bitrixEndpoint,
+      TIKTOK_BITRIX24_WEBHOOK_URL: mock.bitrixEndpoint,
       TIKTOK_MOCK_BASE_URL: mock.tiktokBaseUrl,
       TIKTOK_MOCK_API_KEY: 'mock-api-key',
     });
@@ -180,6 +187,25 @@ describe('reproducible demo', () => {
       expect(rulesSchema.safeParse(rules).success).toBe(true);
       expect(mappingSchema.safeParse(mapping).success).toBe(true);
     });
+
+    it('ships the documents of the assignment, and they import to that same configuration', async () => {
+      const read = async (name: string) =>
+        JSON.parse(await readFile(`samples/tiktok/${name}`, 'utf8')) as Record<string, unknown>;
+      const assignment = await read('assignment-config.json');
+
+      const imported = importAssignmentConfig(assignment, [
+        { id: 'C1:NEW', name: 'Pipeline new', categoryId: 1, semantic: null },
+      ]);
+
+      expect(assignment.field_mapping).toEqual(DEMO_FIELD_MAPPING);
+      expect(imported.mapping).toEqual(await read('mapping.json'));
+      expect(imported.rules).toEqual(DEMO_RULES.rules);
+      expect(parseWebhookEnvelope(await read('lead-generate.json'))).toMatchObject({
+        eventId: 'evt_1234567890',
+        eventType: 'lead.generate',
+        advertiserId: '7123456789',
+      });
+    });
   });
 
   describe('end-to-end flow', () => {
@@ -243,7 +269,7 @@ describe('reproducible demo', () => {
       expect(health.body).toMatchObject({ status: 'ok' });
 
       const login = await request(baseUrl)
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'demo-analyst', password: DEMO_PASSWORD })
         .expect(200);
       const authorization = { Authorization: `Bearer ${login.body.accessToken as string}` };

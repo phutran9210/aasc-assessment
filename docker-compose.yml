@@ -1,9 +1,12 @@
-# Run the app with Docker:  make docker-up   (or: docker compose up -d --build)
+# AASC assessment app (port 3000, SQLite).
+#   make docker-up        (or: docker compose up -d --build)
 # Settings come from .env (create it with `cp .env.example .env`).
 services:
   app:
-    build: .
-    image: aasc-assessment:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${AASC_IMAGE:-aasc-assessment:latest}
     container_name: aasc-app
     env_file: .env
     environment:
@@ -11,8 +14,10 @@ services:
       # PORT in .env only chooses the port published on the host.
       PORT: 3000
       DATABASE_PATH: data/app.sqlite
+    # Published on every interface by default, as before. Behind a reverse proxy set
+    # AASC_BIND_ADDRESS=127.0.0.1 in .env so only the proxy can reach the app.
     ports:
-      - '${PORT:-3000}:3000'
+      - '${AASC_BIND_ADDRESS:-0.0.0.0}:${PORT:-3000}:3000'
     volumes:
       - aasc-data:/app/data
       # Service account key for the Google Sheets sync (GOOGLE_SERVICE_ACCOUNT_KEY_FILE=secrets/...).
@@ -21,6 +26,25 @@ services:
       # mapping.json of the lead sync; edit on the host, the next run picks it up.
       - ./config:/app/config:ro
     restart: unless-stopped
+    # Container hardening: an init process that forwards signals and reaps children, a read-only
+    # root filesystem (data lives in the volume and ./secrets), no Linux capabilities, no
+    # privilege gain, and bounded memory, processes and logs.
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    mem_limit: ${AASC_MEMORY:-512m}
+    pids_limit: 200
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '5'
 
 volumes:
   aasc-data:

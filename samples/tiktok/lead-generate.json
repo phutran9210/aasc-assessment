@@ -1,21 +1,36 @@
 {
-  "event_id": "mock-lead-evt-1001",
   "event": "lead.generate",
-  "advertiser_id": "mock-advertiser-1",
-  "timestamp": "2024-03-01T10:15:00.000Z",
-  "campaign_id": "campaign-spring-2024",
-  "form_id": "form-lead-v1",
+  "event_id": "evt_1234567890",
+  "timestamp": 1709876543,
+  "advertiser_id": "7123456789",
+  "campaign": {
+    "campaign_id": "1234567890123456789",
+    "campaign_name": "Spring Sale 2024",
+    "ad_id": "9876543210987654321",
+    "ad_name": "Product Demo Video"
+  },
+  "form": {
+    "form_id": "form_abc123",
+    "form_name": "Contact Form"
+  },
   "lead_data": {
-    "name": "Nguyễn An",
-    "email": "an@example.test",
-    "phone_number": "+84901234567",
+    "full_name": "Nguyễn Văn A",
+    "email": "nguyenvana@email.com",
+    "phone": "+84901234567",
     "city": "Hà Nội",
-    "custom_questions": [
-      {
-        "question_id": "budget",
-        "question_text": "Ngân sách dự kiến",
-        "answer": "5-10 triệu VND"
-      }
-    ]
-  }
+    "interests": ["technology", "mobile apps"],
+    "utm_source": "tiktok",
+    "utm_campaign": "spring_sale_2024",
+    "ttclid": "TT-abc123xyz789"
+  },
+  "custom_questions": [
+    {
+      "question": "Budget range",
+      "answer": "5-10 triệu VND"
+    },
+    {
+      "question": "Timeline",
+      "answer": "Trong 1 tháng"
+    }
+  ]
 }

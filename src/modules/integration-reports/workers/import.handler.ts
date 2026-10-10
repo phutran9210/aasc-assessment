@@ -13,6 +13,7 @@ import { IMPORT_CHUNK_SIZE } from '../services/import-job.support.js';
 import { LeadImportService } from '../services/lead-import.service.js';
 
 const MAX_ATTEMPTS = 5;
+const WORKER_ABANDONED = 'REPORT_WORKER_ABANDONED';
 const RETRY_BASE_MS = 2_000;
 const RETRY_CAP_MS = 60_000;
 
@@ -37,6 +38,11 @@ export class ImportHandler implements OperationHandler {
     }
     if (job.status === 'completed') return { outcome: 'succeeded' };
     if (job.status === 'failed') return { outcome: 'quarantined', errorCode: 'REPORT_JOB_FAILED' };
+    if (context.attempt > MAX_ATTEMPTS) {
+      // Earlier attempts died without reporting, so the job is closed instead of staying active.
+      await this.jobs.update(job.id, { status: 'failed', errorSummary: WORKER_ABANDONED });
+      return { outcome: 'dead_letter', errorCode: WORKER_ABANDONED };
+    }
 
     try {
       let cursor = Number(job.cursor ?? 0);

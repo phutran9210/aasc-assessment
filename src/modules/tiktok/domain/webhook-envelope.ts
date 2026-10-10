@@ -11,13 +11,19 @@ const leadDataSchema = z.looseObject({
   custom_questions: z.array(customQuestionSchema).max(100).optional(),
 });
 
+// The assignment nests the campaign and form IDs; the first samples of this app kept them flat.
+const campaignSchema = z.looseObject({ campaign_id: z.string().max(255).optional() });
+const formSchema = z.looseObject({ form_id: z.string().max(255).optional() });
+
 const envelopeSchema = z.looseObject({
   event_id: z.string().trim().min(1).max(255),
   event: z.string().trim().min(1).max(100),
   advertiser_id: z.string().trim().min(1).max(255),
-  timestamp: z.string().trim().min(1).max(64),
+  timestamp: z.union([z.string().trim().min(1).max(64), z.number().positive()]),
   campaign_id: z.string().max(255).optional(),
   form_id: z.string().max(255).optional(),
+  campaign: campaignSchema.optional(),
+  form: formSchema.optional(),
   lead_data: leadDataSchema.optional(),
   custom_questions: z.array(customQuestionSchema).max(100).optional(),
 });
@@ -34,12 +40,14 @@ export function parseWebhookEnvelope(value: unknown): VerifiedEvent {
   assertJsonDepth(value, 20);
   const result = envelopeSchema.safeParse(value);
   if (!result.success) throw new BadRequestException('Invalid TikTok webhook envelope');
-  const occurredAt = new Date(result.data.timestamp);
+  const occurredAt = toDate(result.data.timestamp);
   if (Number.isNaN(occurredAt.getTime())) {
     throw new BadRequestException('Invalid TikTok webhook timestamp');
   }
   if (result.data.event === 'lead.generate') {
-    if (!result.data.campaign_id || !result.data.form_id || !result.data.lead_data) {
+    const campaignId = result.data.campaign_id ?? result.data.campaign?.campaign_id;
+    const formId = result.data.form_id ?? result.data.form?.form_id;
+    if (!campaignId || !formId || !result.data.lead_data) {
       throw new BadRequestException('Lead generation event is incomplete');
     }
   }
@@ -50,6 +58,12 @@ export function parseWebhookEnvelope(value: unknown): VerifiedEvent {
     occurredAt,
     payload: value as Record<string, unknown>,
   };
+}
+
+/** An ISO string, or Unix time in seconds or milliseconds as the assignment sends it. */
+function toDate(timestamp: string | number): Date {
+  if (typeof timestamp === 'string') return new Date(timestamp);
+  return new Date(timestamp < 100_000_000_000 ? timestamp * 1000 : timestamp);
 }
 
 function assertJsonDepth(root: unknown, maxDepth: number): void {

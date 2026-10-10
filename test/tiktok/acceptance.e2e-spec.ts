@@ -459,7 +459,7 @@ describe('acceptance of the composed stack', () => {
         TIKTOK_ADVERTISER_ID: ADVERTISER,
         TIKTOK_WEBHOOK_SECRET: WEBHOOK_SECRET,
         BITRIX_PORTAL_KEY: 'mock-portal',
-        BITRIX24_WEBHOOK_URL: mock.bitrixEndpoint,
+        TIKTOK_BITRIX24_WEBHOOK_URL: mock.bitrixEndpoint,
         TIKTOK_MOCK_BASE_URL: mock.tiktokBaseUrl,
         TIKTOK_MOCK_API_KEY: 'mock-api-key',
       });

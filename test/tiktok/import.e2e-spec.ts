@@ -63,7 +63,7 @@ describe('import API', () => {
         authVersion: 1,
       });
       const login = await request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username, password: PASSWORD })
         .expect(200);
       tokens[name] = login.body.accessToken as string;

@@ -1,4 +1,6 @@
 import type { ScoreInput, ScorePolicy, ScoreResult } from '../types/rule.types.js';
+import { formAnswer } from './form-answers.js';
+import type { KnownQuestion } from './form-answers.js';
 
 const DEFAULT_INTERACTION_ALLOWLIST = [
   'click',
@@ -14,12 +16,16 @@ type ScoredSubmission = {
   eventId: string;
   occurredAt: Date;
   engagement: Record<string, unknown>;
+  customAnswers: Record<string, unknown>;
 };
+
+type AnswerPolicy = Pick<ScorePolicy, 'budget_values' | 'timeline_values'>;
 
 /** Builds the score input of a lead from its stored submissions and interaction events. */
 export function scoreInputFromSubmissions(
   lead: { email: string | null; phone: string | null },
   submissions: readonly ScoredSubmission[],
+  policy: AnswerPolicy,
 ): ScoreInput {
   return {
     email: lead.email,
@@ -36,9 +42,31 @@ export function scoreInputFromSubmissions(
           ]
         : [],
     ),
-    budget_match: false,
-    timeline_match: false,
+    budget_match: matchesConfiguredAnswer(submissions, 'budget', policy.budget_values),
+    timeline_match: matchesConfiguredAnswer(submissions, 'timeline', policy.timeline_values),
   };
+}
+
+/**
+ * Compares the newest answer a lead gave to a form question with the configured values. Only a
+ * text answer can match, and only as a whole: free text is never parsed for a budget or a date.
+ */
+export function matchesConfiguredAnswer(
+  submissions: readonly Pick<ScoredSubmission, 'occurredAt' | 'customAnswers'>[],
+  question: KnownQuestion,
+  accepted: readonly string[] | undefined,
+): boolean {
+  if (!accepted?.length) return false;
+  const answer = [...submissions]
+    .sort((left, right) => right.occurredAt.getTime() - left.occurredAt.getTime())
+    .map((item) => formAnswer(item.customAnswers, question))
+    .find((value) => value !== undefined);
+  if (typeof answer !== 'string') return false;
+  return accepted.some((value) => comparable(value) === comparable(answer));
+}
+
+function comparable(value: string): string {
+  return value.normalize('NFC').trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi');
 }
 
 export function scoreLead(input: ScoreInput, policy: ScorePolicy, now: string): ScoreResult {

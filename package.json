@@ -10,6 +10,7 @@
     "node": ">=24.9"
   },
   "scripts": {
+    "prepare": "husky || true",
     "build": "nest build",
     "build:tiktok": "nest build --config nest-cli.tiktok.json",
     "db:tiktok:migrate": "pnpm build:tiktok && node dist-tiktok/apps/tiktok/database/migration-runner.js",
@@ -45,6 +46,13 @@
     "test:fibonacci": "node --test \"scripts/**/*.test.js\"",
     "fibonacci": "node scripts/fibonacci/benchmark.js",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:e2e && pnpm test:fibonacci"
+  },
+  "lint-staged": {
+    "{src,test}/**/*.ts": [
+      "prettier --write",
+      "eslint"
+    ],
+    "{scripts,public}/**/*.{js,css,html}": "prettier --write"
   },
   "dependencies": {
     "@googleapis/sheets": "^18.1.1",
@@ -98,7 +106,9 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
     "globals": "^17.13.0",
+    "husky": "^9.1.7",
     "jest": "^30.5.2",
+    "lint-staged": "^17.6.0",
     "prettier": "^3.4.2",
     "socket.io-client": "^4.8.4",
     "supertest": "^7.0.0",

@@ -14,7 +14,6 @@ logs
 .env
 .env.*
 !.env.example
-!.env.tiktok.example
 
 .git
 .gitignore
@@ -22,8 +21,11 @@ logs
 .vscode
 .claude
 .superpowers
+.agents
+.playwright-mcp
 
 docs
+huong-dan
 test
 scripts
 Readme.txt
@@ -32,5 +34,4 @@ Dockerfile
 Dockerfile.tiktok
 docker-compose.yml
 docker-compose.tiktok.yml
-docker-compose.tiktok.test.yml
 .dockerignore

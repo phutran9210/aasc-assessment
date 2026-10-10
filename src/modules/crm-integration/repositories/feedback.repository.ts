@@ -10,10 +10,16 @@ export class FeedbackRepository {
   async findLeadContext(leadId: string, manager: EntityManager) {
     const lead = await manager.getRepository(LeadEntity).findOne({ where: { id: leadId } });
     if (!lead) return { lead: null, submission: null };
-    const submission = await manager.getRepository(SubmissionEntity).findOne({
-      where: { leadId },
-      order: { occurredAt: 'DESC', id: 'DESC' },
-    });
+    // Interaction submissions never carry a consent answer, so the newest one that does decides.
+    // A later lead form that withdraws consent therefore still wins.
+    const submission = await manager
+      .getRepository(SubmissionEntity)
+      .createQueryBuilder('submission')
+      .where('submission.leadId = :leadId', { leadId })
+      .orderBy("jsonb_exists(submission.consent, 'crm_feedback_allowed')", 'DESC')
+      .addOrderBy('submission.occurredAt', 'DESC')
+      .addOrderBy('submission.id', 'DESC')
+      .getOne();
     return { lead, submission };
   }
 

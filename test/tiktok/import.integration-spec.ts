@@ -634,4 +634,27 @@ describe('historical imports', () => {
       errorSummary: 'IMPORT_FAILED',
     });
   });
+
+  it('fails the job when every earlier attempt died without reporting', async () => {
+    const created = await leadImports.start(
+      await upload([LEAD_HEADER, leadRow(1)].join('\n')),
+      { dryRun: false },
+      operator(),
+    );
+    const operationId = (
+      await infrastructure.database.dataSource
+        .getRepository(OperationEntity)
+        .findOneByOrFail({ operationKey: `lead-import/${created.id}` })
+    ).id;
+
+    expect(await handler.handle({ ...context(), operationId, attempt: 6 })).toEqual({
+      outcome: 'dead_letter',
+      errorCode: 'REPORT_WORKER_ABANDONED',
+    });
+    expect(await job(created.id)).toMatchObject({
+      status: 'failed',
+      errorSummary: 'REPORT_WORKER_ABANDONED',
+    });
+    expect(await count(LeadEntity)).toBe(0);
+  });
 });

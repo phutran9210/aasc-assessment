@@ -1,7 +1,7 @@
 import { createHmac, randomInt, randomUUID } from 'node:crypto';
 
 import { Temporal } from '@common/utils/temporal.util.js';
-import { DEMO_CAMPAIGN_ID, DEMO_MAPPING } from '../database/seed.js';
+import { DEMO_CAMPAIGN_ID, DEMO_CAMPAIGN_NAME, DEMO_FIELD_MAPPING } from '../database/seed.js';
 
 export type DemoOptions = {
   /** Base URL of the integration API, for example http://127.0.0.1:3001. */
@@ -53,22 +53,34 @@ export function signWebhook(secret: string, body: Buffer, timestamp: number): st
  */
 export function demoLeadPayload(advertiserId: string, eventId: string): Record<string, unknown> {
   const phone = `+8490${String(randomInt(0, 10_000_000)).padStart(7, '0')}`;
+  // Same shape as the sample payload of the assignment (samples/tiktok/lead-generate.json).
   return {
-    event_id: eventId,
     event: 'lead.generate',
+    event_id: eventId,
+    timestamp: Math.floor(Date.now() / 1000),
     advertiser_id: advertiserId,
-    timestamp: new Date().toISOString(),
-    campaign_id: DEMO_CAMPAIGN_ID,
-    form_id: 'form-lead-v1',
-    lead_data: {
-      name: 'Nguyễn An (demo)',
-      email: `${eventId}@example.test`,
-      phone_number: phone,
-      city: 'Hà Nội',
-      custom_questions: [
-        { question_id: 'budget', question_text: 'Ngân sách dự kiến', answer: '5-10 triệu VND' },
-      ],
+    campaign: {
+      campaign_id: DEMO_CAMPAIGN_ID,
+      campaign_name: DEMO_CAMPAIGN_NAME,
+      ad_id: '9876543210987654321',
+      ad_name: 'Product Demo Video',
     },
+    form: { form_id: 'form_abc123', form_name: 'Contact Form' },
+    lead_data: {
+      full_name: 'Nguyễn Văn A (demo)',
+      email: `${eventId}@example.test`,
+      phone,
+      city: 'Hà Nội',
+      interests: ['technology', 'mobile apps'],
+      utm_source: 'tiktok',
+      utm_campaign: 'spring_sale_2024',
+      ttclid: 'TT-abc123xyz789',
+    },
+    custom_questions: [
+      { question: 'Budget range', answer: '5-10 triệu VND' },
+      { question: 'Timeline', answer: 'Trong 1 tháng' },
+    ],
+    // Not part of the assignment's sample: conversion feedback is only sent with this consent.
     consent: { crm_feedback_allowed: true },
   };
 }
@@ -105,7 +117,7 @@ export async function runDemo(
   log(`health: ${health.status}`);
 
   const login = await expectJson<{ accessToken: string }>(
-    await fetch(api('/auth/login'), {
+    await fetch(api('/api/v1/auth/login'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: options.username, password: options.password }),
@@ -129,17 +141,21 @@ export async function runDemo(
     }
   };
 
-  const mapping = await fetch(api('/configuration/mapping'), { headers: authorization });
-  if (mapping.status === 404) {
+  // Revision 0 is the built-in mapping; the demo replaces it with the one of the assignment.
+  const mapping = await expectJson<{ revision: number }>(
+    await fetch(api('/api/v1/config/mappings'), { headers: authorization }),
+    'mapping configuration',
+  );
+  if (mapping.revision === 0) {
     await expectJson(
-      await fetch(api('/configuration/mapping'), {
+      await fetch(api('/api/v1/config/mappings'), {
         method: 'PUT',
         headers: { ...authorization, 'Content-Type': 'application/json', 'If-Match': '"0"' },
-        body: JSON.stringify({ value: DEMO_MAPPING }),
+        body: JSON.stringify({ field_mapping: DEMO_FIELD_MAPPING }),
       }),
       'mapping configuration',
     );
-    log('mapping: stored the demo field mapping');
+    log('mapping: stored the field mapping of the assignment');
   }
 
   const eventId = `demo-${randomUUID()}`;

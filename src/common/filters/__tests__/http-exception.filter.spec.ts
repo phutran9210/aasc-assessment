@@ -52,6 +52,31 @@ describe('HttpExceptionFilter', () => {
       });
     });
 
+    it('should keep the stable error code when the exception carries one', () => {
+      const { host, json } = createHost('GET', '/api/v1/reports/export');
+
+      filter.catch(
+        new BadRequestException({ code: 'EXPORT_REQUIRES_ASYNC', message: 'Too many rows' }),
+        host,
+      );
+
+      expect(json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: 400,
+          code: 'EXPORT_REQUIRES_ASYNC',
+          message: 'Too many rows',
+        }),
+      );
+    });
+
+    it('should leave the code out when the exception has none', () => {
+      const { host, json } = createHost();
+
+      filter.catch(new NotFoundException('Contact không tồn tại'), host);
+
+      expect(json.mock.calls[0][0]).not.toHaveProperty('code');
+    });
+
     it('should keep every validation message when the exception carries an array', () => {
       const { host, json } = createHost('POST', '/contacts');
 

@@ -19,7 +19,11 @@ import { SubmissionRepository } from '../repositories/submission.repository.js';
 import { ConfigurationRepository } from '../repositories/configuration.repository.js';
 import { normalizeLead } from '../domain/normalize-lead.js';
 import { mergeLead } from '../domain/merge-lead.js';
-import { scoreInputFromSubmissions, scoreLead } from '../domain/lead-score.js';
+import {
+  matchesConfiguredAnswer,
+  scoreInputFromSubmissions,
+  scoreLead,
+} from '../domain/lead-score.js';
 import type { NormalizedLeadInput } from '../types/normalized-lead.type.js';
 import { AnalyticsRevisionRepository } from '@modules/integration-analytics/index.js';
 import type { ConversionFeedbackScheduler } from '../ports/conversion-feedback.port.js';
@@ -304,6 +308,7 @@ export class LeadIngestService {
           }
 
           const priorSubmissions = await this.submissions.findForLead(lead.id, manager);
+          const scorePolicy = await this.scorePolicy(manager, context.revisions.rules ?? 0);
           const score = scoreLead(
             {
               email: lead.email,
@@ -321,10 +326,18 @@ export class LeadIngestService {
                     ]
                   : [];
               }),
-              budget_match: false,
-              timeline_match: false,
+              budget_match: matchesConfiguredAnswer(
+                priorSubmissions,
+                'budget',
+                scorePolicy.budget_values,
+              ),
+              timeline_match: matchesConfiguredAnswer(
+                priorSubmissions,
+                'timeline',
+                scorePolicy.timeline_values,
+              ),
             },
-            await this.scorePolicy(manager, context.revisions.rules ?? 0),
+            scorePolicy,
             new Date().toISOString(),
           );
           lead.score = score.total;
@@ -391,11 +404,11 @@ export class LeadIngestService {
           eventId: event.id,
           providerLeadId,
           submissionKey,
-          campaignId: stringValue(payload.campaign_id),
+          campaignId: stringValue(payload.campaign_id ?? record(payload.campaign).campaign_id),
           campaignName: null,
-          adId: stringValue(payload.ad_id),
+          adId: stringValue(payload.ad_id ?? record(payload.campaign).ad_id),
           adName: null,
-          formId: stringValue(payload.form_id),
+          formId: stringValue(payload.form_id ?? record(payload.form).form_id),
           formName: null,
           ttclid: stringValue(payload.ttclid),
           utm: {},
@@ -472,9 +485,10 @@ export class LeadIngestService {
     touchChanged: boolean,
   ): Promise<void> {
     const submissions = await this.submissions.findForLead(lead.id, manager);
+    const scorePolicy = await this.scorePolicy(manager, context.revisions.rules ?? 0);
     const score = scoreLead(
-      scoreInputFromSubmissions(lead, submissions),
-      await this.scorePolicy(manager, context.revisions.rules ?? 0),
+      scoreInputFromSubmissions(lead, submissions, scorePolicy),
+      scorePolicy,
       new Date().toISOString(),
     );
     const scoreChanged =

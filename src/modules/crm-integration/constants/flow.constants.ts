@@ -1,4 +1,5 @@
 import type { CompiledMapping } from '../domain/mapping-compiler.js';
+import type { MappingConfig } from '../schemas/mapping.schema.js';
 import type { ScorePolicy } from '../types/rule.types.js';
 
 export const DEFAULT_SCORE_POLICY: ScorePolicy = {
@@ -11,8 +12,23 @@ export const DEFAULT_SCORE_POLICY: ScorePolicy = {
 export const LINK_INTERVAL_MS = 5 * 60 * 1000;
 export const LINK_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-export const EXTERNAL_MARKER_FIELD = 'UF_CRM_TIKTOK_EXTERNAL_ID';
+// Remote records are marked with the two standard CRM fields meant for external systems, so no
+// custom field has to exist on the portal. `originatorId` names this integration and `originId`
+// carries the marker of the local record.
+export const REMOTE_ORIGINATOR = 'aasc-tiktok';
+export function remoteMarkerFields(marker: string): { originatorId: string; originId: string } {
+  return { originatorId: REMOTE_ORIGINATOR, originId: marker };
+}
 export const LEAD_SYNC_RECONCILIATION_DELAYS_MS = [5_000, 10_000, 15_000] as const;
+// What the configuration API shows while no mapping has been stored; FALLBACK_MAPPING below is the
+// same mapping in compiled form.
+export const DEFAULT_MAPPING: MappingConfig = {
+  entries: [
+    { source: 'name', target: 'name', owner: 'integration', transforms: [] },
+    { source: 'email', target: 'fm', subfield: 'EMAIL', owner: 'integration', transforms: [] },
+    { source: 'phone', target: 'fm', subfield: 'PHONE', owner: 'integration', transforms: [] },
+  ],
+};
 export const FALLBACK_MAPPING: CompiledMapping = {
   titleMaxLength: 180,
   entries: [

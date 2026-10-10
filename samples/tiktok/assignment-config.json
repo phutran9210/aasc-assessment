@@ -1,0 +1,20 @@
+{
+  "field_mapping": {
+    "lead_data.full_name": "NAME",
+    "lead_data.email": "EMAIL[0][VALUE]",
+    "lead_data.phone": "PHONE[0][VALUE]",
+    "lead_data.city": "UF_CRM_CITY",
+    "campaign.campaign_name": "UF_CRM_UTM_CAMPAIGN",
+    "campaign.ad_name": "UF_CRM_AD_NAME",
+    "lead_data.ttclid": "UF_CRM_TTCLID"
+  },
+  "deal_rules": [
+    {
+      "condition": "campaign.campaign_name CONTAINS 'sale'",
+      "action": "create_deal",
+      "pipeline_id": "1",
+      "stage_id": "NEW",
+      "probability": 30
+    }
+  ]
+}

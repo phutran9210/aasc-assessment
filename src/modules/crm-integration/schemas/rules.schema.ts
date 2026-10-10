@@ -56,6 +56,8 @@ const scorePolicySchema = z.strictObject({
   interaction_points: z.literal(5),
   interaction_cap: z.literal(4),
   interaction_allowlist: z.array(z.string().min(1).max(80)).max(50).optional(),
+  budget_values: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
+  timeline_values: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
 });
 const pipelinePolicySchema = z.strictObject({
   pipeline_id: z.number().int().nonnegative(),

@@ -25,9 +25,7 @@
   "assignment": {
     "strategy": "round_robin",
     "fallback_sales_id": "1",
-    "sales_ids": [
-      "1"
-    ]
+    "sales_ids": ["1"]
   },
   "quality_scoring": {
     "weights": {
@@ -40,7 +38,9 @@
     },
     "interaction_window_days": 30,
     "interaction_points": 5,
-    "interaction_cap": 4
+    "interaction_cap": 4,
+    "budget_values": ["5-10 triệu VND", "Trên 10 triệu VND"],
+    "timeline_values": ["Trong 1 tháng"]
   },
   "feedback": {
     "enabled": true,
@@ -49,11 +49,7 @@
       "deal_created": "DealCreated",
       "deal_won": "Purchase"
     },
-    "matching_keys": [
-      "email",
-      "phone",
-      "ttclid"
-    ],
+    "matching_keys": ["email", "phone", "ttclid"],
     "hash_email": true,
     "hash_phone": true
   },
@@ -65,23 +61,19 @@
   },
   "rules": [
     {
-      "id": "spring-campaign-to-sales",
+      "id": "deal-rule-1",
       "priority": 10,
       "enabled": true,
       "conditions": {
-        "field": "lead.campaign_id",
-        "op": "in",
-        "value": [
-          "campaign-spring-2024"
-        ]
+        "field": "lead.campaign_name",
+        "op": "contains",
+        "value": "sale"
       },
       "action": "create_deal",
       "pipeline_id": 1,
       "stage_id": "C1:NEW",
-      "probability": 10,
-      "assignment": {
-        "sales_id": "1"
-      }
+      "probability": 30,
+      "assignment": {}
     }
   ]
 }

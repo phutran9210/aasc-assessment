@@ -10,6 +10,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { TiktokAppModule } from '@/apps/tiktok/app.module.js';
 import type { BitrixConfig } from '@config/bitrix.config.js';
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
+import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
 import { WebhookEventEntity } from '@core/queue/entities/webhook-event.entity.js';
 import { BitrixAdapterModule } from '@modules/crm-integration/bitrix-adapter.module.js';
 import { CrmIntegrationModule } from '@modules/crm-integration/crm-integration.module.js';
@@ -109,7 +110,7 @@ describe('CRM management API', () => {
     tokens = {};
     for (const [username, roles] of users) {
       const response = await request(testApp.app.getHttpServer())
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username, password: PASSWORD })
         .expect(200);
       tokens[
@@ -399,6 +400,101 @@ describe('CRM management API', () => {
       .expect(409);
     const lead = await dataSource.getRepository(LeadEntity).findOneByOrFail({ id: leadId });
     expect(lead.bitrixLeadId).toBeNull();
+  });
+
+  it('links a verified remote lead and queues the sync again so fields and rules still run', async () => {
+    const leadId = await saveLead(52);
+    const gateway = testApp.app.get<CrmGateway>(CRM_GATEWAY);
+    const remote = await gateway.createLead(
+      { title: 'Created before the timeout', name: 'Created before the timeout' },
+      `aasc-tiktok/${leadId}`,
+    );
+    const operation = await saveOperation({
+      status: 'reconcile_required',
+      aggregateId: leadId,
+      payload: { leadId },
+      kind: 'bitrix_lead_sync',
+    });
+
+    const response = await request(testApp.app.getHttpServer())
+      .post(`/api/v1/operations/${operation.id}/resolve`)
+      .set('Authorization', `Bearer ${tokens['management-admin']}`)
+      .send({ action: 'link_remote', remoteId: remote.id, reason: 'checked mock CRM' })
+      .expect(200);
+
+    expect(response.body).toMatchObject({ id: operation.id, status: 'pending' });
+    await expect(
+      dataSource.getRepository(LeadEntity).findOneByOrFail({ id: leadId }),
+    ).resolves.toMatchObject({ bitrixLeadId: remote.id, syncStatus: 'pending' });
+    await expect(
+      dataSource.getRepository(OutboxEntity).countBy({ operationId: operation.id }),
+    ).resolves.toBe(1);
+  });
+
+  it('links a verified remote deal and queues the conversion again so the saga can finish', async () => {
+    const leadId = await saveLead(53);
+    const dealId = uuidv7();
+    const gateway = testApp.app.get<CrmGateway>(CRM_GATEWAY);
+    const remoteLead = await gateway.createLead(
+      { title: 'Lead of the deal', name: 'Lead of the deal' },
+      `aasc-tiktok/${leadId}`,
+    );
+    const remote = await gateway.createDeal(
+      {
+        title: 'Created before the timeout',
+        leadId: remoteLead.id,
+        categoryId: 1,
+        stageId: 'C1:NEW',
+        assignedById: '1',
+        probability: 10,
+      },
+      `aasc-tiktok/deal/${dealId}`,
+    );
+    await dataSource.getRepository(DealEntity).save({
+      id: dealId,
+      leadId,
+      portalKey: 'management-e2e-portal',
+      bitrixDealId: null,
+      title: 'Created before the timeout',
+      amount: null,
+      currency: null,
+      pipelineId: '1',
+      stageId: 'C1:NEW',
+      stageSemantics: 'open',
+      stageDeletedAt: null,
+      probability: 10,
+      assignedTo: '1',
+      ruleRevision: 1,
+      conversionStatus: 'reconcile_required',
+      remoteModifiedAt: null,
+      everWonAt: null,
+      currentSnapshotHash: null,
+      version: 1,
+    });
+    const operation = await saveOperation({
+      status: 'reconcile_required',
+      aggregateId: leadId,
+      payload: { leadId, dealId },
+      kind: 'bitrix_deal_convert',
+    });
+
+    const response = await request(testApp.app.getHttpServer())
+      .post(`/api/v1/operations/${operation.id}/resolve`)
+      .set('Authorization', `Bearer ${tokens['management-admin']}`)
+      .send({ action: 'link_remote', remoteId: remote.id, reason: 'checked mock CRM' })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: operation.id,
+      status: 'pending',
+      remoteId: remote.id,
+    });
+    await expect(
+      dataSource.getRepository(DealEntity).findOneByOrFail({ id: dealId }),
+    ).resolves.toMatchObject({ bitrixDealId: null, conversionStatus: 'reconcile_required' });
+    await expect(
+      dataSource.getRepository(OutboxEntity).countBy({ operationId: operation.id }),
+    ).resolves.toBe(1);
   });
 
   async function saveLead(index: number): Promise<string> {

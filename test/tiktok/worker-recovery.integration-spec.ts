@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { NestFactory } from '@nestjs/core';
+import { IsNull } from 'typeorm';
 
 import { AggregateLeaseRepository } from '@core/queue/repositories/aggregate-lease.repository.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
@@ -11,7 +12,8 @@ import { OperationFailure, RetryPolicy } from '@core/queue/services/retry-policy
 import { OperationEntity } from '@core/queue/entities/operation.entity.js';
 import { OutboxEntity } from '@core/queue/entities/outbox.entity.js';
 import type { OperationHandlerRegistry } from '@core/queue/types/worker.types.js';
-import { QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import { OPERATION_QUEUE, QUEUE_NAMES } from '@core/queue/constants/operation.constants.js';
+import type { OperationKind } from '@core/queue/types/operation.types.js';
 import { createTestInfrastructure } from './utils/test-infrastructure.js';
 import { TiktokWorkerModule } from '@/apps/tiktok/worker.module.js';
 
@@ -44,13 +46,13 @@ describe('worker recovery', () => {
     }
   });
 
-  async function createOperation(key = randomUUID()): Promise<string> {
+  async function createOperation(
+    key = randomUUID(),
+    kind: OperationKind = 'tiktok_ingest',
+  ): Promise<string> {
     return infrastructure.database.dataSource.transaction(async (manager) => {
-      const operation = await operations.ensure(
-        { operationKey: `worker/${key}`, kind: 'tiktok_ingest' },
-        manager,
-      );
-      await outbox.append(operation.id, QUEUE_NAMES.tiktokIngest, new Date(), manager);
+      const operation = await operations.ensure({ operationKey: `worker/${key}`, kind }, manager);
+      await outbox.append(operation.id, OPERATION_QUEUE[kind], new Date(), manager);
       return operation.id;
     });
   }
@@ -195,8 +197,75 @@ describe('worker recovery', () => {
     expect(stillHeld).toHaveLength(1);
   });
 
-  it('moves an expired worker lease to reconciliation without creating a fresh mutation job', async () => {
+  it('sends a retry the handler keeps asking for to the DLQ after the fifth attempt', async () => {
     const operationId = await createOperation();
+    const service = runner(
+      new Map([
+        [
+          'tiktok_ingest',
+          {
+            handle: () =>
+              Promise.resolve({
+                outcome: 'retry_wait' as const,
+                nextAttemptAt: new Date(Date.now() + 1),
+                errorCode: 'LEAD_SYNC_FAILED',
+              }),
+          },
+        ],
+      ]),
+      new RetryPolicy({ baseDelayMs: 1, maxDelayMs: 1, random: () => 0 }),
+    );
+    const repository = infrastructure.database.dataSource.getRepository(OperationEntity);
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      await service.run(operationId);
+      if (attempt < 5) {
+        await repository.update({ id: operationId }, { nextAttemptAt: new Date(Date.now() - 1) });
+      }
+    }
+
+    await expect(repository.findOneByOrFail({ id: operationId })).resolves.toMatchObject({
+      status: 'dead_letter',
+      attempt: 5,
+      lastErrorCode: 'LEAD_SYNC_FAILED',
+    });
+    await expect(repository.existsBy({ operationKey: `dlq/${operationId}` })).resolves.toBe(true);
+  });
+
+  it('does not spend the attempt budget while an operation waits for a busy aggregate', async () => {
+    const operationId = await createOperation();
+    const service = runner(
+      new Map([
+        [
+          'tiktok_ingest',
+          {
+            handle: () =>
+              Promise.resolve({
+                outcome: 'retry_wait' as const,
+                nextAttemptAt: new Date(Date.now() + 1),
+                errorCode: 'LEAD_SYNC_LEASE_BUSY',
+                deferred: true as const,
+              }),
+          },
+        ],
+      ]),
+    );
+    const repository = infrastructure.database.dataSource.getRepository(OperationEntity);
+
+    for (let round = 1; round <= 7; round += 1) {
+      await service.run(operationId);
+      await repository.update({ id: operationId }, { nextAttemptAt: new Date(Date.now() - 1) });
+    }
+
+    await expect(repository.findOneByOrFail({ id: operationId })).resolves.toMatchObject({
+      status: 'retry_wait',
+      attempt: 0,
+      lastErrorCode: 'LEAD_SYNC_LEASE_BUSY',
+    });
+  });
+
+  it('moves an expired worker lease to reconciliation without creating a fresh mutation job', async () => {
+    const operationId = await createOperation(randomUUID(), 'bitrix_lead_sync');
     await infrastructure.database.dataSource
       .getRepository(OperationEntity)
       .update(
@@ -211,6 +280,65 @@ describe('worker recovery', () => {
         id: operationId,
       }),
     ).resolves.toMatchObject({ status: 'reconcile_required' });
+  });
+
+  it.each(['tiktok_ingest', 'integration_report', 'historical_lead_import'] as const)(
+    'dispatches a %s operation again when its worker died, because replaying it is safe',
+    async (kind) => {
+      const operationId = await createOperation(randomUUID(), kind);
+      const repository = infrastructure.database.dataSource.getRepository(OperationEntity);
+      await repository.update(
+        { id: operationId },
+        { status: 'processing', attempt: 1, leaseUntil: new Date(Date.now() - 1) },
+      );
+      const sweeper = new RecoverySweeperService(infrastructure.database.dataSource, outbox);
+
+      await expect(sweeper.sweep()).resolves.toEqual({ redispatched: 1, reconciled: 0 });
+      await expect(repository.findOneByOrFail({ id: operationId })).resolves.toMatchObject({
+        status: 'pending',
+        attempt: 1,
+        leaseUntil: null,
+        lastErrorCode: 'WORKER_LEASE_EXPIRED',
+      });
+      await expect(
+        infrastructure.database.dataSource
+          .getRepository(OutboxEntity)
+          .countBy({ operationId, publishedAt: IsNull() }),
+      ).resolves.toBe(2);
+    },
+  );
+
+  it('stops replaying an operation that keeps killing its worker', async () => {
+    const operationId = await createOperation();
+    const repository = infrastructure.database.dataSource.getRepository(OperationEntity);
+    await repository.update(
+      { id: operationId },
+      { status: 'processing', attempt: 6, leaseUntil: new Date(Date.now() - 1) },
+    );
+    const sweeper = new RecoverySweeperService(infrastructure.database.dataSource, outbox);
+
+    await expect(sweeper.sweep()).resolves.toEqual({ redispatched: 0, reconciled: 1 });
+    await expect(repository.findOneByOrFail({ id: operationId })).resolves.toMatchObject({
+      status: 'reconcile_required',
+    });
+  });
+
+  it('recovers expired leases even behind a large backlog of waiting operations', async () => {
+    const operationId = await createOperation();
+    const repository = infrastructure.database.dataSource.getRepository(OperationEntity);
+    await repository.update(
+      { id: operationId },
+      { status: 'processing', attempt: 1, leaseUntil: new Date(Date.now() - 1) },
+    );
+    const backlog = await Promise.all([createOperation(), createOperation(), createOperation()]);
+    await repository.update(backlog, { updatedAt: new Date(Date.now() - 3_600_000) });
+    const sweeper = new RecoverySweeperService(infrastructure.database.dataSource, outbox);
+
+    await sweeper.sweep(2);
+
+    await expect(repository.findOneByOrFail({ id: operationId })).resolves.toMatchObject({
+      status: 'pending',
+    });
   });
 
   it('recreates a durable queue generation when a published Redis job has gone missing', async () => {

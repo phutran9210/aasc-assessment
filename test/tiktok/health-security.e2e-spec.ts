@@ -69,7 +69,7 @@ describe('health, limits and log hygiene', () => {
       authVersion: 1,
     });
     const login = await request(testApp.app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({ username, password: PASSWORD })
       .expect(200);
     token = login.body.accessToken as string;
@@ -170,7 +170,7 @@ describe('health, limits and log hygiene', () => {
 
     it('refuses sessions with 503 instead of letting requests through', async () => {
       await down()
-        .post('/auth/login')
+        .post('/api/v1/auth/login')
         .send({ username: 'nobody', password: PASSWORD })
         .expect((response) => {
           expect([401, 503]).toContain(response.status);

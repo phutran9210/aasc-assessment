@@ -185,6 +185,44 @@ describe('TikTok conversion feedback ledger', () => {
     );
   });
 
+  it('keeps the consent given on the lead form after a later interaction without one', async () => {
+    const { id: leadId } = await createLead({ consent: { crm_feedback_allowed: true } });
+    await addSubmission(leadId, {});
+    await schedule(leadId);
+
+    const ledger = await infrastructure.database.dataSource
+      .getRepository(FeedbackLedgerEntity)
+      .findOneByOrFail({ leadId, milestone: 'lead_qualified' });
+    expect(ledger.status).not.toBe('skipped_no_consent');
+    expect(ledger.operationId).not.toBeNull();
+  });
+
+  it('honors consent withdrawn on a later lead form', async () => {
+    const { id: leadId } = await createLead({ consent: { crm_feedback_allowed: true } });
+    await addSubmission(leadId, { crm_feedback_allowed: false });
+    await schedule(leadId);
+
+    await expect(
+      infrastructure.database.dataSource
+        .getRepository(FeedbackLedgerEntity)
+        .findOneByOrFail({ leadId, milestone: 'lead_qualified' }),
+    ).resolves.toMatchObject({ status: 'skipped_no_consent', operationId: null });
+  });
+
+  it('sends feedback for an imported lead only when the operator enabled it', async () => {
+    const { id: leadId } = await createLead({
+      consent: { crm_feedback_allowed: true },
+      isHistorical: true,
+      sendFeedback: true,
+    });
+    await schedule(leadId);
+
+    const ledger = await infrastructure.database.dataSource
+      .getRepository(FeedbackLedgerEntity)
+      .findOneByOrFail({ leadId, milestone: 'lead_qualified' });
+    expect(ledger.status).not.toBe('skipped_no_consent');
+  });
+
   async function createQueuedLead() {
     const { id } = await createLead({ consent: { crm_feedback_allowed: true } });
     await schedule(id);
@@ -292,6 +330,57 @@ describe('TikTok conversion feedback ledger', () => {
       lastSubmissionId: submission.id,
     });
     return lead;
+  }
+
+  async function addSubmission(leadId: string, consent: Record<string, unknown>): Promise<void> {
+    const eventId = randomUUID();
+    const occurredAt = new Date(Date.now() + 60_000);
+    await infrastructure.database.dataSource.getRepository(WebhookEventEntity).save({
+      id: eventId,
+      provider: 'tiktok',
+      providerMode: 'mock',
+      scopeKey: 'scope-test',
+      advertiserId: 'advertiser-test',
+      portalKey: null,
+      eventKey: `event-${eventId}`,
+      eventType: 'user.interaction',
+      occurredAt,
+      receivedAt: occurredAt,
+      rawBody: Buffer.from('{}'),
+      payload: {},
+      payloadHash: 'c'.repeat(64),
+      status: 'processed',
+      errorCode: null,
+    });
+    await infrastructure.database.dataSource.getRepository(SubmissionEntity).save({
+      id: randomUUID(),
+      advertiserId: 'advertiser-test',
+      providerMode: 'mock',
+      leadId,
+      eventId,
+      providerLeadId: null,
+      submissionKey: `submission-${eventId}`,
+      campaignId: null,
+      campaignName: null,
+      adId: null,
+      adName: null,
+      formId: null,
+      formName: null,
+      ttclid: null,
+      utm: {},
+      customAnswers: {},
+      engagement: {},
+      consent,
+      occurredAt,
+      isHistorical: false,
+      applyRules: true,
+      sendFeedback: true,
+      payloadHash: 'd'.repeat(64),
+      associationStatus: 'linked',
+      linkAttemptCount: 0,
+      nextLinkAttemptAt: null,
+      associationExpiresAt: null,
+    });
   }
 
   async function schedule(

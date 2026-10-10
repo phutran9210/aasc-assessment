@@ -102,7 +102,7 @@ describe('Lead conversion API', () => {
       authVersion: 1,
     });
     const login = await request(testApp.app.getHttpServer())
-      .post('/auth/login')
+      .post('/api/v1/auth/login')
       .send({
         username: 'conversion-operator',
         password: PASSWORD,

@@ -1,0 +1,29 @@
+- generic [ref=e2]:
+  - generic [ref=e4]:
+    - link [ref=e5] [cursor=pointer]:
+      - /url: https://www.bitrix24.vn
+    - generic [ref=e6]: Không gian làm việc lý tưởng
+  - generic [ref=e16]:
+    - heading "Đăng nhập vào b24-du1qjf.bitrix24.vn" [level=2] [ref=e17]
+    - generic [ref=e18]:
+      - heading "Email hoặc số điện thoại" [level=4] [ref=e19]
+      - generic [ref=e20]:
+        - textbox [active] [ref=e23]:
+          - /placeholder: name@company.vn
+        - button [ref=e24] [cursor=pointer]
+      - button "Tiếp tục" [ref=e26] [cursor=pointer]
+      - generic [ref=e28]:
+        - generic [ref=e29]: Các tùy chọn đăng nhập khác
+        - generic [ref=e30]:
+          - button [ref=e31] [cursor=pointer]
+          - button [ref=e33] [cursor=pointer]
+          - button [ref=e35] [cursor=pointer]
+          - button [ref=e37] [cursor=pointer]
+          - button [ref=e39] [cursor=pointer]
+          - button [ref=e41] [cursor=pointer]
+  - generic [ref=e43]:
+    - generic [ref=e44]:
+      - generic [ref=e45] [cursor=pointer]: Tiếng Việt
+      - link "Privacy Policy" [ref=e48] [cursor=pointer]:
+        - /url: https://www.bitrix24.vn/privacy/
+    - button "Trợ giúp" [ref=e50] [cursor=pointer]

@@ -6,7 +6,6 @@ import { Temporal } from '@common/utils/temporal.util.js';
 import type { TiktokAppConfig } from '@config/tiktok-app/env.validation.js';
 import { ConfigurationEntity } from '@modules/crm-integration/entities/configuration.entity.js';
 import { ConfigurationHeadEntity } from '@modules/crm-integration/entities/configuration-head.entity.js';
-import type { MappingConfig } from '@modules/crm-integration/schemas/mapping.schema.js';
 import type { RulesDocument } from '@modules/crm-integration/schemas/rules.schema.js';
 import { IntegrationUserEntity } from '@modules/integration-auth/entities/integration-user.entity.js';
 import { CampaignDailyEntity } from '@modules/integration-analytics/entities/campaign-daily.entity.js';
@@ -18,6 +17,7 @@ import { assertDeploymentIdentity } from '../deployment-identity.js';
 /** Well-known placeholder for the local demo; the seed refuses to run where it would matter. */
 export const DEMO_PASSWORD = 'demo-password-change-me';
 export const DEMO_CAMPAIGN_ID = 'campaign-spring-2024';
+export const DEMO_CAMPAIGN_NAME = 'Spring Sale 2024';
 export const DEMO_USERS = [
   { username: 'demo-admin', roles: ['integration_admin'] },
   { username: 'demo-operator', roles: ['integration_operator'] },
@@ -45,6 +45,8 @@ export const DEMO_RULES: RulesDocument = {
     interaction_window_days: 30,
     interaction_points: 5,
     interaction_cap: 4,
+    budget_values: ['5-10 triệu VND', 'Trên 10 triệu VND'],
+    timeline_values: ['Trong 1 tháng'],
   },
   feedback: {
     enabled: true,
@@ -60,27 +62,33 @@ export const DEMO_RULES: RulesDocument = {
   reporting: { timezone: 'Asia/Ho_Chi_Minh' },
   alerts: { enabled: true },
   rules: [
+    // The deal rule of the assignment: campaign.campaign_name CONTAINS 'sale' -> pipeline 1, NEW, 30.
     {
-      id: 'spring-campaign-to-sales',
+      id: 'deal-rule-1',
       priority: 10,
       enabled: true,
-      conditions: { field: 'lead.campaign_id', op: 'in', value: [DEMO_CAMPAIGN_ID] },
+      conditions: { field: 'lead.campaign_name', op: 'contains', value: 'sale' },
       action: 'create_deal',
       pipeline_id: 1,
       stage_id: 'C1:NEW',
-      probability: 10,
-      assignment: { sales_id: '1' },
+      probability: 30,
+      assignment: {},
     },
   ],
 };
 
-/** Canonical demo field mapping; `samples/tiktok/mapping.json` is the same document. */
-export const DEMO_MAPPING: MappingConfig = {
-  entries: [
-    { source: 'name', target: 'name', owner: 'integration', transforms: ['trim'] },
-    { source: 'email', target: 'fm', subfield: 'EMAIL', owner: 'integration', transforms: [] },
-    { source: 'phone', target: 'fm', subfield: 'PHONE', owner: 'integration', transforms: [] },
-  ],
+/**
+ * Field mapping of the demo, in the format of the assignment; `field_mapping` in
+ * `samples/tiktok/assignment-config.json` is the same document.
+ */
+export const DEMO_FIELD_MAPPING: Record<string, string> = {
+  'lead_data.full_name': 'NAME',
+  'lead_data.email': 'EMAIL[0][VALUE]',
+  'lead_data.phone': 'PHONE[0][VALUE]',
+  'lead_data.city': 'UF_CRM_CITY',
+  'campaign.campaign_name': 'UF_CRM_UTM_CAMPAIGN',
+  'campaign.ad_name': 'UF_CRM_AD_NAME',
+  'lead_data.ttclid': 'UF_CRM_TTCLID',
 };
 
 export type SeedSummary = {

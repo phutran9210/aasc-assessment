@@ -50,8 +50,8 @@ describe('BitrixDealInbox', () => {
     process.env.BITRIX_INTEGRATION_MODE = 'mock';
     process.env.BITRIX_PORTAL_KEY = 'mock-portal';
     process.env.BITRIX_MOCK_EVENT_SECRET = 'mock-bitrix-event-secret-for-tests';
-    delete process.env.BITRIX24_WEBHOOK_URL;
-    delete process.env.BITRIX24_OUTGOING_TOKEN;
+    delete process.env.TIKTOK_BITRIX24_WEBHOOK_URL;
+    delete process.env.TIKTOK_BITRIX24_OUTGOING_TOKEN;
     api.mode = 'oauth';
     installations.findCurrent.mockResolvedValue(null);
     api.verifyApplicationToken.mockResolvedValue(false);
@@ -154,8 +154,8 @@ describe('BitrixDealInbox', () => {
 
   it('does not accept a mock envelope in real webhook mode even with the outgoing credential', async () => {
     process.env.BITRIX_INTEGRATION_MODE = 'real';
-    process.env.BITRIX24_WEBHOOK_URL = 'https://crm.example.test/rest/';
-    process.env.BITRIX24_OUTGOING_TOKEN = 'outgoing-event-secret-for-test';
+    process.env.TIKTOK_BITRIX24_WEBHOOK_URL = 'https://crm.example.test/rest/';
+    process.env.TIKTOK_BITRIX24_OUTGOING_TOKEN = 'outgoing-event-secret-for-test';
     api.mode = 'webhook';
     await expect(
       inbox.receive(
@@ -170,5 +170,24 @@ describe('BitrixDealInbox', () => {
       ),
     ).rejects.toMatchObject({ status: 401 });
     expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
+  it('accepts an outgoing webhook by the application token Bitrix24 sends in the body', async () => {
+    process.env.BITRIX_INTEGRATION_MODE = 'real';
+    process.env.TIKTOK_BITRIX24_WEBHOOK_URL = 'https://crm.example.test/rest/';
+    process.env.TIKTOK_BITRIX24_OUTGOING_TOKEN = 'outgoing-event-secret-for-test';
+    api.mode = 'webhook';
+    const body = (token: string) =>
+      Buffer.from(
+        `event=ONCRMDEALUPDATE&data%5BFIELDS%5D%5BID%5D=42&ts=1736405807&auth%5Bdomain%5D=crm.example.test&auth%5Bmember_id%5D=member-1&auth%5Bapplication_token%5D=${token}`,
+      );
+
+    await expect(inbox.receive(body('some-other-token-of-16-chars'), {})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+    await expect(inbox.receive(body('outgoing-event-secret-for-test'), {})).resolves.toMatchObject({
+      duplicate: false,
+    });
   });
 });

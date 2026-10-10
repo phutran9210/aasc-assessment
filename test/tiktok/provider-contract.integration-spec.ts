@@ -113,7 +113,7 @@ describe('provider contracts', () => {
       ]);
       await expect(gateway.getLead(first.id)).resolves.toMatchObject({ id: first.id });
       await expect(gateway.completeLead(first.id, 'IN_PROGRESS')).resolves.toMatchObject({
-        fields: { statusId: 'IN_PROGRESS' },
+        fields: { stageId: 'IN_PROGRESS' },
       });
       expect(await gateway.findLeadCandidates({ marker: 'missing', limit: 1, offset: 1 })).toEqual(
         [],
@@ -133,7 +133,20 @@ describe('provider contracts', () => {
         marker: 'timeline-marker-1',
         comment: 'Synced from TikTok',
       });
-      await expect(gateway.findTimeline(timeline.marker)).resolves.toEqual([timeline]);
+      await expect(
+        gateway.findTimeline({
+          entityType: 'lead',
+          entityId: first.id,
+          marker: timeline.marker,
+        }),
+      ).resolves.toEqual([timeline]);
+      // A comment is only found on its own record and under its own marker.
+      await expect(
+        gateway.findTimeline({ entityType: 'lead', entityId: first.id, marker: 'another-marker' }),
+      ).resolves.toEqual([]);
+      await expect(
+        gateway.findTimeline({ entityType: 'deal', entityId: first.id, marker: timeline.marker }),
+      ).resolves.toEqual([]);
       await gateway.createLead({ title: 'Page one' }, 'page-one');
       await gateway.createLead({ title: 'Page two' }, 'page-two');
       await gateway.createLead({ title: 'Page three' }, 'page-three');

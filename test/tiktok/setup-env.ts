@@ -1,3 +1,5 @@
+// Tests never read the developer's .env: every value they need is set here or by the test.
+process.env.TIKTOK_APP_ENV_FILE ??= '/dev/null';
 process.env.TIKTOK_DATABASE_URL ??= 'postgres://test:test@127.0.0.1:5432/tiktok_test';
 process.env.TIKTOK_REDIS_URL ??= 'redis://127.0.0.1:6379';
 process.env.TIKTOK_JWT_SECRET ??= 'test-only-jwt-secret-with-32-bytes';

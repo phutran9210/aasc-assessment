@@ -51,4 +51,43 @@ describe('RetryPolicy', () => {
       errorCode: 'TEMPORARY',
     });
   });
+
+  it('dead letters a retry a handler asked for once the attempt budget is spent', () => {
+    const policy = new RetryPolicy({ random: () => 0.5 });
+    const requested = {
+      outcome: 'retry_wait' as const,
+      nextAttemptAt: new Date(now.getTime() + 5_000),
+      errorCode: 'LEAD_SYNC_FAILED',
+    };
+
+    expect(policy.enforce(requested, 5, now)).toEqual({
+      outcome: 'dead_letter',
+      errorCode: 'LEAD_SYNC_FAILED',
+    });
+  });
+
+  it('never retries a handler requested retry sooner than its own backoff', () => {
+    const policy = new RetryPolicy({ random: () => 0.5 });
+    const requested = (delayMs: number) => ({
+      outcome: 'retry_wait' as const,
+      nextAttemptAt: new Date(now.getTime() + delayMs),
+      errorCode: 'LEAD_SYNC_FAILED',
+    });
+
+    expect(policy.enforce(requested(5_000), 4, now)).toEqual(requested(16_000));
+    expect(policy.enforce(requested(30_000), 1, now)).toEqual(requested(30_000));
+  });
+
+  it('leaves a deferred retry and every other outcome untouched', () => {
+    const policy = new RetryPolicy({ random: () => 0.5 });
+    const deferred = {
+      outcome: 'retry_wait' as const,
+      nextAttemptAt: new Date(now.getTime() + 5_000),
+      errorCode: 'LEAD_SYNC_LEASE_BUSY',
+      deferred: true as const,
+    };
+
+    expect(policy.enforce(deferred, 9, now)).toBe(deferred);
+    expect(policy.enforce({ outcome: 'succeeded' }, 9, now)).toEqual({ outcome: 'succeeded' });
+  });
 });
