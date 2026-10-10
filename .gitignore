@@ -33,4 +33,5 @@ logs/
 # AI assistant tooling (local commands, plan workspaces)
 .claude/
 .superpowers/
+.worktrees/
 .agents/
