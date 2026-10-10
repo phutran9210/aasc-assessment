@@ -84,6 +84,7 @@ function setup() {
   );
   return {
     service,
+    dataSource,
     remote,
     deal,
     event,
@@ -193,6 +194,27 @@ describe('DealRefreshService', () => {
     expect(lost.feedback.schedule).not.toHaveBeenCalled();
   });
 
+  it('refreshes a won deal when no feedback scheduler is installed', async () => {
+    const state = setup();
+    state.remote.fields.stageId = 'C1:WON';
+    const serviceWithoutFeedback = new DealRefreshService(
+      state.dataSource as never,
+      state.gateway as never,
+      state.history,
+      state.deals as never,
+      state.operations as never,
+      state.webhookEvents as never,
+      state.analytics,
+    );
+
+    await expect(
+      serviceWithoutFeedback.refresh('42', state.context as never),
+    ).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(state.deals.update.mock.calls[0]?.[1]).toMatchObject({ stageSemantics: 'won' });
+  });
+
   it('ignores a stale remote snapshot without overwriting a newer local one', async () => {
     const { service, deal, deals, operations, webhookEvents, context } = setup();
     deal.remoteModifiedAt = new Date('2026-10-02T00:00:00Z');
@@ -277,6 +299,47 @@ describe('DealRefreshService', () => {
     await expect(service.refresh('42', context as never)).resolves.toMatchObject({
       outcome: 'retry_wait',
     });
+  });
+
+  it('records a delete tombstone when a delete webhook finds the remote deal already removed', async () => {
+    const { service, gateway, operations, webhookEvents, deals, history, context } = setup();
+    operations.findById.mockResolvedValueOnce({ payload: { eventId: 'event-1' } });
+    webhookEvents.findById.mockResolvedValueOnce({
+      id: 'event-1',
+      eventType: 'deal.delete',
+      eventKey: 'delete-2',
+      occurredAt: null,
+    });
+    gateway.getDeal.mockRejectedValueOnce(new NotFoundException());
+
+    await expect(service.refresh('42', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      remoteId: '42',
+    });
+    expect(deals.update.mock.calls[0]?.[1]).toMatchObject({ stageDeletedAt: expect.any(Date) });
+    expect(history.record.mock.calls[0]?.[0]).toMatchObject({
+      providerRevisionKey: 'delete:delete-2',
+      sourceComplete: true,
+    });
+  });
+
+  it('ignores an unchanged snapshot while advancing only the missing remote timestamp', async () => {
+    const { service, deal, deals, context } = setup();
+    await service.refresh('42', context as never);
+    const hash = deals.update.mock.calls[0]?.[1]?.currentSnapshotHash as string;
+    deal.currentSnapshotHash = hash;
+    deal.bitrixDealId = '42';
+    deal.remoteModifiedAt = null;
+    deals.update.mockClear();
+
+    await service.refresh('42', context as never);
+
+    expect(deals.update).toHaveBeenCalledWith(
+      'deal-1',
+      { remoteModifiedAt: new Date('2026-10-01T00:00:00.000Z') },
+      expect.anything(),
+    );
+    expect(deals.update.mock.calls[0]?.[1]).not.toHaveProperty('bitrixDealId');
   });
 
   it('ignores a remote deal whose marker does not match a managed local deal', async () => {

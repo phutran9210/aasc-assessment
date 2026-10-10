@@ -121,6 +121,39 @@ describe('ScoreRecomputeService', () => {
     expect(configurations.findRevision).toHaveBeenCalledWith('rules', 7, expect.anything());
   });
 
+  it('falls back to the default policy when the referenced revision has no scoring rules', async () => {
+    const { service, configurations } = setup();
+    configurations.revisions.mockResolvedValueOnce({ mapping: 2, rules: 9, scoring: 0 });
+    configurations.findRevision.mockResolvedValueOnce(null);
+
+    await expect(service.run(asOf)).resolves.toBe(1);
+    expect(configurations.findRevision).toHaveBeenCalledWith('rules', 9, expect.anything());
+  });
+
+  it('uses zero revision defaults and preserves the prior score version when revisions are absent', async () => {
+    const { service, lead, configurations, operations } = setup();
+    configurations.revisions.mockResolvedValueOnce({});
+
+    await expect(service.run(asOf)).resolves.toBe(1);
+
+    expect(configurations.findRevision).not.toHaveBeenCalled();
+    expect(lead.scoreVersion).toBe(1);
+    expect(operations.ensure.mock.calls[0]?.[0].configRevisions).toEqual({
+      mapping: 0,
+      rules: 0,
+      scoring: 0,
+    });
+  });
+
+  it('ignores a non-object scoring policy in the stored rules revision', async () => {
+    const { service, configurations } = setup();
+    configurations.revisions.mockResolvedValueOnce({ mapping: 2, rules: 9, scoring: 0 });
+    configurations.findRevision.mockResolvedValueOnce({ value: { quality_scoring: 'invalid' } });
+
+    await expect(service.run(asOf)).resolves.toBe(1);
+    expect(configurations.findRevision).toHaveBeenCalledWith('rules', 9, expect.anything());
+  });
+
   it('continues across batches using the last candidate ID as cursor', async () => {
     const { service, analytics, leads } = setup();
     analytics.scoreCandidates

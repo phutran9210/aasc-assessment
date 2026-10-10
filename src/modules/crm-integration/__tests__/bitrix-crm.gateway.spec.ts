@@ -96,6 +96,14 @@ describe('BitrixCrmGateway', () => {
     await expect(gateway.findLeadDuplicates({ email: 'an@example.test' })).resolves.toEqual([]);
   });
 
+  it('does not query duplicate APIs when neither email nor phone is present', async () => {
+    const { gateway, callRaw } = setup();
+    await expect(gateway.findLeadDuplicates({})).resolves.toEqual([]);
+    expect(callRaw).not.toHaveBeenCalled();
+    await expect(gateway.findLeadCandidates({})).resolves.toEqual([]);
+    expect(callRaw.mock.calls[0]?.[1]).toMatchObject({ filter: {}, start: 0 });
+  });
+
   it('rejects missing records and refuses a create response without its marker', async () => {
     const { gateway, callRaw } = setup(null);
     await expect(gateway.getLead('42')).rejects.toBeInstanceOf(NotFoundException);
@@ -143,6 +151,12 @@ describe('BitrixCrmGateway', () => {
     });
   });
 
+  it('lists a deal page without a modified-since filter', async () => {
+    const { gateway, callRaw } = setup({ items: [] });
+    await expect(gateway.listDealsPage({ offset: 0, limit: 10 })).resolves.toEqual([]);
+    expect(callRaw.mock.calls[0]?.[1]).toMatchObject({ filter: {}, start: 0 });
+  });
+
   it('finds only timeline comments with the exact marker suffix', async () => {
     const { gateway } = setup([
       { ID: 1, COMMENT: 'Qualified\nref: marker-1' },
@@ -155,6 +169,35 @@ describe('BitrixCrmGateway', () => {
     ).resolves.toEqual([
       { id: '1', entityType: 'lead', entityId: '42', marker: 'marker-1', comment: 'Qualified' },
     ]);
+  });
+
+  it('updates leads and deals and adds a marked timeline comment', async () => {
+    const { gateway, callRaw } = setup({ item: { id: 42, fields: { title: 'Updated' } } });
+
+    await expect(gateway.updateLead('42', { title: 'Updated' })).resolves.toMatchObject({
+      id: '42',
+      title: 'Updated',
+    });
+    await expect(gateway.completeLead('42', 'CONVERTED')).resolves.toMatchObject({ id: '42' });
+
+    callRaw.mockResolvedValueOnce({ result: 12 });
+    await expect(
+      gateway.addTimeline({
+        entityType: 'deal',
+        entityId: '7',
+        marker: 'marker-7',
+        comment: 'Converted',
+      }),
+    ).resolves.toEqual({
+      id: '12',
+      entityType: 'deal',
+      entityId: '7',
+      marker: 'marker-7',
+      comment: 'Converted',
+    });
+    expect(callRaw.mock.calls[2]?.[1]).toMatchObject({
+      fields: { COMMENT: 'Converted\nref: marker-7' },
+    });
   });
 
   it('translates provider failures according to whether the request may have run', async () => {
@@ -269,5 +312,30 @@ describe('BitrixCrmGateway', () => {
       throw new Error(`Unexpected method ${method}`);
     });
     await expect(gateway.metadata()).rejects.toThrow('Bitrix category id was invalid');
+  });
+
+  it('propagates user lookup failures and rejects invalid optional field metadata', async () => {
+    const { gateway, callRaw } = setup();
+    callRaw.mockImplementation((method: string) => {
+      if (method === 'crm.item.fields')
+        return Promise.resolve({
+          result: { fields: { flag: { type: 'boolean', isMultiple: 'Y' } } },
+        });
+      if (method === 'crm.category.list') return Promise.resolve({ result: { categories: [] } });
+      if (method === 'user.get') return Promise.reject(new Error('database disconnected'));
+      throw new Error(`Unexpected method ${method}`);
+    });
+    await expect(gateway.metadata()).rejects.toThrow('database disconnected');
+
+    callRaw.mockImplementation((method: string) => {
+      if (method === 'crm.item.fields')
+        return Promise.resolve({
+          result: { fields: { flag: { type: 'boolean', isMultiple: 'Y' } } },
+        });
+      if (method === 'crm.category.list') return Promise.resolve({ result: { categories: [] } });
+      if (method === 'user.get') return Promise.resolve({ result: [] });
+      throw new Error(`Unexpected method ${method}`);
+    });
+    await expect(gateway.metadata()).rejects.toThrow('Bitrix flag multiple was invalid');
   });
 });

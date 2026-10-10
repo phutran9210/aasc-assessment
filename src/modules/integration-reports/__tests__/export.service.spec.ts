@@ -1,4 +1,7 @@
 import { HttpException } from '@nestjs/common';
+import { rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { ExportService, toReportJobDto } from '../services/export.service.js';
 import type { ExportServiceOptions } from '../services/export.service.js';
@@ -16,26 +19,41 @@ function setup(options: ExportServiceOptions = {}) {
       campaignId: null,
       providerMode: { tiktok: 'mock', bitrix: 'mock' },
     },
+    createdAt: new Date('2026-10-08T00:00:00.000Z'),
+    updatedAt: new Date('2026-10-09T00:00:00.000Z'),
+    snapshotAt: null,
+    expiresAt: null,
+    totalRows: 0,
+    successRows: 0,
+    failedRows: 0,
+    errorSummary: null,
   };
   const dataSource = {
-    transaction: jest.fn(async (run: (manager: unknown) => Promise<unknown>) => run({})),
+    transaction: jest.fn((run: (manager: unknown) => Promise<unknown>) => run({})),
   };
   const exports = {
     snapshot: jest.fn().mockRejectedValue(new Error('database unavailable')),
     count: jest.fn().mockResolvedValue(0),
+    page: jest.fn().mockResolvedValue([]),
   };
   const jobs = {
     findById: jest.fn().mockResolvedValue(job),
     update: jest.fn().mockResolvedValue(undefined),
     complete: jest.fn().mockResolvedValue(undefined),
+    lockRequester: jest.fn().mockResolvedValue(undefined),
+    countActive: jest.fn().mockResolvedValue(0),
+    create: jest.fn().mockResolvedValue(job),
   };
   const artifacts = {
     purgeJob: jest.fn().mockResolvedValue(undefined),
     createTemp: jest.fn().mockResolvedValue('/tmp/export-test.csv'),
     discard: jest.fn().mockResolvedValue(undefined),
     finalize: jest.fn().mockResolvedValue({ path: '/tmp/job-1.csv', hash: 'sha256' }),
+    openTemp: jest.fn().mockResolvedValue({ stream: {}, size: 12 }),
   };
   const notifications = { ensure: jest.fn().mockResolvedValue(undefined) };
+  const operations = { ensure: jest.fn().mockResolvedValue({ id: 'operation-1' }) };
+  const outbox = { append: jest.fn().mockResolvedValue(undefined) };
   const context = { attempt: 1, assertOwnership: jest.fn().mockResolvedValue(undefined) };
   const scope = {
     advertiserId: 'advertiser-1',
@@ -48,16 +66,83 @@ function setup(options: ExportServiceOptions = {}) {
     exports as never,
     jobs as never,
     artifacts as never,
-    {} as never,
-    {} as never,
+    operations as never,
+    outbox as never,
     scope as never,
     options,
     notifications,
   );
-  return { service, job, dataSource, exports, jobs, artifacts, notifications, context };
+  return {
+    service,
+    job,
+    dataSource,
+    exports,
+    jobs,
+    artifacts,
+    notifications,
+    context,
+    operations,
+    outbox,
+  };
 }
 
 describe('ExportService worker outcomes', () => {
+  it('streams all pages into a synchronous export and removes the temporary file after opening it', async () => {
+    const { service, exports, artifacts } = setup({
+      pageSize: 2,
+      clock: () => '2026-10-09T00:00:00.000Z',
+    });
+    const tempPath = join(tmpdir(), `aasc-export-${process.pid}-${Date.now()}.csv`);
+    artifacts.createTemp.mockResolvedValueOnce(tempPath);
+    artifacts.openTemp.mockResolvedValueOnce({ stream: {}, size: 12 });
+    const row = (localLeadId: string, name: string) => ({
+      localLeadId,
+      remoteLeadId: null,
+      name,
+      email: null,
+      phone: null,
+      campaignId: null,
+      campaignName: null,
+      adId: null,
+      adName: null,
+      formId: null,
+      formName: null,
+      receivedAt: new Date('2026-10-08T00:00:00.000Z'),
+      score: 0,
+      syncStatus: 'synced',
+      remoteDealId: null,
+      pipelineId: null,
+      stageId: null,
+      assignedTo: null,
+      amount: null,
+      currency: null,
+      convertedAt: null,
+    });
+    const firstPage = [row('lead-1', 'An'), row('lead-2', 'Binh')];
+    const secondPage = [row('lead-3', 'Chi')];
+    exports.snapshot.mockImplementationOnce((_timeout, run) =>
+      run({}, new Date('2026-10-09T00:00:00.000Z')),
+    );
+    exports.page
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage)
+      .mockResolvedValueOnce([]);
+
+    const artifact = await service.download({ format: 'csv' }, { sub: 'user-1' } as never);
+
+    expect(artifact).toMatchObject({
+      size: 12,
+      rowCount: 3,
+      filename: 'leads-20261009T000000000Z.csv',
+      metadata: { snapshotAt: '2026-10-09T00:00:00.000Z' },
+    });
+    expect(exports.page).toHaveBeenNthCalledWith(1, expect.anything(), null, 2, {});
+    expect(exports.page).toHaveBeenNthCalledWith(2, expect.anything(), 'lead-2', 2, {});
+    expect(artifacts.openTemp).toHaveBeenCalledWith(tempPath);
+    expect(artifacts.discard).not.toHaveBeenCalled();
+    await rm(tempPath, { force: true });
+  });
+
   it('quarantines a missing or unrelated report job', async () => {
     const { service, jobs, job, context } = setup();
     jobs.findById.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...job, kind: 'import' });
@@ -234,6 +319,45 @@ describe('ExportService worker outcomes', () => {
       outcome: 'retry_wait',
       errorCode: 'EXPORT_FAILED',
     });
+  });
+
+  it('queues a valid export and enforces the active-job limit inside the requester lock', async () => {
+    const state = setup();
+    await expect(
+      state.service.schedule({ format: 'json', from: '2026-10-01', to: '2026-10-09' }, {
+        sub: 'user-1',
+      } as never),
+    ).resolves.toMatchObject({ id: 'job-1', format: 'csv' });
+    expect(state.jobs.lockRequester).toHaveBeenCalledWith('user-1', expect.anything());
+    expect(state.operations.ensure).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'integration_report', actorId: 'user-1' }),
+      expect.anything(),
+    );
+    expect(state.outbox.append).toHaveBeenCalledTimes(1);
+
+    const full = setup();
+    full.jobs.countActive.mockResolvedValueOnce(2);
+    await expect(
+      full.service.schedule({ format: 'csv' }, { sub: 'user-1' } as never),
+    ).rejects.toMatchObject({ status: 429, response: { code: 'EXPORT_JOB_LIMIT' } });
+    expect(full.jobs.create).not.toHaveBeenCalled();
+  });
+
+  it('checks job ownership and rejects synchronous exports above their row limit', async () => {
+    const state = setup({ syncLimit: 1 });
+    await expect(
+      state.service.getJob('job-1', { sub: 'user-1', roles: ['integration_admin'] } as never),
+    ).resolves.toMatchObject({ id: 'job-1', format: 'csv' });
+    state.jobs.findById.mockResolvedValueOnce(null);
+    await expect(
+      state.service.getJob('missing', { sub: 'user-1', roles: [] } as never),
+    ).rejects.toThrow('was not found');
+    state.exports.count.mockResolvedValueOnce(2);
+    state.exports.snapshot.mockImplementationOnce((_timeout, work) => work({}, new Date()));
+    await expect(
+      state.service.download({ format: 'csv' }, { sub: 'user-1' } as never),
+    ).rejects.toMatchObject({ response: { code: 'EXPORT_REQUIRES_ASYNC' } });
+    expect(state.artifacts.discard).toHaveBeenCalledWith('/tmp/export-test.csv');
   });
 
   it('returns nullable job metadata when the stored format is absent', () => {

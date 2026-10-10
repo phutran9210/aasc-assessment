@@ -1,4 +1,9 @@
-import { ConflictException, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
@@ -89,9 +94,18 @@ describe('BitrixOAuthService', () => {
     expect(transport.postRest).not.toHaveBeenCalled();
   });
 
+  it('rejects non-object install payloads before normalization', async () => {
+    await expect(service.install(null)).rejects.toThrow('payload is invalid');
+    await expect(service.install([])).rejects.toThrow('payload is invalid');
+    expect(transport.postRest).not.toHaveBeenCalled();
+  });
+
   it('fails closed when no Bitrix portal is configured', async () => {
     config.portalDomain = '';
 
+    await expect(service.install({ event: 'ONAPPINSTALL', auth: {} })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     await expect(service.install(EVENT)).rejects.toThrow(ServiceUnavailableException);
 
     expect(transport.postRest).not.toHaveBeenCalled();
@@ -144,6 +158,18 @@ describe('BitrixOAuthService', () => {
     );
     expect(repository.saveTokens).toHaveBeenCalledWith(
       expect.objectContaining({ memberId: 'member-1' }),
+      { allowPortalChange: true },
+    );
+  });
+
+  it('accepts app.info without comparing a code when the client ID is not configured', async () => {
+    config.clientId = undefined;
+    transport.postRest.mockResolvedValue({ result: { CODE: 'portal-app' } });
+
+    await service.handleInstallEvent(EVENT);
+
+    expect(repository.saveTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ memberId: 'member-1', accessToken: 'access-1' }),
       { allowPortalChange: true },
     );
   });
@@ -243,6 +269,29 @@ describe('BitrixOAuthService', () => {
     );
   });
 
+  it('should reject incomplete token responses after a valid authorization state', async () => {
+    const url = await service.createAuthorizationUrl();
+    const state = new URL(url).searchParams.get('state') as string;
+    transport.getJson.mockResolvedValue({ access_token: 'access-only' });
+
+    await expect(service.completeAuthorization('code-1', state)).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    expect(repository.saveTokens).not.toHaveBeenCalled();
+  });
+
+  it('should return a still-valid access token without starting a refresh', async () => {
+    repository.findCurrent.mockResolvedValue({
+      ...AUTH,
+      accessToken: 'current-access',
+      accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
+    });
+
+    await expect(service.getAccessToken()).resolves.toBe('current-access');
+    expect(repository.acquireRefreshLock).not.toHaveBeenCalled();
+    expect(transport.getJson).not.toHaveBeenCalled();
+  });
+
   it('should leave stored tokens unchanged when code exchange fails', async () => {
     const url = await service.createAuthorizationUrl();
     const state = new URL(url).searchParams.get('state') as string;
@@ -310,6 +359,34 @@ describe('BitrixOAuthService', () => {
     await expect(service.getAccessToken()).rejects.toThrow(ServiceUnavailableException);
     expect(repository.replaceTokens).not.toHaveBeenCalled();
     expect(repository.releaseRefreshLock).toHaveBeenCalledTimes(1);
+  });
+
+  it('should propagate an OAuth endpoint error response without saving tokens', async () => {
+    repository.findCurrent.mockResolvedValue({
+      ...AUTH,
+      accessTokenExpiresAt: new Date(Date.now() - 1_000),
+    });
+    transport.getJson.mockResolvedValue({
+      error: 'invalid_grant',
+      error_description: 'Refresh token expired',
+    });
+
+    await expect(service.getAccessToken()).rejects.toThrow('Refresh token expired');
+    expect(repository.replaceTokens).not.toHaveBeenCalled();
+    expect(repository.releaseRefreshLock).toHaveBeenCalledTimes(1);
+  });
+
+  it('should report when an installation disappears while tokens are being refreshed', async () => {
+    repository.findCurrent
+      .mockResolvedValueOnce({
+        ...AUTH,
+        accessTokenExpiresAt: new Date(Date.now() - 1_000),
+      })
+      .mockResolvedValueOnce(null);
+    repository.replaceTokens.mockResolvedValue(false);
+    transport.getJson.mockResolvedValue({ ...AUTH, access_token: 'new-access' });
+
+    await expect(service.getAccessToken()).rejects.toThrow(ServiceUnavailableException);
   });
 
   it('should share one refresh request for concurrent callers', async () => {

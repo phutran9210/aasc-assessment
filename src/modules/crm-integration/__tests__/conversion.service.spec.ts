@@ -78,6 +78,35 @@ function enableManual(configurations: ReturnType<typeof createService>['configur
   });
 }
 
+function enableRules(configurations: ReturnType<typeof createService>['configurations']) {
+  configurations.findActive.mockResolvedValue({
+    entity: { revision: 4 },
+    value: {
+      schema_version: 1,
+      auto_conversion: { enabled: false },
+      manual_conversion: {
+        enabled: true,
+        pipeline_id: 1,
+        stage_id: 'C1:NEW',
+        probability: 10,
+        fallback_sales_id: 'sales-1',
+      },
+      stage_probabilities: [],
+      assignment: { strategy: 'fallback', fallback_sales_id: 'sales-1', sales_ids: ['sales-1'] },
+      quality_scoring: {
+        weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
+        interaction_window_days: 30,
+        interaction_points: 5,
+        interaction_cap: 4,
+      },
+      feedback: { enabled: false },
+      reporting: { timezone: 'UTC' },
+      alerts: { enabled: true },
+      rules: [],
+    },
+  });
+}
+
 describe('ConversionService', () => {
   it('rejects a lead that is not synced before reserving a conversion', async () => {
     const { service } = createService({
@@ -153,6 +182,16 @@ describe('ConversionService', () => {
     await expect(service.request('lead-1', 'manual')).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('skips rule conversions when automatic conversion is disabled or no rule matches', async () => {
+    const { service, configurations, gateway } = createService(
+      { id: 'lead-1', syncStatus: 'synced', fieldProvenance: {} },
+      { applyRules: true, customAnswers: {}, engagement: {} },
+    );
+    enableRules(configurations);
+    await expect(service.request('lead-1', 'rule')).resolves.toBeNull();
+    expect(gateway.metadata).not.toHaveBeenCalled();
+  });
+
   it('rejects an existing conversion that requires reconciliation', async () => {
     const lead = { id: 'lead-1', syncStatus: 'synced', fieldProvenance: {} };
     const { service, configurations, deals, assignments } = createService(lead);
@@ -164,6 +203,20 @@ describe('ConversionService', () => {
 
     await expect(service.request('lead-1', 'manual')).rejects.toBeInstanceOf(ConflictException);
     expect(assignments.reserve).not.toHaveBeenCalled();
+  });
+
+  it('rejects an existing deal without its operation record', async () => {
+    const { service, configurations, deals, operations } = createService({
+      id: 'lead-1',
+      syncStatus: 'synced',
+      fieldProvenance: {},
+    });
+    enableManual(configurations);
+    deals.findByLeadForUpdate.mockResolvedValueOnce({ id: 'deal-1', conversionStatus: 'pending' });
+    operations.findByKeyForUpdate.mockResolvedValueOnce(null);
+    await expect(service.request('lead-1', 'manual')).rejects.toThrow(
+      'Existing conversion is missing its operation',
+    );
   });
 
   it('returns the existing completed conversion without reserving another assignee', async () => {
@@ -228,6 +281,15 @@ describe('ConversionService', () => {
     expect(outbox.append).toHaveBeenCalledTimes(1);
   });
 
+  it('reuses cached CRM metadata for subsequent requests', async () => {
+    const lead = { id: 'lead-1', name: 'A', version: 1, syncStatus: 'synced', fieldProvenance: {} };
+    const { service, configurations, gateway } = createService(lead);
+    enableManual(configurations);
+    await service.request('lead-1', 'manual');
+    await service.request('lead-1', 'manual');
+    expect(gateway.metadata).toHaveBeenCalledTimes(1);
+  });
+
   it('returns an existing pending conversion without creating a second deal', async () => {
     const { service, configurations, deals, operations, assignments } = createService({
       id: 'lead-1',
@@ -248,6 +310,31 @@ describe('ConversionService', () => {
       dealId: 'deal-1',
     });
     expect(assignments.reserve).not.toHaveBeenCalled();
+  });
+
+  it('persists an idempotency fingerprint when an existing operation has not recorded the key', async () => {
+    const { service, configurations, deals, operations } = createService({
+      id: 'lead-1',
+      syncStatus: 'synced',
+      fieldProvenance: {},
+    });
+    enableManual(configurations);
+    deals.findByLeadForUpdate.mockResolvedValueOnce({
+      id: 'deal-1',
+      conversionStatus: 'pending',
+      bitrixDealId: null,
+    });
+    const operation = { id: 'operation-1', payload: {} as Record<string, unknown> };
+    operations.findByKeyForUpdate.mockResolvedValue(operation);
+    await expect(
+      service.request('lead-1', 'manual', 'actor-1', 'key-1', {
+        nested: { z: [1, { b: true }], a: 'x' },
+      }),
+    ).resolves.toMatchObject({ status: 'pending' });
+    const stored = operations.save.mock.calls[0]?.[0] as {
+      payload: { idempotencyKeys: Record<string, { bodyHash: string }> };
+    };
+    expect(Object.values(stored.payload.idempotencyKeys)[0]?.bodyHash).toEqual(expect.any(String));
   });
 
   it('rejects a reused idempotency key when its request body changed', async () => {

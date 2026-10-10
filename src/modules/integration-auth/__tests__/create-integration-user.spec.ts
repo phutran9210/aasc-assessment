@@ -1,6 +1,9 @@
 import bcrypt from 'bcrypt';
 
-import { createIntegrationUser } from '../cli/create-integration-user.js';
+import {
+  createIntegrationUser,
+  runCreateIntegrationUserCli,
+} from '../cli/create-integration-user.js';
 
 const valid = {
   username: 'operator.test',
@@ -95,5 +98,75 @@ describe('createIntegrationUser', () => {
       aggregateId: created.id,
       metadata: { username: 'operator.test', roles: ['integration_operator'], source: 'cli' },
     });
+  });
+});
+
+describe('runCreateIntegrationUserCli', () => {
+  const makeDependencies = (overrides: Record<string, unknown> = {}) => {
+    const users = { findOne: jest.fn().mockResolvedValue(null), insert: jest.fn() };
+    const audit = { insert: jest.fn() };
+    const manager = {
+      getRepository: jest.fn().mockReturnValueOnce(users).mockReturnValueOnce(audit),
+    };
+    const dataSource = {
+      isInitialized: true,
+      initialize: jest.fn().mockResolvedValue(undefined),
+      destroy: jest.fn().mockResolvedValue(undefined),
+      transaction: jest.fn((callback: (tx: typeof manager) => Promise<unknown>) =>
+        callback(manager),
+      ),
+    };
+    const dependencies = {
+      args: ['operator.test', 'integration_operator'],
+      isTTY: false,
+      readPassword: jest.fn().mockResolvedValue(valid.password),
+      createDataSource: jest.fn(() => dataSource),
+      writeOutput: jest.fn(),
+      ...overrides,
+    };
+    return { dependencies, dataSource };
+  };
+
+  it('shows usage before reading a secret or creating a database connection', async () => {
+    const { dependencies } = makeDependencies({ args: ['operator.test'] });
+
+    await expect(runCreateIntegrationUserCli(dependencies as never)).rejects.toThrow('Usage:');
+    expect(dependencies.readPassword).not.toHaveBeenCalled();
+    expect(dependencies.createDataSource).not.toHaveBeenCalled();
+  });
+
+  it('requires a matching repeated secret in an interactive terminal', async () => {
+    const { dependencies } = makeDependencies({
+      isTTY: true,
+      readPassword: jest.fn().mockResolvedValueOnce('first-secret').mockResolvedValueOnce('other'),
+    });
+
+    await expect(runCreateIntegrationUserCli(dependencies as never)).rejects.toThrow(
+      'Passwords do not match',
+    );
+    expect(dependencies.readPassword).toHaveBeenCalledTimes(2);
+    expect(dependencies.createDataSource).not.toHaveBeenCalled();
+  });
+
+  it('creates an account from piped input and closes an initialized database', async () => {
+    const { dependencies, dataSource } = makeDependencies();
+
+    await runCreateIntegrationUserCli(dependencies as never);
+
+    expect(dependencies.readPassword).toHaveBeenCalledTimes(1);
+    expect(dataSource.initialize).toHaveBeenCalledTimes(1);
+    expect(dataSource.destroy).toHaveBeenCalledTimes(1);
+    expect(dependencies.writeOutput).toHaveBeenCalledWith(
+      'Created operator.test with roles integration_operator',
+    );
+  });
+
+  it('leaves an uninitialized database alone during cleanup', async () => {
+    const { dependencies, dataSource } = makeDependencies();
+    dataSource.isInitialized = false;
+
+    await runCreateIntegrationUserCli(dependencies as never);
+
+    expect(dataSource.destroy).not.toHaveBeenCalled();
   });
 });

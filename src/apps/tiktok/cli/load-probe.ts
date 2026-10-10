@@ -19,7 +19,7 @@ function boundedInteger(name: string, fallback: number, max: number): number {
  * retried. With `TIKTOK_PROBE_RATE` requests start at that fixed rate per second for
  * `TIKTOK_PROBE_SECONDS`, independent of how fast responses return (open-loop load).
  */
-async function main(): Promise<void> {
+export async function runLoadProbe(): Promise<void> {
   assertMockMode();
   const options = demoOptionsFromEnvironment();
   const rate = process.env.TIKTOK_PROBE_RATE ? boundedInteger('TIKTOK_PROBE_RATE', 20, 500) : 0;
@@ -87,7 +87,9 @@ async function main(): Promise<void> {
   );
 }
 
-void main().catch((error: unknown) => {
-  console.error(`Load probe failed: ${error instanceof Error ? error.message : 'unknown error'}`);
-  process.exitCode = 1;
-});
+if (process.argv[1]?.endsWith('/load-probe.js')) {
+  void runLoadProbe().catch((error: unknown) => {
+    console.error(`Load probe failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    process.exitCode = 1;
+  });
+}

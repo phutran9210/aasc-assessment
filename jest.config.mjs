@@ -10,6 +10,7 @@ export default {
   rootDir: '.',
   roots: ['<rootDir>/src'],
   testEnvironment: 'node',
+  setupFiles: ['<rootDir>/test/setup-env.ts', '<rootDir>/test/tiktok/setup-env.ts'],
   testRegex: '.*\\.spec\\.ts$',
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
@@ -22,9 +23,7 @@ export default {
   },
   collectCoverageFrom: ['src/**/*.ts', '!src/main.ts', '!src/**/index.ts', '!src/**/*.module.ts'],
   coverageDirectory: 'coverage',
-  // The assessment asks for at least 70% unit coverage of the Google Sheets integration.
   coverageThreshold: {
-    './src/modules/lead-sync/': { statements: 70, functions: 70, lines: 70 },
-    './src/modules/google-sheets/': { statements: 70, functions: 70, lines: 70 },
+    global: { statements: 85, branches: 85, functions: 85, lines: 85 },
   },
 };

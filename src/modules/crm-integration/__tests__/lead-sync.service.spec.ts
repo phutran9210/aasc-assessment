@@ -1,10 +1,13 @@
 import {
   GatewayTimeoutException,
+  HttpException,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 
 import { LeadSyncService } from '../services/lead-sync.service.js';
+import { FALLBACK_MAPPING } from '../constants/flow.constants.js';
 
 function setup() {
   const manager = {};
@@ -50,7 +53,7 @@ function setup() {
     id: '42',
     title: 'An',
     marker: 'aasc-tiktok/lead-1',
-    fields: { title: 'TikTok - An - Lead' },
+    fields: { title: 'TikTok - An - Lead' } as Record<string, unknown>,
     stale: false,
   };
   const leads = {
@@ -199,6 +202,22 @@ describe('LeadSyncService', () => {
       errorCode: 'CRM_REMOTE_GET_FAILED',
     });
     expect(gateway.createLead).not.toHaveBeenCalled();
+  });
+
+  it('uses distinct retry codes for CRM throttling and outages', async () => {
+    for (const [error, errorCode] of [
+      [new HttpException('throttled', 429), 'CRM_RATE_LIMITED'],
+      [new ServiceUnavailableException(), 'CRM_UNAVAILABLE'],
+      [new GatewayTimeoutException(), 'LEAD_SYNC_FAILED'],
+    ] as const) {
+      const { service, context } = setup();
+      context.assertOwnership.mockRejectedValueOnce(error);
+
+      await expect(service.sync('lead-1', 2, context as never)).resolves.toMatchObject({
+        outcome: 'retry_wait',
+        errorCode,
+      });
+    }
   });
 
   it('treats a missing linked CRM record as an unlinked lead', async () => {
@@ -425,6 +444,38 @@ describe('LeadSyncService', () => {
       errorCode: 'LEAD_SYNC_FAILED',
     });
     expect(gateway.createLead).not.toHaveBeenCalled();
+  });
+
+  it('uses a valid stored mapping revision and skips an unchanged remote patch', async () => {
+    const { service, context, remote, reconciliation, configurations, gateway, leads } = setup();
+    context.revisions.mapping = 1;
+    configurations.findRevision.mockResolvedValueOnce({ value: { compiled: FALLBACK_MAPPING } });
+    remote.fields = {
+      title: 'TikTok - An - Lead',
+      city: 'Hanoi',
+      fm: [{ typeId: 'EMAIL', value: 'an@example.test', valueType: 'WORK' }],
+      name: 'An',
+    };
+    reconciliation.find.mockResolvedValueOnce({ status: 'found', value: remote });
+
+    await expect(service.sync('lead-1', 2, context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      remoteId: '42',
+    });
+    expect(gateway.updateLead).not.toHaveBeenCalled();
+    expect(leads.save).toHaveBeenCalled();
+  });
+
+  it('falls back to the built-in mapping when the requested revision is missing', async () => {
+    const { service, context, configurations, reconciliation, remote } = setup();
+    context.revisions.mapping = 9;
+    configurations.findRevision.mockResolvedValueOnce(null);
+    reconciliation.find.mockResolvedValueOnce({ status: 'found', value: remote });
+
+    await expect(service.sync('lead-1', 2, context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(configurations.findRevision).toHaveBeenCalledWith('mapping', 9);
   });
 
   it('does not recreate a newer sync operation when one already exists', async () => {

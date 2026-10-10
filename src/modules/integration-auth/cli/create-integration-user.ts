@@ -95,17 +95,27 @@ function readSecret(prompt: string): Promise<string> {
   });
 }
 
+export type CreateIntegrationUserCliDependencies = {
+  args: string[];
+  isTTY: boolean;
+  readPassword: (prompt: string) => Promise<string>;
+  createDataSource: () => DataSource;
+  writeOutput: (message: string) => void;
+};
+
 /** Usage: create-integration-user <username> <role>[,<role>]; the password is prompted for. */
-async function main(): Promise<void> {
-  const [username, roleList] = process.argv.slice(2);
+export async function runCreateIntegrationUserCli(
+  dependencies: CreateIntegrationUserCliDependencies,
+): Promise<void> {
+  const [username, roleList] = dependencies.args;
   if (!username || !roleList) {
     throw new Error(`Usage: <username> <${INTEGRATION_ROLES.join('|')}>[,<role>]`);
   }
-  const password = await readSecret('Password: ');
-  if (process.stdin.isTTY && (await readSecret('Repeat password: ')) !== password) {
+  const password = await dependencies.readPassword('Password: ');
+  if (dependencies.isTTY && (await dependencies.readPassword('Repeat password: ')) !== password) {
     throw new Error('Passwords do not match');
   }
-  const dataSource = buildTiktokDataSource(validateTiktokEnv(process.env));
+  const dataSource = dependencies.createDataSource();
   try {
     await dataSource.initialize();
     const user = await createIntegrationUser(dataSource, {
@@ -113,10 +123,20 @@ async function main(): Promise<void> {
       roles: roleList.split(','),
       password,
     });
-    console.log(`Created ${user.username} with roles ${user.roles.join(', ')}`);
+    dependencies.writeOutput(`Created ${user.username} with roles ${user.roles.join(', ')}`);
   } finally {
     if (dataSource.isInitialized) await dataSource.destroy();
   }
+}
+
+async function main(): Promise<void> {
+  await runCreateIntegrationUserCli({
+    args: process.argv.slice(2),
+    isTTY: Boolean(process.stdin.isTTY),
+    readPassword: readSecret,
+    createDataSource: () => buildTiktokDataSource(validateTiktokEnv(process.env)),
+    writeOutput: (message) => console.log(message),
+  });
 }
 
 if (process.argv[1]?.endsWith('/create-integration-user.js')) {

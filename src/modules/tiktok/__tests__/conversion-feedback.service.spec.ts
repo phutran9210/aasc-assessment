@@ -113,6 +113,16 @@ describe('ConversionFeedbackService', () => {
     expect(operations.ensure).not.toHaveBeenCalled();
   });
 
+  it('keeps feedback disabled when the active rules document omits its feedback policy', async () => {
+    const { service, configurations, feedbackData, operations, manager } = setup();
+    configurations.findActive.mockResolvedValueOnce({ entity: { revision: 5 }, value: {} });
+
+    await service.schedule('lead-1', 'lead_qualified', manager as never);
+
+    expect(feedbackData.ensureLedger.mock.calls[0]?.[0]).toMatchObject({ status: 'disabled' });
+    expect(operations.ensure).not.toHaveBeenCalled();
+  });
+
   it('queues a consented feedback event with its policy revision', async () => {
     const { service, operations, feedbackData, outbox, manager } = setup();
 
@@ -125,6 +135,26 @@ describe('ConversionFeedbackService', () => {
     });
     expect(feedbackData.save.mock.calls[0]?.[0]).toMatchObject({ operationId: 'operation-1' });
     expect(outbox.append).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not duplicate a queued ledger operation and publishes retries to the outbox', async () => {
+    const existing = setup();
+    existing.feedbackData.findForUpdate.mockResolvedValueOnce({
+      ...existing.ledger,
+      operationId: 'already-queued',
+    });
+    await existing.service.schedule('lead-1', 'lead_qualified', existing.manager as never);
+    expect(existing.operations.ensure).not.toHaveBeenCalled();
+
+    const retry = setup();
+    retry.operations.ensure.mockResolvedValueOnce({ id: 'operation-retry', status: 'retry_wait' });
+    await retry.service.schedule('lead-1', 'lead_qualified', retry.manager as never);
+    expect(retry.outbox.append).toHaveBeenCalledWith(
+      'operation-retry',
+      'tiktok-feedback',
+      expect.any(Date),
+      retry.manager,
+    );
   });
 
   it('quarantines a feedback operation without its ledger ID', async () => {
@@ -230,5 +260,25 @@ describe('ConversionFeedbackService', () => {
     expect(outcome).toMatchObject({ outcome: 'retry_wait', errorCode: 'RATE_LIMIT' });
     if (outcome.outcome !== 'retry_wait') throw new Error('expected retry');
     expect(outcome.nextAttemptAt.getTime() - before).toBeGreaterThanOrEqual(30_000);
+  });
+
+  it('retries generic provider errors with the fallback code and delay', async () => {
+    const { service, provider, context } = setup();
+    provider.sendEvents.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(service.send('operation-1', context as never)).resolves.toMatchObject({
+      outcome: 'retry_wait',
+      errorCode: 'FEEDBACK_PROVIDER_ERROR',
+    });
+  });
+
+  it('uses the fallback rejection code when the provider omits one', async () => {
+    const { service, provider, context } = setup();
+    provider.sendEvents.mockResolvedValueOnce([{ eventId: 'event-1', status: 'rejected' }]);
+
+    await expect(service.send('operation-1', context as never)).resolves.toMatchObject({
+      outcome: 'retry_wait',
+      errorCode: 'FEEDBACK_REJECTED',
+    });
   });
 });

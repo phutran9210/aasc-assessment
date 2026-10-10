@@ -1,4 +1,9 @@
-import { GatewayTimeoutException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  GatewayTimeoutException,
+  HttpException,
+  HttpStatus,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 
 import { ConversionService } from '../services/conversion.service.js';
 
@@ -134,6 +139,16 @@ describe('ConversionService execute', () => {
     expect(context.releaseAggregateLease).toHaveBeenCalledWith('lease-1');
   });
 
+  it('quarantines a missing lead and still releases its aggregate lease', async () => {
+    const { service, leads, context } = setup();
+    leads.findById.mockResolvedValueOnce(null);
+    await expect(service.execute('operation-1', context as never)).resolves.toEqual({
+      outcome: 'quarantined',
+      errorCode: 'CONVERSION_AGGREGATE_MISSING',
+    });
+    expect(context.releaseAggregateLease).toHaveBeenCalledWith('lease-1');
+  });
+
   it('returns the completed CRM deal without creating another one', async () => {
     const { service, deal, gateway, context } = setup();
     deal.conversionStatus = 'completed';
@@ -170,6 +185,32 @@ describe('ConversionService execute', () => {
       { conversionStatus: 'reconcile_required' },
       expect.anything(),
     );
+    expect(gateway.createDeal).not.toHaveBeenCalled();
+  });
+
+  it('adopts the unique deal linked to a lead when marker lookup finds nothing', async () => {
+    const { service, gateway, deals, reconciliation, context } = setup();
+    gateway.findDeals.mockResolvedValueOnce([{ id: 'crm-linked-deal' }]);
+    await expect(service.execute('operation-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      remoteId: 'crm-linked-deal',
+    });
+    expect(reconciliation.find).toHaveBeenCalledTimes(1);
+    expect(gateway.createDeal).not.toHaveBeenCalled();
+    expect(deals.update).toHaveBeenCalledWith(
+      'deal-1',
+      { bitrixDealId: 'crm-linked-deal', conversionStatus: 'deal_created' },
+      expect.anything(),
+    );
+  });
+
+  it('adopts a deal returned by marker reconciliation without listing or creating deals', async () => {
+    const { service, remote, gateway, reconciliation, context } = setup();
+    reconciliation.find.mockResolvedValueOnce({ status: 'found', value: remote });
+    await expect(service.execute('operation-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(gateway.findDeals).not.toHaveBeenCalled();
     expect(gateway.createDeal).not.toHaveBeenCalled();
   });
 
@@ -236,6 +277,17 @@ describe('ConversionService execute', () => {
       { conversionStatus: 'retry_wait' },
       expect.anything(),
     );
+  });
+
+  it('uses the rate-limit retry code when CRM refuses a create with HTTP 429', async () => {
+    const { service, gateway, context } = setup();
+    gateway.createDeal.mockRejectedValueOnce(
+      new HttpException('rate limited', HttpStatus.TOO_MANY_REQUESTS),
+    );
+    await expect(service.execute('operation-1', context as never)).resolves.toMatchObject({
+      outcome: 'retry_wait',
+      errorCode: 'CRM_RATE_LIMITED',
+    });
   });
 
   it('requires reconciliation when a create timed out and no deal can be found', async () => {
