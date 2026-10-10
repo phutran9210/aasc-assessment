@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { bitrixConfig } from '@config/index.js';
@@ -73,6 +73,14 @@ describe('ContactService', () => {
     expect(api.callBitrixApi).toHaveBeenCalledWith('crm.requisite.add', {
       fields: expect.objectContaining({ ENTITY_ID: 10, PRESET_ID: 9, NAME: 'A' }),
     });
+  });
+
+  it('should reject a Bitrix create response without a usable contact ID', async () => {
+    api.callBitrixApi.mockResolvedValueOnce(null);
+
+    await expect(service.create({ name: 'Missing ID' })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
   });
 
   it('should compensate created objects when bank detail creation fails', async () => {
@@ -191,5 +199,353 @@ describe('ContactService', () => {
     await service.findAll({ page: 1, limit: 10 });
 
     expect(api.callBitrixApiWithTotal).toHaveBeenCalledTimes(1);
+  });
+
+  it('should use an empty page when Bitrix omits its items and total fields', async () => {
+    api.callBitrixApiWithTotal.mockResolvedValue({ result: {} });
+    await expect(service.findAll({ page: 1, limit: 10 })).resolves.toMatchObject({
+      data: [],
+      meta: { total: 0, page: 1, limit: 10 },
+    });
+  });
+
+  it('should skip related lookups when no requisite preset is configured', async () => {
+    (service as unknown as { config: { requisitePresetId?: number } }).config.requisitePresetId =
+      undefined;
+    api.callBitrixApiWithTotal.mockResolvedValue({
+      result: { items: [{ id: 1, name: 'A' }] },
+      total: 1,
+    });
+
+    await expect(service.findAll({ page: 1, limit: 10 })).resolves.toMatchObject({
+      data: [{ id: '1', address: null, bank: null }],
+    });
+    expect(api.callBitrixApi).not.toHaveBeenCalled();
+  });
+
+  it('should follow multiple requisite pages and accept an items response object', async () => {
+    const requisites = Array.from({ length: 50 }, (_, index) => ({
+      ID: String(index + 1),
+      ENTITY_ID: String(index + 100),
+    }));
+    requisites[0] = { ID: '1', ENTITY_ID: '1' };
+    api.callBitrixApiWithTotal.mockImplementation((method: string, query: { start?: number }) => {
+      if (method === 'crm.item.list') {
+        return Promise.resolve({ result: { items: [{ id: 1, name: 'A' }] }, total: 1 });
+      }
+      if (method === 'crm.requisite.list') {
+        return Promise.resolve({
+          result: query.start === 0 ? requisites : { items: [{ ID: '51', ENTITY_ID: '1' }] },
+          total: 51,
+        });
+      }
+      return Promise.resolve({ result: [], total: 0 });
+    });
+
+    await service.findAll({ page: 1, limit: 10 });
+    expect(
+      api.callBitrixApiWithTotal.mock.calls
+        .filter(([method]) => method === 'crm.requisite.list')
+        .map(([, query]) => query.start),
+    ).toEqual([0, 50]);
+  });
+
+  it('should create related records when a requisite has no address or bank yet', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'A' } })
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ item: { id: 1, name: 'A' } })
+      .mockResolvedValueOnce([]);
+    await service.update('1', {
+      address: { ward: 'W', district: 'D', province: 'P' },
+      bank: { bankName: 'B', accountNumber: 'N' },
+    });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain('crm.address.add');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain(
+      'crm.requisite.bankdetail.add',
+    );
+  });
+
+  it('should update existing related address and bank records in place', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Before' } })
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValueOnce([{ ID: '10', ADDRESS_1: 'Old' }])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce([{ ID: '11', RQ_BANK_NAME: 'Old bank' }])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ item: { id: 1, name: 'After' } })
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValueOnce([{ ID: '10', ADDRESS_1: 'New ward' }])
+      .mockResolvedValueOnce([{ ID: '11', RQ_BANK_NAME: 'New bank' }]);
+
+    await expect(
+      service.update('1', {
+        address: { ward: 'New ward', district: 'New district', province: 'New province' },
+        bank: { bankName: 'New bank', accountNumber: '123' },
+      }),
+    ).resolves.toMatchObject({ id: '1', address: { ward: 'New ward' } });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain('crm.address.update');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain(
+      'crm.requisite.bankdetail.update',
+    );
+  });
+
+  it('should accept lowercase IDs returned by requisite and related detail endpoints', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'A' } })
+      .mockResolvedValueOnce([{ id: '9' }])
+      .mockResolvedValueOnce([{ id: '10' }])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce([{ id: '11' }])
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce({ item: { id: 1, name: 'A' } })
+      .mockResolvedValueOnce([{ id: '9' }])
+      .mockResolvedValueOnce([{ id: '10' }])
+      .mockResolvedValueOnce([{ id: '11' }]);
+
+    await service.update('1', {
+      address: { ward: 'W', district: 'D', province: 'P' },
+      bank: { bankName: 'B', accountNumber: 'N' },
+    });
+
+    expect(api.callBitrixApi).toHaveBeenCalledWith('crm.requisite.bankdetail.update', {
+      id: 11,
+      fields: expect.objectContaining({ ENTITY_ID: 9 }),
+    });
+  });
+
+  it('should skip the contact update when the request has no changed fields or related records', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Unchanged' } })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Unchanged' } })
+      .mockResolvedValueOnce([]);
+
+    await expect(service.update('1', {})).resolves.toMatchObject({
+      id: '1',
+      name: 'Unchanged',
+      address: null,
+      bank: null,
+    });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.requisite.list',
+      'crm.item.get',
+      'crm.requisite.list',
+    ]);
+  });
+
+  it('should delete the requisite before deleting its contact', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValue(undefined);
+
+    await service.remove('1');
+
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.requisite.list',
+      'crm.requisite.delete',
+      'crm.item.delete',
+    ]);
+  });
+
+  it('should delete the contact directly when it has no requisite', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(undefined);
+
+    await service.remove('1');
+
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.requisite.list',
+      'crm.item.delete',
+    ]);
+  });
+
+  it('should fail related creation without a configured requisite preset and still clean up the contact', async () => {
+    (service as unknown as { config: { requisitePresetId?: number } }).config.requisitePresetId =
+      undefined;
+    api.callBitrixApi.mockResolvedValueOnce({ id: '25' }).mockResolvedValue(undefined);
+    await expect(
+      service.create({ name: 'A', address: { ward: 'W', district: 'D', province: 'P' } }),
+    ).rejects.toThrow(ServiceUnavailableException);
+    expect(api.callBitrixApi).toHaveBeenLastCalledWith('crm.item.delete', {
+      entityTypeId: 3,
+      id: 25,
+    });
+  });
+
+  it('should create a contact without optional related records and reject a missing remote ID', async () => {
+    api.callBitrixApi.mockResolvedValueOnce({ id: '25' });
+    await expect(service.create({ name: 'Simple' })).resolves.toMatchObject({
+      id: '25',
+      name: 'Simple',
+      address: null,
+      bank: null,
+    });
+    api.callBitrixApi.mockResolvedValueOnce({});
+    await expect(service.create({ name: 'Broken' })).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('should compensate every related object if building the response fails after the bank was created', async () => {
+    const remoteItem = {
+      id: 25,
+      get name(): never {
+        throw new Error('malformed remote contact');
+      },
+    };
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: remoteItem })
+      .mockResolvedValueOnce({ ID: '30' })
+      .mockResolvedValueOnce({ id: '40' })
+      .mockResolvedValue(undefined);
+    await expect(
+      service.create({ name: 'A', bank: { bankName: 'B', accountNumber: 'N' } }),
+    ).rejects.toThrow('malformed remote contact');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.add',
+      'crm.requisite.add',
+      'crm.requisite.bankdetail.add',
+      'crm.requisite.bankdetail.delete',
+      'crm.requisite.delete',
+      'crm.item.delete',
+    ]);
+  });
+
+  it('should use ID fallbacks and tolerate remote list methods returning items objects', async () => {
+    api.callBitrixApi.mockResolvedValueOnce({ item: '26' });
+    await expect(service.create({ name: 'String result' })).resolves.toMatchObject({ id: '26' });
+
+    api.callBitrixApi.mockResolvedValueOnce({ ID: '27' });
+    await expect(service.create({ name: 'ID result' })).resolves.toMatchObject({ id: '27' });
+
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ items: [{ id: '9', ACTIVE: 'Y' }] })
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce({ items: [{ id: '9', ACTIVE: 'Y' }] })
+      .mockResolvedValueOnce({ items: [{ id: '10', ADDRESS_1: 'Ward' }] })
+      .mockResolvedValueOnce({ items: [{ id: '11', NAME: 'Bank', RQ_ACC_NUM: '1' }] });
+    await service.update('1', { name: 'Changed' });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain(
+      'crm.requisite.bankdetail.list',
+    );
+  });
+
+  it('should propagate non-not-found lookup failures and skip requisite calls without a preset', async () => {
+    api.callBitrixApi.mockRejectedValueOnce(new Error('Bitrix offline'));
+    await expect(service.remove('1')).rejects.toThrow('Bitrix offline');
+    (service as unknown as { config: { requisitePresetId?: number } }).config.requisitePresetId =
+      undefined;
+    api.callBitrixApi.mockReset();
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce({ item: { id: 1 } });
+    await service.remove('1');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.item.delete',
+    ]);
+  });
+
+  it('should skip empty contact updates and create missing related records when adding address or bank', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Before' } })
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(20)
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(30)
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Before' } })
+      .mockResolvedValueOnce([]);
+    await service.update('1', {
+      address: { ward: 'W', district: 'D', province: 'P' },
+      bank: { bankName: 'B', accountNumber: 'N' },
+    });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.requisite.list',
+      'crm.requisite.add',
+      'crm.address.add',
+      'crm.requisite.bankdetail.add',
+      'crm.item.get',
+      'crm.requisite.list',
+    ]);
+  });
+
+  it('should update existing related records and delete requisite before contact', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1, name: 'Before' } })
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValueOnce([{ ID: '10', ADDRESS_1: 'Old' }])
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce([{ ID: '11', RQ_BANK_NAME: 'Old' }])
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce({ item: { id: 1, name: 'After' } })
+      .mockResolvedValueOnce([{ ID: '9' }])
+      .mockResolvedValueOnce([{ ID: '10', ADDRESS_1: 'New' }])
+      .mockResolvedValueOnce([{ ID: '11', RQ_BANK_NAME: 'New' }]);
+    await service.update('1', {
+      name: 'After',
+      address: { ward: 'New', district: 'D', province: 'P' },
+      bank: { bankName: 'New', accountNumber: '2' },
+    });
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain('crm.address.update');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toContain(
+      'crm.requisite.bankdetail.update',
+    );
+
+    api.callBitrixApi.mockReset();
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 1 } })
+      .mockResolvedValueOnce([{ ID: '9', id: '8' }])
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+    await service.remove('1');
+    expect(api.callBitrixApi.mock.calls.map(([method]) => method)).toEqual([
+      'crm.item.get',
+      'crm.requisite.list',
+      'crm.requisite.delete',
+      'crm.item.delete',
+    ]);
+  });
+
+  it('sorts remote requisite and bank records when IDs use either casing', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce([{ id: '12' }, { ID: '3' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: '22' }, { ID: '4' }]);
+    mockLists({
+      'crm.item.list': { items: [{ id: 1 }] },
+      'crm.requisite.list': [{ id: '12' }, { ID: '3' }],
+      'crm.address.list': [],
+      'crm.requisite.bankdetail.list': [{ id: '22' }, { ID: '4' }],
+    });
+    await service.findAll({ page: 1, limit: 10 });
+    expect(api.callBitrixApiWithTotal).toHaveBeenCalledWith(
+      'crm.requisite.list',
+      expect.objectContaining({ filter: expect.objectContaining({ ENTITY_ID: [1] }) }),
+    );
+  });
+
+  it('should compensate a failed build even when cleanup also fails', async () => {
+    api.callBitrixApi
+      .mockResolvedValueOnce({ item: { id: 10 } })
+      .mockResolvedValueOnce(20)
+      .mockRejectedValueOnce(new Error('address'))
+      .mockRejectedValueOnce('cleanup failed');
+    await expect(
+      service.create({ name: 'A', address: { ward: 'W', district: 'D', province: 'P' } }),
+    ).rejects.toThrow('address');
   });
 });

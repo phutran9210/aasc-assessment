@@ -12,8 +12,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.js';
 import { parseSyncArgs } from './lead-sync.args.js';
 
-async function main(): Promise<void> {
-  const args = parseSyncArgs(process.argv.slice(2));
+export async function runLeadSyncCli(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const args = parseSyncArgs(argv);
 
   // Reuses the app's own configuration and database, so the run shows up in the same run log
   // and shares the single-run lock with the server. No HTTP server and no schedule are started.
@@ -41,9 +41,9 @@ async function main(): Promise<void> {
   }
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
+if (process.argv[1]?.endsWith('/lead-sync.js')) {
+  void runLeadSyncCli().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
 }

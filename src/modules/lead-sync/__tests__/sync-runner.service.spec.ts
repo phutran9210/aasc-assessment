@@ -469,6 +469,19 @@ describe('SyncRunner', () => {
       expect(counters(third)).toMatchObject({ created: 1, skipped: 2 });
     });
 
+    it('should record NO_RESULT if Bitrix omits a response for a write operation', async () => {
+      const { run, gateway, items, sheet } = harness([lead(1)]);
+      jest.spyOn(gateway, 'write').mockResolvedValue(new Map());
+
+      const result = await run();
+
+      expect(result.status).toBe('partial');
+      await expect(items.findByRun(result.id)).resolves.toMatchObject([
+        { action: 'fail', errorCode: 'NO_RESULT' },
+      ]);
+      expect(sheet.cell(2, 'Trạng thái đồng bộ')).toBe('Lỗi');
+    });
+
     it('should cut a very long Bitrix24 error at 500 characters in the Sheet and in the log', async () => {
       const { run, sheet, gateway, items } = harness([lead(1)]);
       gateway.rejectRows.set(2, { code: 'E', message: `=${'x'.repeat(900)}` });
@@ -764,6 +777,20 @@ describe('SyncRunner', () => {
       expect(gateway.userLookups).toEqual([['binh.tran@congty.vn']]);
     });
 
+    it('should keep the configured default when the user lookup has no matches', async () => {
+      const { run, gateway } = harness([withAssignee(1, 'missing@congty.vn')], {
+        headers,
+        mapping,
+      });
+      gateway.fieldNames.add('assignedById');
+
+      const result = await run();
+
+      expect(result.status).toBe('succeeded');
+      expect(assignees(gateway)).toEqual([1]);
+      expect(gateway.userLookups).toEqual([['missing@congty.vn']]);
+    });
+
     it('should not ask Bitrix24 when no cell holds an email the mapping does not know', async () => {
       const { run, gateway } = harness(
         [withAssignee(1, 'an@congty.vn'), withAssignee(2, 'Tên không phải email')],
@@ -896,6 +923,14 @@ describe('SyncRunner', () => {
 
       const third = await runner.start({ trigger: 'http' });
       await expect(third.done).resolves.toMatchObject({ status: 'succeeded' });
+    });
+
+    it('should report a busy lock without a discoverable running row', async () => {
+      const { runner, runs } = harness([lead(1)]);
+      jest.spyOn(runs, 'acquire').mockResolvedValue(null);
+      jest.spyOn(runs, 'findRunning').mockResolvedValue(null);
+
+      await expect(runner.start({ trigger: 'http' })).rejects.toMatchObject({ runId: null });
     });
 
     it('should resolve done, never reject, when the run cannot be closed in the database', async () => {

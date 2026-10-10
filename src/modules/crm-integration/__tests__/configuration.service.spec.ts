@@ -134,4 +134,190 @@ describe('ConfigurationService If-Match handling', () => {
       scoring: 0,
     });
   });
+
+  it('imports the assignment field mapping into the versioned configuration', async () => {
+    const { service, repository } = setup();
+    await expect(
+      service.replace(
+        'mapping',
+        { field_mapping: { 'lead_data.full_name': 'NAME' } },
+        3,
+        'actor-1',
+      ),
+    ).resolves.toMatchObject({ key: 'mapping', revision: 4 });
+    expect(repository.compareAndSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'mapping',
+        expectedRevision: 3,
+        actorId: 'actor-1',
+        compiled: expect.objectContaining({
+          entries: expect.arrayContaining([
+            expect.objectContaining({ sourcePath: ['name'], target: 'name' }),
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('imports assignment deal rules while preserving the active policy sections', async () => {
+    const { service, repository, crm } = setup();
+    const activeRules = {
+      schema_version: 1,
+      auto_conversion: { enabled: false },
+      manual_conversion: {
+        enabled: false,
+        pipeline_id: 1,
+        stage_id: 'C1:NEW',
+        probability: 25,
+        fallback_sales_id: 'sales',
+      },
+      stage_probabilities: [],
+      assignment: { strategy: 'fallback', fallback_sales_id: 'sales', sales_ids: ['sales'] },
+      quality_scoring: {
+        weights: {
+          email: 15,
+          phone: 15,
+          form: 20,
+          interaction: 20,
+          budget: 15,
+          timeline: 15,
+        },
+        interaction_window_days: 30,
+        interaction_points: 5,
+        interaction_cap: 4,
+      },
+      feedback: { enabled: false },
+      reporting: { timezone: 'UTC' },
+      alerts: { enabled: false },
+      rules: [],
+    };
+    repository.findActive.mockResolvedValueOnce({
+      entity: { revision: 6 },
+      value: activeRules,
+      compiled: null,
+    });
+    crm.metadata.mockResolvedValueOnce({
+      lead: { fields: {} },
+      stages: [{ id: 'C1:NEW', name: 'New', categoryId: 1, semantic: null }],
+      users: [{ id: 'sales', name: 'Sales', active: true }],
+    });
+
+    await expect(
+      service.replace(
+        'rules',
+        {
+          deal_rules: [
+            {
+              condition: "campaign.campaign_name CONTAINS 'sale'",
+              action: 'create_deal',
+              pipeline_id: 1,
+              stage_id: 'NEW',
+              probability: 25,
+            },
+          ],
+        },
+        7,
+        'actor-1',
+      ),
+    ).resolves.toMatchObject({ key: 'rules', revision: 4 });
+    expect(repository.compareAndSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'rules',
+        expectedRevision: 7,
+        compiled: null,
+        value: expect.objectContaining({
+          assignment: activeRules.assignment,
+          rules: [expect.objectContaining({ stage_id: 'C1:NEW', pipeline_id: 1 })],
+        }),
+      }),
+    );
+  });
+
+  it('requires an existing rules policy before importing assignment deal rules', async () => {
+    const { service, repository } = setup();
+    repository.findActive.mockRejectedValueOnce(new NotFoundException());
+    await expect(service.replace('rules', { deal_rules: [] }, 3, 'actor-1')).rejects.toThrow(
+      'store one with PUT',
+    );
+    expect(repository.compareAndSet).not.toHaveBeenCalled();
+  });
+
+  it('checks rules against CRM stages and active sales users', async () => {
+    const { service, crm } = setup();
+    const rules = {
+      schema_version: 1,
+      auto_conversion: { enabled: false },
+      manual_conversion: {
+        enabled: false,
+        pipeline_id: 1,
+        stage_id: 'OPEN',
+        probability: 25,
+        fallback_sales_id: 'sales',
+      },
+      stage_probabilities: [],
+      assignment: { strategy: 'fallback', fallback_sales_id: 'sales', sales_ids: ['sales'] },
+      quality_scoring: {
+        weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
+        interaction_window_days: 30,
+        interaction_points: 5,
+        interaction_cap: 4,
+      },
+      feedback: { enabled: false },
+      reporting: { timezone: 'UTC' },
+      alerts: { enabled: false },
+      rules: [
+        {
+          id: 'rule-1',
+          priority: 1,
+          enabled: true,
+          conditions: { field: 'lead.source', op: 'eq', value: 'x' },
+          action: 'create_deal',
+          pipeline_id: 1,
+          stage_id: 'WON',
+          probability: 50,
+          assignment: { sales_id: 'missing' },
+        },
+      ],
+    };
+    crm.metadata.mockResolvedValueOnce({
+      lead: { fields: {} },
+      stages: [
+        { id: 'OPEN', name: 'Open', categoryId: 1, semantic: null },
+        { id: 'WON', name: 'Won', categoryId: 1, semantic: 'S' },
+      ],
+      users: [{ id: 'sales', active: true }],
+    });
+    await expect(service.replace('rules', rules, 3, 'actor-1')).rejects.toThrow(
+      'Won and lost stages require probability',
+    );
+    crm.metadata.mockResolvedValueOnce({
+      lead: { fields: {} },
+      stages: [{ id: 'OPEN', name: 'Open', categoryId: 1, semantic: null }],
+      users: [{ id: 'sales', active: true }],
+    });
+    await expect(
+      service.replace(
+        'rules',
+        { ...rules, rules: [{ ...rules.rules[0], stage_id: 'MISSING', probability: 50 }] },
+        3,
+        'actor-1',
+      ),
+    ).rejects.toThrow('Configured stage does not belong');
+    crm.metadata.mockResolvedValueOnce({
+      lead: { fields: {} },
+      stages: [
+        { id: 'OPEN', name: 'Open', categoryId: 1, semantic: null },
+        { id: 'MISSING', name: 'Other', categoryId: 1, semantic: null },
+      ],
+      users: [{ id: 'sales', active: false }],
+    });
+    await expect(
+      service.replace(
+        'rules',
+        { ...rules, rules: [{ ...rules.rules[0], stage_id: 'MISSING', probability: 50 }] },
+        3,
+        'actor-1',
+      ),
+    ).rejects.toThrow('active sales user');
+  });
 });

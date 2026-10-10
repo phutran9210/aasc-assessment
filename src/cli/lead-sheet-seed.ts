@@ -14,8 +14,8 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module.js';
 import { parseSeedArgs } from './lead-sheet-seed.args.js';
 
-async function main(): Promise<void> {
-  const args = parseSeedArgs(process.argv.slice(2));
+export async function runLeadSheetSeedCli(argv: string[] = process.argv.slice(2)): Promise<void> {
+  const args = parseSeedArgs(argv);
 
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error', 'warn'] });
   try {
@@ -38,9 +38,9 @@ async function main(): Promise<void> {
   }
 }
 
-try {
-  await main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
+if (process.argv[1]?.endsWith('/lead-sheet-seed.js')) {
+  void runLeadSheetSeedCli().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
 }

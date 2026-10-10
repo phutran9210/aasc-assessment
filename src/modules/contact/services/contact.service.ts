@@ -86,7 +86,7 @@ export class ContactService {
    */
   async create(dto: CreateContactDto): Promise<ContactResponse> {
     const created = await this.api.callBitrixApi<{
-      item?: BitrixContactItem;
+      item?: BitrixContactItem | number | string;
       id?: number | string;
     }>('crm.item.add', {
       entityTypeId: CONTACT_ENTITY_TYPE_ID,
@@ -103,7 +103,10 @@ export class ContactService {
         if (dto.address) await this.addAddress(requisiteId, dto.address);
         if (dto.bank) bankId = await this.addBank(requisiteId, dto.bank);
       }
-      const item = created.item ?? { id: contactId, name: dto.name };
+      const item =
+        created.item && typeof created.item === 'object'
+          ? created.item
+          : { id: contactId, name: dto.name };
       return fromBitrixItem(item, {
         address: dto.address
           ? {

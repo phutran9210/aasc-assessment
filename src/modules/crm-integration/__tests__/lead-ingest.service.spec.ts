@@ -27,7 +27,7 @@ function setup() {
     advertiserId: 'advertiser-1',
     version: 1,
     email: 'an@example.test',
-    phone: null,
+    phone: null as string | null,
     score: 0,
     scoreBreakdown: {},
     lastTouchAt: null as Date | null,
@@ -133,6 +133,59 @@ describe('lead ingest event boundaries', () => {
       isHistorical: true,
       applyRules: false,
       sendFeedback: false,
+    });
+  });
+
+  it('uses safe defaults when optional provider data and constructor options are absent', () => {
+    expect(
+      toProviderLead({
+        payload: { lead_data: { custom_questions: 'invalid' } },
+        advertiserId: 'advertiser-1',
+        scopeKey: 'scope-1',
+        eventKey: 'event-1',
+        occurredAt: null,
+      }),
+    ).toMatchObject({ id: '', advertiserId: 'advertiser-1', eventKey: 'event-1' });
+
+    const defaults = new LeadIngestService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      'portal-1',
+    );
+    expect(defaults).toBeInstanceOf(LeadIngestService);
+  });
+
+  it('preserves provider metadata objects and structured custom questions', () => {
+    expect(
+      toProviderLead({
+        payload: {
+          provider_lead_id: 'provider-2',
+          campaign: { id: 'campaign-1', name: 'Campaign' },
+          ad: { id: 'ad-1', name: 'Ad' },
+          form: { id: 'form-1', name: 'Form' },
+          utm: { source: 'social' },
+          consent: { accepted: true },
+          lead_data: { custom_questions: [{ question_id: 'budget', answer: '100' }] },
+        },
+        advertiserId: 'advertiser-1',
+        scopeKey: 'scope-1',
+        eventKey: 'event-2',
+        occurredAt: null,
+      }),
+    ).toMatchObject({
+      campaign: { id: 'campaign-1', name: 'Campaign' },
+      ad: { id: 'ad-1', name: 'Ad' },
+      form: { id: 'form-1', name: 'Form' },
+      utm: { source: 'social' },
+      consent: { accepted: true },
+      customQuestions: [{ question_id: 'budget', answer: '100' }],
     });
   });
 
@@ -252,6 +305,29 @@ describe('lead ingest event boundaries', () => {
     expect(lead.lastTouchAt).toEqual(new Date('2026-10-01T00:00:00Z'));
   });
 
+  it('schedules conversion feedback when an associated interaction qualifies the lead', async () => {
+    const { service, lead, submission, submissions, feedback, context } = setup();
+    lead.phone = '+84901234567';
+    submissions.findLatestByProviderLeadId.mockResolvedValueOnce({ leadId: lead.id });
+    submissions.findByKey.mockResolvedValueOnce(submission);
+    const occurredAt = new Date();
+    submissions.findForLead.mockResolvedValueOnce([
+      { eventId: 'form-1', occurredAt, engagement: { event: 'form_complete' }, customAnswers: {} },
+      ...Array.from({ length: 4 }, (_, index) => ({
+        eventId: `interaction-${index}`,
+        occurredAt,
+        engagement: { event: 'click' },
+        customAnswers: {},
+      })),
+    ]);
+
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      leadId: lead.id,
+    });
+    expect(feedback.schedule).toHaveBeenCalledWith(lead.id, 'lead_qualified', expect.anything());
+  });
+
   it('quarantines a lead event without a name before creating a submission', async () => {
     const { service, event, submissions, webhookEvents, context } = setup();
     event.eventType = 'lead.generate';
@@ -312,11 +388,35 @@ describe('lead ingest event boundaries', () => {
     });
   });
 
+  it('quarantines an operator-selected identity target that no longer exists', async () => {
+    const { service, event, leads, context } = setup();
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-1', full_name: 'An', email: 'an@example.test' };
+    leads.findById.mockResolvedValueOnce(null);
+
+    await expect(service.process('event-1', context as never, 'deleted-lead')).resolves.toEqual({
+      outcome: 'quarantined',
+      errorCode: 'IDENTITY_TARGET_SCOPE_MISMATCH',
+    });
+  });
+
   it('creates a new lead and one CRM sync operation for a valid first submission', async () => {
     const { service, event, leads, submissions, identities, operations, analytics, context } =
       setup();
     event.eventType = 'lead.generate';
     event.payload = { provider_lead_id: 'provider-1', full_name: 'An', email: 'an@example.test' };
+    submissions.findForLead.mockResolvedValueOnce([
+      {
+        eventId: 'prior-1',
+        occurredAt: new Date('2026-09-29T00:00:00Z'),
+        engagement: { event: 'form_complete' },
+      },
+      {
+        eventId: 'prior-2',
+        occurredAt: new Date('2026-09-29T00:00:00Z'),
+        engagement: { event: 42 },
+      },
+    ]);
 
     const result = await service.process('event-1', context as never);
 
@@ -331,6 +431,20 @@ describe('lead ingest event boundaries', () => {
     expect(identities.save).toHaveBeenCalledTimes(1);
     expect(operations.ensure.mock.calls[0]?.[0]).toMatchObject({ kind: 'bitrix_lead_sync' });
     expect(analytics.increment).toHaveBeenCalledTimes(1);
+  });
+
+  it('quarantines a lead without contact identity before inserting identity keys', async () => {
+    const { service, event, identities, submissions, context } = setup();
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-no-contact', full_name: 'An' };
+
+    await expect(service.process('event-1', context as never)).resolves.toEqual({
+      outcome: 'quarantined',
+      errorCode: 'CONTACT_IDENTIFIER_MISSING',
+    });
+    expect(identities.findByValues).not.toHaveBeenCalled();
+    expect(submissions.save).not.toHaveBeenCalled();
+    expect(identities.save).not.toHaveBeenCalled();
   });
 
   it('does not reschedule CRM sync for an old association with an unchanged score', async () => {
@@ -372,5 +486,128 @@ describe('lead ingest event boundaries', () => {
       adId: 'ad-1',
       formId: 'form-1',
     });
+  });
+
+  it('returns the existing linked lead for an identical submission and waits when it is still unlinked', async () => {
+    const { service, event, submissions, leads, context } = setup();
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-1', full_name: 'An', email: 'an@example.test' };
+    await service.process('event-1', context as never);
+    const payloadHash = (
+      submissions.create.mock.calls[0]?.[0] as { payloadHash?: string } | undefined
+    )?.payloadHash;
+    submissions.findByKey.mockResolvedValueOnce({
+      id: 'existing',
+      payloadHash,
+      leadId: 'lead-1',
+      nextLinkAttemptAt: null,
+    });
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      leadId: 'lead-1',
+    });
+    submissions.findByKey.mockResolvedValueOnce({
+      id: 'existing',
+      payloadHash,
+      leadId: null,
+      nextLinkAttemptAt: new Date('2026-10-02T00:00:00Z'),
+    });
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'awaiting_link',
+      submissionId: 'existing',
+    });
+    expect(leads.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('merges a new submission into its matching lead and reuses already stored identities', async () => {
+    const { service, event, lead, identities, leads, submissions, operations, analytics, context } =
+      setup();
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-2', full_name: 'An', email: 'an@example.test' };
+    Object.assign(lead, {
+      name: 'An',
+      city: null,
+      interests: [],
+      fieldProvenance: {},
+      firstTouchAt: new Date('2026-10-02T00:00:00Z'),
+      lastTouchAt: new Date('2026-10-02T00:00:00Z'),
+      firstTouchCampaignId: 'old-campaign',
+      firstSubmissionId: 'old-sub',
+      lastSubmissionId: 'old-sub',
+    });
+    identities.findByValues.mockResolvedValueOnce([
+      { leadId: 'lead-1', identityType: 'email', normalizedValue: 'an@example.test' },
+    ]);
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      leadId: 'lead-1',
+      version: 2,
+    });
+    expect(leads.create).not.toHaveBeenCalled();
+    expect(identities.save).not.toHaveBeenCalled();
+    expect(operations.ensure).toHaveBeenCalled();
+    expect(analytics.increment).toHaveBeenCalled();
+    expect(submissions.save).toHaveBeenCalledTimes(2);
+
+    lead.lastTouchAt = new Date('2026-09-30T00:00:00Z');
+    event.payload = { provider_lead_id: 'provider-3', full_name: 'An', email: 'an@example.test' };
+    identities.findByValues.mockResolvedValueOnce([
+      { leadId: 'lead-1', identityType: 'email', normalizedValue: 'an@example.test' },
+    ]);
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+      version: 3,
+    });
+  });
+
+  it('returns unmatched for a closed association and uses a revisioned score policy', async () => {
+    const { service, event, submission, submissions, configurations, context } = setup();
+    event.payload = { provider_lead_id: 'provider-1' };
+    submissions.findByKey.mockResolvedValueOnce({ ...submission, associationStatus: 'unmatched' });
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'unmatched',
+    });
+
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-2', full_name: 'An', email: 'an@example.test' };
+    context.revisions.rules = 1;
+    configurations.findRevision.mockResolvedValueOnce({
+      value: {
+        quality_scoring: {
+          weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
+          interaction_window_days: 30,
+          interaction_points: 5,
+          interaction_cap: 4,
+        },
+      },
+    });
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(configurations.findRevision).toHaveBeenCalledWith('rules', 1, expect.anything());
+  });
+
+  it('reads scoring policy nested inside a versioned configuration envelope', async () => {
+    const { service, event, configurations, context } = setup();
+    event.eventType = 'lead.generate';
+    event.payload = { provider_lead_id: 'provider-3', full_name: 'An', email: 'an@example.test' };
+    context.revisions.rules = 2;
+    configurations.findRevision.mockResolvedValueOnce({
+      value: {
+        config: {
+          quality_scoring: {
+            weights: { email: 15, phone: 15, form: 20, interaction: 20, budget: 15, timeline: 15 },
+            interaction_window_days: 30,
+            interaction_points: 5,
+            interaction_cap: 4,
+          },
+        },
+      },
+    });
+
+    await expect(service.process('event-1', context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(configurations.findRevision).toHaveBeenCalledWith('rules', 2, expect.anything());
   });
 });

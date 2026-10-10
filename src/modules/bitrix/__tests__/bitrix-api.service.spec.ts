@@ -1,4 +1,9 @@
-import { BadGatewayException, GatewayTimeoutException, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  GatewayTimeoutException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 
 import { BITRIX_CONFIG } from '../ports/bitrix-config.port.js';
@@ -61,6 +66,18 @@ describe('BitrixApiService', () => {
       result: { items: [] },
       total: 7,
     });
+  });
+
+  it('rejects calls before installation and maps responses without a result', async () => {
+    repository.findCurrent.mockResolvedValueOnce(null);
+    await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+
+    transport.postRest.mockResolvedValueOnce({});
+    await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
   });
 
   it('refreshes once and retries an expired-token response', async () => {
@@ -148,6 +165,17 @@ describe('BitrixApiService', () => {
     );
 
     transport.postRest.mockRejectedValueOnce(new BitrixHttpError('upstream', 'E', 500));
+    await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBeInstanceOf(
+      BadGatewayException,
+    );
+  });
+
+  it('preserves existing HTTP errors and maps unknown transport errors safely', async () => {
+    const existing = new BadGatewayException('already mapped');
+    transport.postRest.mockRejectedValueOnce(existing);
+    await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBe(existing);
+
+    transport.postRest.mockRejectedValueOnce('socket failed');
     await expect(service.callBitrixApi('crm.item.get', {})).rejects.toBeInstanceOf(
       BadGatewayException,
     );

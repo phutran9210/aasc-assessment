@@ -2,7 +2,7 @@ import { BitrixStore } from '@modules/tiktok/testing/bitrix-store.js';
 import { ProviderServer } from '@modules/tiktok/testing/provider-server.js';
 import { TiktokStore } from '@modules/tiktok/testing/tiktok-store.js';
 
-function portFromEnvironment(value: string | undefined): number {
+export function portFromEnvironment(value: string | undefined): number {
   if (value === undefined) return 3002;
   const port = Number(value);
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
@@ -11,24 +11,44 @@ function portFromEnvironment(value: string | undefined): number {
   return port;
 }
 
-const server = new ProviderServer({
-  bitrix: new BitrixStore(),
-  tiktok: new TiktokStore(),
-  exposeControl: process.env.NODE_ENV !== 'production',
-  tiktokApiKey: process.env.TIKTOK_MOCK_API_KEY ?? 'local-only-mock-key',
-});
-await server.listen(
-  portFromEnvironment(process.env.TIKTOK_MOCK_PORT),
-  process.env.TIKTOK_MOCK_HOST ?? '127.0.0.1',
-);
-console.log(`TikTok and Bitrix mock APIs listening on ${server.bitrixEndpoint}`);
+export async function startMockServer(
+  env: NodeJS.ProcessEnv = process.env,
+  createServer: (options: ConstructorParameters<typeof ProviderServer>[0]) => ProviderServer = (
+    options,
+  ) => new ProviderServer(options),
+  registerSignal: (signal: NodeJS.Signals, listener: () => void) => unknown = (signal, listener) =>
+    process.once(signal, listener),
+  log: (message: string) => void = (message) => console.log(message),
+): Promise<{ close: () => Promise<void> }> {
+  const server = createServer({
+    bitrix: new BitrixStore(),
+    tiktok: new TiktokStore(),
+    exposeControl: env.NODE_ENV !== 'production',
+    tiktokApiKey: env.TIKTOK_MOCK_API_KEY ?? 'local-only-mock-key',
+  });
+  await server.listen(
+    portFromEnvironment(env.TIKTOK_MOCK_PORT),
+    env.TIKTOK_MOCK_HOST ?? '127.0.0.1',
+  );
+  log(`TikTok and Bitrix mock APIs listening on ${server.bitrixEndpoint}`);
 
-let closing = false;
-async function close(): Promise<void> {
-  if (closing) return;
-  closing = true;
-  await server.close();
+  let closing = false;
+  const close = async (): Promise<void> => {
+    if (closing) return;
+    closing = true;
+    await server.close();
+  };
+
+  registerSignal('SIGINT', () => void close());
+  registerSignal('SIGTERM', () => void close());
+  return { close };
 }
 
-process.once('SIGINT', () => void close());
-process.once('SIGTERM', () => void close());
+if (process.argv[1]?.endsWith('/mock-server.js')) {
+  void startMockServer().catch((error: unknown) => {
+    console.error(
+      `Mock server failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
+    process.exitCode = 1;
+  });
+}

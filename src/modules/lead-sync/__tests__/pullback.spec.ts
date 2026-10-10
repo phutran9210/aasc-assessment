@@ -120,6 +120,36 @@ describe('planPullback', () => {
     expect(plan).toEqual({ writes: [], conflicts: [], unchanged: [] });
   });
 
+  it('should respect pull=false and leave a pullback that would make a row invalid untouched', () => {
+    const custom: TransformContext = {
+      ...context,
+      mapping: {
+        ...mapping,
+        fields: [
+          ...mapping.fields.map((field) =>
+            field.field === 'name' ? { ...field, pull: true } : field,
+          ),
+          {
+            column: 'CRM title',
+            field: 'companyTitle',
+            type: 'string',
+            required: false,
+            pull: false,
+            onUnknown: 'error',
+          },
+        ],
+      },
+    };
+    const row = syncedRow({ ...BASE, 'CRM title': 'Sheet title' }, '10');
+    row.state.hash = formatHashCell('v1', (transformRow(row, custom) as ValidRow).hash);
+    const plan = planPullback(
+      [row],
+      leads(lead({ stageId: 'NEW', companyTitle: 'CRM title', name: '' })),
+      custom,
+    );
+    expect(plan).toEqual({ writes: [], conflicts: [], unchanged: [] });
+  });
+
   describe('columns marked "pull": true', () => {
     const withPull: TransformContext = {
       ...context,
@@ -270,6 +300,56 @@ describe('planPullback', () => {
       const plan = planNewRows([], [fresh({ fm: [] })], context);
 
       expect(plan[0]).toMatchObject({ rowNumber: 2, leadId: 77, hash: '' });
+    });
+
+    it('should format phone, date and zero-valued numeric fields when adding a Bitrix lead', () => {
+      const extended: TransformContext = {
+        ...context,
+        mapping: {
+          ...mapping,
+          fields: [
+            ...mapping.fields,
+            {
+              column: 'Điện thoại',
+              field: 'phone',
+              type: 'phone',
+              required: false,
+              onUnknown: 'error',
+            },
+            {
+              column: 'Ngày tạo',
+              field: 'dateCreate',
+              type: 'date',
+              required: false,
+              onUnknown: 'error',
+            },
+            {
+              column: 'Giá trị',
+              field: 'opportunity',
+              type: 'number',
+              required: false,
+              pull: true,
+              onUnknown: 'error',
+            },
+          ],
+        },
+      };
+      const plan = planNewRows(
+        [],
+        [
+          fresh({
+            dateCreate: '2026-02-03T12:00:00Z',
+            opportunity: 0,
+            fm: [{ typeId: 'PHONE', value: '+84901234567' }],
+          }),
+        ],
+        extended,
+      );
+      expect(plan[0]?.cells).toMatchObject({
+        'Điện thoại': '+84901234567',
+        'Ngày tạo': '2026-02-03',
+        'Giá trị': '',
+      });
     });
   });
 });

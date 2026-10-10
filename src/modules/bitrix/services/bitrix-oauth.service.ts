@@ -76,15 +76,15 @@ export class BitrixOAuthService {
   }
 
   async install(payload: unknown): Promise<void> {
-    if (!this.config.portalDomain) {
-      throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.CONFIG);
-    }
     if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
       throw new BadRequestException('Bitrix install payload is invalid');
     }
     const event = normalizeInstallPayload(payload as Record<string, unknown>);
     if (!validateBitrixInstallEvent(event, this.config.portalDomain)) {
       throw new BadRequestException('Bitrix install endpoint is not allowed');
+    }
+    if (!this.config.portalDomain) {
+      throw new ServiceUnavailableException(BITRIX_MESSAGES.ERROR.CONFIG);
     }
     await this.handleInstallEvent(event);
   }
