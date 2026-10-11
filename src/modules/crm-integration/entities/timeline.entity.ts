@@ -8,32 +8,32 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('ix_integration_timeline_pending', ['status', 'nextAttemptAt'])
 export class TimelineEntity extends IntegrationBaseEntity {
   @Column({ name: 'lead_id', type: 'uuid' })
-  leadId!: string;
+  leadId: string;
 
   @Column({ name: 'entity_type', type: 'varchar', length: 16, default: 'lead' })
-  entityType!: 'lead' | 'deal';
+  entityType: 'lead' | 'deal';
 
   @Column({ name: 'remote_entity_id', type: 'varchar', length: 255, nullable: true })
-  remoteEntityId!: string | null;
+  remoteEntityId: string | null;
 
   @Column({ name: 'remote_timeline_id', type: 'varchar', length: 255, nullable: true })
-  remoteTimelineId!: string | null;
+  remoteTimelineId: string | null;
 
   @Column({ type: 'varchar', length: 255 })
-  marker!: string;
+  marker: string;
 
   @Column({ type: 'text' })
-  comment!: string;
+  comment: string;
 
   @Column({ type: 'varchar', length: 24, default: 'pending' })
-  status!: 'pending' | 'posted' | 'reconcile_required';
+  status: 'pending' | 'posted' | 'reconcile_required';
 
   @Column({ type: 'integer', default: 0 })
-  attempt!: number;
+  attempt: number;
 
   @Column({ name: 'next_attempt_at', type: 'timestamptz', nullable: true })
-  nextAttemptAt!: Date | null;
+  nextAttemptAt: Date | null;
 
   @Column({ name: 'last_error_code', type: 'varchar', length: 100, nullable: true })
-  lastErrorCode!: string | null;
+  lastErrorCode: string | null;
 }

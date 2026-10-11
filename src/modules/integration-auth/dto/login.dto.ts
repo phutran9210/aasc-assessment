@@ -7,12 +7,12 @@ export class LoginDto {
   @MinLength(3)
   @MaxLength(80)
   @Matches(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
-  username!: string;
+  username: string;
 
   @IsString()
   @MinLength(12)
   @MaxLength(72)
-  password!: string;
+  password: string;
 }
 
 export type LoginResponse = {

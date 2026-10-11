@@ -11,26 +11,26 @@ import type { FeedbackMilestone } from '@modules/tiktok/domain/feedback-payload.
 @Index('uq_integration_feedback_event_id', ['eventId'], { unique: true })
 export class FeedbackLedgerEntity extends IntegrationBaseEntity {
   @Column({ name: 'advertiser_id', type: 'varchar', length: 255 })
-  advertiserId!: string;
+  advertiserId: string;
 
   @Column({ name: 'lead_id', type: 'uuid' })
-  leadId!: string;
+  leadId: string;
 
   @Column({ type: 'varchar', length: 32 })
-  milestone!: FeedbackMilestone;
+  milestone: FeedbackMilestone;
 
   @Column({ name: 'event_id', type: 'varchar', length: 64 })
-  eventId!: string;
+  eventId: string;
 
   @Column({ type: 'varchar', length: 24 })
-  status!: 'queued' | 'accepted' | 'rejected' | 'skipped_no_consent' | 'disabled';
+  status: 'queued' | 'accepted' | 'rejected' | 'skipped_no_consent' | 'disabled';
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  detail!: Record<string, unknown>;
+  detail: Record<string, unknown>;
 
   @Column({ name: 'last_error_code', type: 'varchar', length: 100, nullable: true })
-  lastErrorCode!: string | null;
+  lastErrorCode: string | null;
 
   @Column({ name: 'operation_id', type: 'uuid', nullable: true })
-  operationId!: string | null;
+  operationId: string | null;
 }

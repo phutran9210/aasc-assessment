@@ -8,35 +8,35 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('ix_integration_deal_history_effective', ['dealId', 'effectiveAt'])
 export class DealHistoryEntity extends IntegrationBaseEntity {
   @Column({ name: 'deal_id', type: 'uuid' })
-  dealId!: string;
+  dealId: string;
 
   @Column({ name: 'previous_stage_id', type: 'varchar', length: 255, nullable: true })
-  previousStageId!: string | null;
+  previousStageId: string | null;
 
   @Column({ name: 'current_stage_id', type: 'varchar', length: 255 })
-  currentStageId!: string;
+  currentStageId: string;
 
   @Column({ name: 'previous_semantics', type: 'varchar', length: 16, nullable: true })
-  previousSemantics!: string | null;
+  previousSemantics: string | null;
 
   @Column({ name: 'current_semantics', type: 'varchar', length: 16 })
-  currentSemantics!: string;
+  currentSemantics: string;
 
   @Column({ type: 'numeric', precision: 20, scale: 4, nullable: true })
-  amount!: string | null;
+  amount: string | null;
 
   @Column({ type: 'varchar', length: 3, nullable: true })
-  currency!: string | null;
+  currency: string | null;
 
   @Column({ name: 'provider_revision_key', type: 'varchar', length: 255 })
-  providerRevisionKey!: string;
+  providerRevisionKey: string;
 
   @Column({ name: 'observed_at', type: 'timestamptz' })
-  observedAt!: Date;
+  observedAt: Date;
 
   @Column({ name: 'effective_at', type: 'timestamptz' })
-  effectiveAt!: Date;
+  effectiveAt: Date;
 
   @Column({ name: 'source_complete', type: 'boolean', default: true })
-  sourceComplete!: boolean;
+  sourceComplete: boolean;
 }

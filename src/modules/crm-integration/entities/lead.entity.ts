@@ -10,83 +10,83 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('ix_integration_lead_advertiser_created', ['advertiserId', 'createdAt', 'id'])
 export class LeadEntity extends IntegrationBaseEntity {
   @Column({ name: 'external_id', type: 'varchar', length: 255 })
-  externalId!: string;
+  externalId: string;
 
   @Column({ name: 'advertiser_id', type: 'varchar', length: 255 })
-  advertiserId!: string;
+  advertiserId: string;
 
   @Column({ name: 'scope_key', type: 'varchar', length: 255 })
-  scopeKey!: string;
+  scopeKey: string;
 
   @Column({ name: 'portal_key', type: 'varchar', length: 128 })
-  portalKey!: string;
+  portalKey: string;
 
   @Column({ name: 'provider_mode', type: 'varchar', length: 20 })
-  providerMode!: 'mock' | 'business-api';
+  providerMode: 'mock' | 'business-api';
 
   @Column({ type: 'varchar', length: 255 })
-  name!: string;
+  name: string;
 
   @Column({ type: 'varchar', length: 254, nullable: true })
-  email!: string | null;
+  email: string | null;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
-  phone!: string | null;
+  phone: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  city!: string | null;
+  city: string | null;
 
   @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
-  interests!: string[];
+  interests: string[];
 
   @Column({ type: 'integer', default: 0 })
-  score!: number;
+  score: number;
 
   @Column({ name: 'score_version', type: 'integer', default: 1 })
-  scoreVersion!: number;
+  scoreVersion: number;
 
   @Column({ name: 'score_breakdown', type: 'jsonb', default: () => "'{}'::jsonb" })
-  scoreBreakdown!: Record<string, number>;
+  scoreBreakdown: Record<string, number>;
 
   @Column({ name: 'business_status', type: 'varchar', length: 24, default: 'new' })
-  businessStatus!: string;
+  businessStatus: string;
 
   @Column({ name: 'sync_status', type: 'varchar', length: 24, default: 'pending' })
-  syncStatus!: string;
+  syncStatus: string;
 
   @Column({ name: 'bitrix_lead_id', type: 'varchar', length: 255, nullable: true })
-  bitrixLeadId!: string | null;
+  bitrixLeadId: string | null;
 
   @Column({ name: 'first_submission_id', type: 'uuid', nullable: true })
-  firstSubmissionId!: string | null;
+  firstSubmissionId: string | null;
 
   @Column({ name: 'last_submission_id', type: 'uuid', nullable: true })
-  lastSubmissionId!: string | null;
+  lastSubmissionId: string | null;
 
   @Column({ name: 'first_touch_at', type: 'timestamptz' })
-  firstTouchAt!: Date;
+  firstTouchAt: Date;
 
   @Column({ name: 'first_touch_campaign_id', type: 'varchar', length: 255, nullable: true })
-  firstTouchCampaignId!: string | null;
+  firstTouchCampaignId: string | null;
 
   @Column({ name: 'last_touch_at', type: 'timestamptz', nullable: true })
-  lastTouchAt!: Date | null;
+  lastTouchAt: Date | null;
 
   @Column({ name: 'converted_at', type: 'timestamptz', nullable: true })
-  convertedAt!: Date | null;
+  convertedAt: Date | null;
 
   @Column({ name: 'deal_created_at', type: 'timestamptz', nullable: true })
-  dealCreatedAt!: Date | null;
+  dealCreatedAt: Date | null;
 
   @Column({ name: 'field_provenance', type: 'jsonb', default: () => "'{}'::jsonb" })
-  fieldProvenance!: Record<string, unknown>;
+  fieldProvenance: Record<string, unknown>;
 
   @Column({ name: 'last_written_fields', type: 'jsonb', default: () => "'{}'::jsonb" })
-  lastWrittenFields!: Record<string, unknown>;
+  lastWrittenFields: Record<string, unknown>;
 
   @Column({ type: 'integer', default: 1 })
-  version!: number;
+  version: number;
 
   @Column({ name: 'last_error_code', type: 'varchar', length: 100, nullable: true })
-  lastErrorCode!: string | null;
+  lastErrorCode: string | null;
 }

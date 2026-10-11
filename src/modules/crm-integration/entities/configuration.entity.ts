@@ -7,14 +7,14 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('uq_integration_configuration_key_revision', ['key', 'revision'], { unique: true })
 export class ConfigurationEntity extends IntegrationBaseEntity {
   @Column({ name: 'config_key', type: 'varchar', length: 100 })
-  key!: string;
+  key: string;
 
   @Column({ type: 'integer' })
-  revision!: number;
+  revision: number;
 
   @Column({ type: 'jsonb' })
-  value!: Record<string, unknown>;
+  value: Record<string, unknown>;
 
   @Column({ name: 'created_by', type: 'uuid', nullable: true })
-  createdBy!: string | null;
+  createdBy: string | null;
 }

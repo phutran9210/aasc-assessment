@@ -9,56 +9,56 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('ix_integration_deal_stage_assignee', ['stageSemantics', 'assignedTo', 'createdAt'])
 export class DealEntity extends IntegrationBaseEntity {
   @Column({ name: 'lead_id', type: 'uuid' })
-  leadId!: string;
+  leadId: string;
 
   @Column({ name: 'portal_key', type: 'varchar', length: 128 })
-  portalKey!: string;
+  portalKey: string;
 
   @Column({ name: 'bitrix_deal_id', type: 'varchar', length: 255, nullable: true })
-  bitrixDealId!: string | null;
+  bitrixDealId: string | null;
 
   @Column({ type: 'varchar', length: 255 })
-  title!: string;
+  title: string;
 
   @Column({ type: 'numeric', precision: 20, scale: 4, nullable: true })
-  amount!: string | null;
+  amount: string | null;
 
   @Column({ type: 'varchar', length: 3, nullable: true })
-  currency!: string | null;
+  currency: string | null;
 
   @Column({ name: 'pipeline_id', type: 'varchar', length: 255 })
-  pipelineId!: string;
+  pipelineId: string;
 
   @Column({ name: 'stage_id', type: 'varchar', length: 255 })
-  stageId!: string;
+  stageId: string;
 
   @Column({ name: 'stage_semantics', type: 'varchar', length: 16, default: 'open' })
-  stageSemantics!: 'open' | 'won' | 'lost';
+  stageSemantics: 'open' | 'won' | 'lost';
 
   @Column({ name: 'stage_deleted_at', type: 'timestamptz', nullable: true })
-  stageDeletedAt!: Date | null;
+  stageDeletedAt: Date | null;
 
   @Column({ type: 'integer', default: 0 })
-  probability!: number;
+  probability: number;
 
   @Column({ name: 'assigned_to', type: 'varchar', length: 255, nullable: true })
-  assignedTo!: string | null;
+  assignedTo: string | null;
 
   @Column({ name: 'rule_revision', type: 'integer' })
-  ruleRevision!: number;
+  ruleRevision: number;
 
   @Column({ name: 'conversion_status', type: 'varchar', length: 32, default: 'pending' })
-  conversionStatus!: string;
+  conversionStatus: string;
 
   @Column({ name: 'remote_modified_at', type: 'timestamptz', nullable: true })
-  remoteModifiedAt!: Date | null;
+  remoteModifiedAt: Date | null;
 
   @Column({ name: 'ever_won_at', type: 'timestamptz', nullable: true })
-  everWonAt!: Date | null;
+  everWonAt: Date | null;
 
   @Column({ name: 'current_snapshot_hash', type: 'varchar', length: 64, nullable: true })
-  currentSnapshotHash!: string | null;
+  currentSnapshotHash: string | null;
 
   @Column({ type: 'integer', default: 1 })
-  version!: number;
+  version: number;
 }

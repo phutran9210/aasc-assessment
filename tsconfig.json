@@ -17,6 +17,7 @@
     "incremental": true,
     "skipLibCheck": true,
     "strict": true,
+    // ORM entities and validated DTOs receive field values outside their constructors.
     "strictPropertyInitialization": false,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

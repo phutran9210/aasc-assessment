@@ -4,5 +4,5 @@ export class OperationRetryDto {
   @IsString()
   @MinLength(3)
   @MaxLength(500)
-  reason!: string;
+  reason: string;
 }

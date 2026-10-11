@@ -10,80 +10,80 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('ix_integration_submission_campaign_time', ['advertiserId', 'campaignId', 'occurredAt'])
 export class SubmissionEntity extends IntegrationBaseEntity {
   @Column({ name: 'advertiser_id', type: 'varchar', length: 255 })
-  advertiserId!: string;
+  advertiserId: string;
 
   @Column({ name: 'provider_mode', type: 'varchar', length: 20 })
-  providerMode!: 'mock' | 'business-api';
+  providerMode: 'mock' | 'business-api';
 
   @Column({ name: 'lead_id', type: 'uuid', nullable: true })
-  leadId!: string | null;
+  leadId: string | null;
 
   @Column({ name: 'event_id', type: 'uuid' })
-  eventId!: string;
+  eventId: string;
 
   @Column({ name: 'provider_lead_id', type: 'varchar', length: 255, nullable: true })
-  providerLeadId!: string | null;
+  providerLeadId: string | null;
 
   @Column({ name: 'submission_key', type: 'varchar', length: 255 })
-  submissionKey!: string;
+  submissionKey: string;
 
   @Column({ name: 'campaign_id', type: 'varchar', length: 255, nullable: true })
-  campaignId!: string | null;
+  campaignId: string | null;
 
   @Column({ name: 'campaign_name', type: 'varchar', length: 255, nullable: true })
-  campaignName!: string | null;
+  campaignName: string | null;
 
   @Column({ name: 'ad_id', type: 'varchar', length: 255, nullable: true })
-  adId!: string | null;
+  adId: string | null;
 
   @Column({ name: 'ad_name', type: 'varchar', length: 255, nullable: true })
-  adName!: string | null;
+  adName: string | null;
 
   @Column({ name: 'form_id', type: 'varchar', length: 255, nullable: true })
-  formId!: string | null;
+  formId: string | null;
 
   @Column({ name: 'form_name', type: 'varchar', length: 255, nullable: true })
-  formName!: string | null;
+  formName: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
-  ttclid!: string | null;
+  ttclid: string | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  utm!: Record<string, string>;
+  utm: Record<string, string>;
 
   @Column({ name: 'custom_answers', type: 'jsonb', default: () => "'{}'::jsonb" })
-  customAnswers!: Record<string, unknown>;
+  customAnswers: Record<string, unknown>;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  engagement!: Record<string, unknown>;
+  engagement: Record<string, unknown>;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  consent!: Record<string, unknown>;
+  consent: Record<string, unknown>;
 
   @Column({ name: 'occurred_at', type: 'timestamptz' })
-  occurredAt!: Date;
+  occurredAt: Date;
 
   @Column({ name: 'is_historical', type: 'boolean', default: false })
-  isHistorical!: boolean;
+  isHistorical: boolean;
 
   @Column({ name: 'apply_rules', type: 'boolean', default: true })
-  applyRules!: boolean;
+  applyRules: boolean;
 
   @Column({ name: 'send_feedback', type: 'boolean', default: true })
-  sendFeedback!: boolean;
+  sendFeedback: boolean;
 
   @Column({ name: 'payload_hash', type: 'varchar', length: 64 })
-  payloadHash!: string;
+  payloadHash: string;
 
   @Column({ name: 'association_status', type: 'varchar', length: 20, default: 'linked' })
-  associationStatus!: 'linked' | 'waiting_link' | 'unmatched';
+  associationStatus: 'linked' | 'waiting_link' | 'unmatched';
 
   @Column({ name: 'link_attempt_count', type: 'integer', default: 0 })
-  linkAttemptCount!: number;
+  linkAttemptCount: number;
 
   @Column({ name: 'next_link_attempt_at', type: 'timestamptz', nullable: true })
-  nextLinkAttemptAt!: Date | null;
+  nextLinkAttemptAt: Date | null;
 
   @Column({ name: 'association_expires_at', type: 'timestamptz', nullable: true })
-  associationExpiresAt!: Date | null;
+  associationExpiresAt: Date | null;
 }

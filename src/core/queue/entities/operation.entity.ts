@@ -15,50 +15,50 @@ import type {
 @Index('ix_integration_operation_aggregate_version', ['aggregateId', 'targetVersion'])
 export class OperationEntity extends IntegrationBaseEntity {
   @Column({ name: 'operation_key', type: 'varchar', length: 512 })
-  operationKey!: string;
+  operationKey: string;
 
   @Column({ type: 'varchar', length: 64 })
-  kind!: OperationKind;
+  kind: OperationKind;
 
   @Column({ name: 'aggregate_id', type: 'uuid', nullable: true })
-  aggregateId!: string | null;
+  aggregateId: string | null;
 
   @Column({ name: 'target_version', type: 'integer', nullable: true })
-  targetVersion!: number | null;
+  targetVersion: number | null;
 
   @Column({ type: 'varchar', length: 24, default: 'pending' })
-  status!: OperationStatus;
+  status: OperationStatus;
 
   @Column({ type: 'integer', default: 0 })
-  attempt!: number;
+  attempt: number;
 
   @Column({ name: 'lease_until', type: 'timestamptz', nullable: true })
-  leaseUntil!: Date | null;
+  leaseUntil: Date | null;
 
   @Column({ name: 'lease_token', type: 'uuid', nullable: true, select: false })
-  leaseToken!: string | null;
+  leaseToken: string | null;
 
   @Column({ name: 'remote_id', type: 'varchar', length: 255, nullable: true })
-  remoteId!: string | null;
+  remoteId: string | null;
 
   @Column({ name: 'last_error_code', type: 'varchar', length: 100, nullable: true })
-  lastErrorCode!: string | null;
+  lastErrorCode: string | null;
 
   @Column({ name: 'last_error_detail', type: 'text', nullable: true })
-  lastErrorDetail!: string | null;
+  lastErrorDetail: string | null;
 
   @Column({ name: 'next_attempt_at', type: 'timestamptz', nullable: true })
-  nextAttemptAt!: Date | null;
+  nextAttemptAt: Date | null;
 
   @Column({ type: 'jsonb', default: () => "'{}'::jsonb" })
-  payload!: OperationPayload;
+  payload: OperationPayload;
 
   @Column({ name: 'config_revisions', type: 'jsonb', default: () => "'{}'::jsonb" })
-  configRevisions!: Partial<RevisionSet>;
+  configRevisions: Partial<RevisionSet>;
 
   @Column({ name: 'actor_id', type: 'uuid', nullable: true })
-  actorId!: string | null;
+  actorId: string | null;
 
   @Column({ name: 'completed_at', type: 'timestamptz', nullable: true })
-  completedAt!: Date | null;
+  completedAt: Date | null;
 }

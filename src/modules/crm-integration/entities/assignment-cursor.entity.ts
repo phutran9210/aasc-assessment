@@ -7,11 +7,11 @@ import { TIKTOK_TABLE_NAMES } from '@/apps/tiktok/database/table-names.js';
 @Index('uq_integration_assignment_cursor_key', ['cursorKey'], { unique: true })
 export class AssignmentCursorEntity extends IntegrationBaseEntity {
   @Column({ name: 'cursor_key', type: 'varchar', length: 255 })
-  cursorKey!: string;
+  cursorKey: string;
 
   @Column({ name: 'last_assignee_id', type: 'varchar', length: 255, nullable: true })
-  lastAssigneeId!: string | null;
+  lastAssigneeId: string | null;
 
   @Column({ type: 'bigint', default: 0 })
-  position!: string;
+  position: string;
 }

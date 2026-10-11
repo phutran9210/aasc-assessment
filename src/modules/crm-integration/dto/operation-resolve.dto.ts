@@ -19,12 +19,12 @@ export type ResolveOperationAction = (typeof OPERATION_RESOLVE_ACTIONS)[number];
 
 export class OperationResolveDto {
   @IsIn(OPERATION_RESOLVE_ACTIONS)
-  action!: ResolveOperationAction;
+  action: ResolveOperationAction;
 
   @IsString()
   @MinLength(3)
   @MaxLength(500)
-  reason!: string;
+  reason: string;
 
   @IsOptional()
   @IsString()

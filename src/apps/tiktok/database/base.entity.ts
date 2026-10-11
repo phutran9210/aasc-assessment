@@ -3,13 +3,13 @@ import { v7 as uuidv7 } from 'uuid';
 
 export abstract class IntegrationBaseEntity {
   @PrimaryColumn({ type: 'uuid' })
-  id!: string;
+  id: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
-  createdAt!: Date;
+  createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamptz' })
-  updatedAt!: Date;
+  updatedAt: Date;
 
   @BeforeInsert()
   protected assignUuidV7(): void {
