@@ -104,6 +104,15 @@ describe('BitrixCrmGateway', () => {
     expect(callRaw.mock.calls[0]?.[1]).toMatchObject({ filter: {}, start: 0 });
   });
 
+  it('reports whether the portal keeps leads from its CRM mode', async () => {
+    const classic = setup(1);
+    const simple = setup(2);
+
+    await expect(classic.gateway.usesLeads()).resolves.toBe(true);
+    await expect(simple.gateway.usesLeads()).resolves.toBe(false);
+    expect(classic.callRaw).toHaveBeenCalledWith('crm.settings.mode.get', {}, expect.anything());
+  });
+
   it('rejects missing records and refuses a create response without its marker', async () => {
     const { gateway, callRaw } = setup(null);
     await expect(gateway.getLead('42')).rejects.toBeInstanceOf(NotFoundException);

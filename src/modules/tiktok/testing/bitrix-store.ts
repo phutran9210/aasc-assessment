@@ -94,6 +94,8 @@ export class BitrixStore {
             this.record(payload.fields),
           ),
         };
+      case 'crm.settings.mode.get':
+        return 1;
       case 'crm.category.list':
         return {
           categories: [

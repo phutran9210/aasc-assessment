@@ -17,6 +17,7 @@ function setup() {
     revisions: jest.fn().mockResolvedValue({ mapping: 4, rules: 2 }),
   };
   const crm = {
+    usesLeads: jest.fn().mockResolvedValue(true),
     metadata: jest.fn().mockResolvedValue({
       lead: {
         fields: {
@@ -113,6 +114,30 @@ describe('ConfigurationService If-Match handling', () => {
       'Configuration key is not supported yet',
     );
     expect(crm.metadata).not.toHaveBeenCalled();
+  });
+
+  it('refuses configuration for a portal in simple CRM mode without writing', async () => {
+    const { service, repository, crm } = setup();
+    crm.usesLeads.mockResolvedValue(false);
+
+    await expect(
+      service.replace(
+        'mapping',
+        { entries: [{ source: 'name', target: 'name', owner: 'integration' }] },
+        0,
+        'actor-1',
+      ),
+    ).rejects.toThrow('simple CRM mode');
+    await expect(
+      service.replace(
+        'mapping',
+        { field_mapping: { 'lead_data.full_name': 'NAME' } },
+        0,
+        'actor-1',
+      ),
+    ).rejects.toThrow('simple CRM mode');
+    expect(crm.metadata).not.toHaveBeenCalled();
+    expect(repository.compareAndSet).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid mapping document before making a provider call', async () => {

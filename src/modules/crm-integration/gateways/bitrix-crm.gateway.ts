@@ -32,6 +32,8 @@ const DEAL_TYPE_ID = 2;
 // Custom fields keep their `UF_CRM_...` names in requests and answers, as mappings name them.
 const ORIGINAL_NAMES = { useOriginalUfNames: 'Y' } as const;
 const TIMELINE_MARKER_PREFIX = 'ref: ';
+/** `crm.settings.mode.get`: 1 is classic CRM (with leads), 2 is simple CRM (without leads). */
+const CLASSIC_CRM_MODE = 1;
 
 @Injectable()
 export class BitrixCrmGateway implements CrmGateway {
@@ -217,6 +219,14 @@ export class BitrixCrmGateway implements CrmGateway {
     const item = response === null ? null : (this.record(response).item ?? response);
     if (!item) throw new NotFoundException('Bitrix deal was not found');
     return this.parseDeal(item);
+  }
+
+  /**
+   * In simple CRM mode Bitrix24 turns every new lead into a deal and a contact at once. That deal
+   * is created by the portal, not by a rule, so it has no pipeline, stage or probability of ours.
+   */
+  async usesLeads(): Promise<boolean> {
+    return Number(await this.call('crm.settings.mode.get', {})) === CLASSIC_CRM_MODE;
   }
 
   async createDeal(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteDeal> {

@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import type { EntityManager } from 'typeorm';
 
-import type { CrmGateway } from '../ports/crm-gateway.port.js';
+import type { CrmGateway, CrmMetadata } from '../ports/crm-gateway.port.js';
 import { CRM_GATEWAY } from '../ports/crm-gateway.port.js';
 import { DEFAULT_MAPPING, FALLBACK_MAPPING } from '../constants/flow.constants.js';
 import { importAssignmentConfig, isAssignmentConfig } from '../domain/assignment-config-import.js';
@@ -73,7 +73,7 @@ export class ConfigurationService {
 
     // Provider metadata is read before the transaction so upstream latency does not hold a DB lock.
     const parsed = this.validateValue(key, value);
-    const metadata = await this.crm.metadata();
+    const metadata = await this.portalMetadata();
     let compiled: CompiledMapping | null = null;
     if (key === 'mapping') compiled = compileMapping(parsed, metadata);
     if (key === 'rules') validateRulesMetadata(parsed, metadata);
@@ -93,6 +93,20 @@ export class ConfigurationService {
    * policy; its other sections (assignment, scoring, feedback...) have no counterpart in that
    * format and are kept. Everything is validated before the first write.
    */
+  /**
+   * Metadata of a portal this integration can work with. Configuration is refused for a portal in
+   * simple CRM mode: there Bitrix24 converts each new lead itself, and the conversion would adopt
+   * that deal instead of creating one with the pipeline, stage and probability of the rule.
+   */
+  private async portalMetadata(): Promise<CrmMetadata> {
+    if (!(await this.crm.usesLeads())) {
+      throw new BadRequestException(
+        'Bitrix24 portal is in simple CRM mode (without leads): switch it to classic CRM mode in CRM > Settings > CRM mode',
+      );
+    }
+    return this.crm.metadata();
+  }
+
   private async replaceFromAssignment(
     key: string,
     value: unknown,
@@ -102,7 +116,7 @@ export class ConfigurationService {
     if (key !== 'mapping' && key !== 'rules') {
       throw new BadRequestException('Configuration key is not supported yet');
     }
-    const metadata = await this.crm.metadata();
+    const metadata = await this.portalMetadata();
     const imported = importAssignmentConfig(value, metadata.stages);
     if (key === 'mapping' && !imported.mapping) {
       throw new BadRequestException('field_mapping is required');

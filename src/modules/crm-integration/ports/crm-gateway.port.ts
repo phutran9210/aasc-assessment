@@ -70,6 +70,8 @@ export type CrmGateway = {
   listDealsPage(query: DealPageQuery): Promise<RemoteDeal[]>;
   getDeal(id: ExternalId): Promise<RemoteDeal>;
   createDeal(fields: Record<string, unknown>, marker: ExternalId): Promise<RemoteDeal>;
+  /** Whether the portal keeps leads as records of their own (classic CRM mode). */
+  usesLeads(): Promise<boolean>;
   completeLead(id: ExternalId, stage: string): Promise<RemoteLead>;
   findTimeline(query: TimelineQuery): Promise<TimelineEntry[]>;
   addTimeline(input: TimelineInput): Promise<TimelineEntry>;
