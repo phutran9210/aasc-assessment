@@ -24,7 +24,7 @@
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
-    "start:tiktok:dev": "nest start --config nest-cli.tiktok.json --watch",
+    "start:tiktok:dev": "nest start --config nest-cli.tiktok.json --watch --env-file .env",
     "start:tiktok:prod": "node dist-tiktok/apps/tiktok/main.js",
     "start:tiktok:worker": "node dist-tiktok/apps/tiktok/worker.js",
     "db:seed": "nest build && node dist/core/database/seed/index.js",
