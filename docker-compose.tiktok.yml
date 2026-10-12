@@ -143,14 +143,17 @@ services:
         $${REDIS_PASSWORD:+--requirepass "$$REDIS_PASSWORD"}
     environment:
       REDIS_PASSWORD: ${TIKTOK_REDIS_PASSWORD:-}
-      # Read by redis-cli in the health check.
-      REDISCLI_AUTH: ${TIKTOK_REDIS_PASSWORD:-}
     volumes:
       - tiktok-redis:/data
     networks:
       - backend
     healthcheck:
-      test: ['CMD', 'redis-cli', 'ping']
+      test:
+        - CMD-SHELL
+        - >-
+          if [ -n "$$REDIS_PASSWORD" ]; then
+          REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping;
+          else redis-cli ping; fi
       interval: 10s
       timeout: 3s
       retries: 12
