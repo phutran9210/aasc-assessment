@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import type { DataSource, EntityManager } from 'typeorm';
 
+import { nowMs } from '@common/utils/temporal.util.js';
 import { isRemoteRejection } from '../domain/remote-rejection.js';
 import type { OperationContext, OperationOutcome } from '@core/queue/types/worker.types.js';
 import { OperationRepository } from '@core/queue/repositories/operation.repository.js';
@@ -37,6 +38,8 @@ const LEAD_MARKER_PREFIX = 'aasc-tiktok/';
 
 @Injectable()
 export class LeadSyncService {
+  private classicModeUntil = 0;
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly leads: LeadRepository,
@@ -127,6 +130,18 @@ export class LeadSyncService {
 
       let lastWrittenFields: Record<string, unknown>;
       if (!remote) {
+        // In simple CRM mode Bitrix24 would convert the new lead into a deal of its own at once.
+        let usesLeads: boolean;
+        try {
+          usesLeads = await this.portalUsesLeads();
+        } catch (error) {
+          if (isRemoteRejection(error)) return this.retryOutcome(error, 'CRM_MODE_LOOKUP_REJECTED');
+          throw error;
+        }
+        if (!usesLeads) {
+          await this.markSyncState(lead.id, 'failed', 'CRM_SIMPLE_MODE_UNSUPPORTED');
+          return { outcome: 'quarantined', errorCode: 'CRM_SIMPLE_MODE_UNSUPPORTED' };
+        }
         await context.assertOwnership();
         try {
           remote = await this.gateway.createLead(fields, marker);
@@ -179,6 +194,14 @@ export class LeadSyncService {
    * A remote lead that belongs to another integration (the Google Sheets sync marks its own), or
    * carries another local lead's marker or link, must never be adopted.
    */
+  /** Classic mode is remembered for five minutes; simple mode is asked again on every create. */
+  private async portalUsesLeads(): Promise<boolean> {
+    if (this.classicModeUntil > nowMs()) return true;
+    const usesLeads = await this.gateway.usesLeads();
+    if (usesLeads) this.classicModeUntil = nowMs() + 5 * 60 * 1000;
+    return usesLeads;
+  }
+
   private async ownedByAnotherLead(
     lead: LeadEntity,
     remote: RemoteLead,

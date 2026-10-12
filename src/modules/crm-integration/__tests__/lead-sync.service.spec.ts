@@ -68,6 +68,7 @@ function setup() {
   const analytics = { increment: jest.fn().mockResolvedValue(undefined) };
   const gateway = {
     getLead: jest.fn().mockResolvedValue(remote),
+    usesLeads: jest.fn().mockResolvedValue(true),
     findLeadDuplicates: jest.fn().mockResolvedValue([]),
     createLead: jest.fn().mockResolvedValue(remote),
     updateLead: jest.fn().mockResolvedValue(remote),
@@ -297,6 +298,31 @@ describe('LeadSyncService', () => {
       outcome: 'quarantined',
       errorCode: 'CRM_DUPLICATE_OWNED_BY_OTHER_LEAD',
     });
+  });
+
+  it('quarantines the sync instead of creating a lead on a portal in simple CRM mode', async () => {
+    const { service, gateway, leads, context } = setup();
+    gateway.usesLeads.mockResolvedValue(false);
+
+    await expect(service.sync('lead-1', 2, context as never)).resolves.toEqual({
+      outcome: 'quarantined',
+      errorCode: 'CRM_SIMPLE_MODE_UNSUPPORTED',
+    });
+    expect(gateway.createLead).not.toHaveBeenCalled();
+    expect(leads.update).toHaveBeenCalledWith(
+      'lead-1',
+      expect.objectContaining({ lastErrorCode: 'CRM_SIMPLE_MODE_UNSUPPORTED' }),
+      expect.anything(),
+    );
+  });
+
+  it('asks for the CRM mode once while the portal stays in classic mode', async () => {
+    const { service, gateway, context } = setup();
+
+    await service.sync('lead-1', 2, context as never);
+    await service.sync('lead-1', 2, context as never);
+
+    expect(gateway.usesLeads).toHaveBeenCalledTimes(1);
   });
 
   it('creates and persists a lead when no safe CRM candidate exists', async () => {
