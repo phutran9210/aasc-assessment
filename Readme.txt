@@ -13,7 +13,9 @@ AASC ASSESSMENT - HƯỚNG DẪN CÀI ĐẶT, CẤU HÌNH VÀ CHẠY ỨNG DỤN
   C. Tích hợp cơ bản
        - Biểu mẫu Jotform -> tự tạo Contact trong Bitrix24 CRM
 
-Cả ba bài đã hoàn thành. Đây là tài liệu hướng dẫn duy nhất của dự án (dùng bảng mã UTF-8).
+Cả ba bài đã hoàn thành. Đây là tài liệu hướng dẫn đầy đủ của ứng dụng AASC (dùng bảng mã UTF-8).
+Trang vào của repository là README.md; ứng dụng tích hợp TikTok - Bitrix24 (cổng 3001) có tài
+liệu riêng tại README-tiktok.md.
 
   Mục 1-12    Cài đặt, cấu hình, chạy và sử dụng chung; Bài A
   Mục 13      Bài B: cấu hình ngrok và Bitrix24, API Contact, lỗi đã xử lý, kết quả test

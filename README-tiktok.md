@@ -35,7 +35,7 @@ The sample documents printed in the assignment are accepted as they are:
 | NestJS, PostgreSQL + TypeORM migrations and seed, Redis, BullMQ, retries, dead letters, rate limits | see "Technical decisions" |
 | Swagger/OpenAPI | `/docs`, and the exported [`api-docs/tiktok-openapi.json`](api-docs/tiktok-openapi.json) |
 | Docker, multi-stage build, health checks | `Dockerfile.tiktok`, `docker-compose.tiktok.yml` (one file; profiles select demo, real Bitrix24 or production) |
-| Tests | 1399 tests across unit, integration and E2E; statements 90 %, lines 93 %, functions 91 %, branches 77 % |
+| Tests | 1935 tests in 225 suites across unit, integration and E2E; statements 96.7 %, lines 97.7 %, functions 93.7 %, branches 88.6 % (run of 2026-10-12) |
 | ESLint, Prettier, Husky | `pnpm lint`, `pnpm format:check`; a pre-commit hook runs both on staged files |
 
 ## Architecture
@@ -254,6 +254,14 @@ It was verified on a Bitrix24 cloud portal through an incoming webhook: lead cre
 email and custom fields, update of the same lead on a repeated contact, deal create linked to the
 lead, lead completion, timeline comments, the deal callback and a won deal.
 
+The OAuth application path was verified on 2026-10-12 on a second cloud portal, with the API
+reachable through a public tunnel: Bitrix24 delivered `ONAPPINSTALL` to `POST /install` and the
+tokens were stored (scopes `crm`, `user`); mapping and rules were validated against the portal; a
+signed webhook became a Lead with its four custom fields, then a Deal; an access token marked as
+expired was replaced, together with its refresh token, on the next call; and Bitrix24 itself
+delivered `ONCRMDEALADD` and `ONCRMDEALUPDATE` to `/webhooks/bitrix24/deals`, after which the app
+recorded the Deal as won. A callback with a wrong application token was answered with 401.
+
 ```bash
 # in .env: COMPOSE_PROFILES=app,mock, BITRIX_INTEGRATION_MODE=real, BITRIX_PORTAL_KEY,
 # TIKTOK_BITRIX24_WEBHOOK_URL (may be the BITRIX24_WEBHOOK_URL of Part 1) and
@@ -276,10 +284,68 @@ What the portal needs, and how the app uses it:
 - **Pipelines and stages come from the portal.** Rules name a real pipeline ID and stage code;
   the assignment's `pipeline_id: 1` only works where a second pipeline exists (a Free plan has the
   default pipeline 0 only). A lead is completed with the stage `CONVERTED`.
-- **Deal events** reach the app through an outgoing webhook to `/webhooks/bitrix24/deals`, checked
-  by its application token; a scheduled poll catches changes when the app is not reachable.
+- **Deal events** reach the app at `/webhooks/bitrix24/deals`; a scheduled poll catches changes
+  when the app is not reachable. With an incoming webhook, create an outgoing webhook for the deal
+  events; its application token is `TIKTOK_BITRIX24_OUTGOING_TOKEN`. With an OAuth application,
+  bind `ONCRMDEALADD`, `ONCRMDEALUPDATE` and `ONCRMDEALDELETE` to that URL once with `event.bind`
+  and the application's token: the app does not register them itself, and it checks each event
+  against the domain, member ID and application token of the stored installation.
 - **Automation on the portal still runs.** Workflows that start on new leads or deals will start
   on these records too.
+
+## Local development (watch mode on the host)
+
+Runs the API from source with reload on save, while PostgreSQL, Redis and the worker stay in
+Docker. Needs Node 24.9+, pnpm 11 and a Linux host: the data stores publish no port, so the host
+reaches them by container IP, which Docker Desktop on macOS or Windows does not route.
+
+```bash
+pnpm install
+cp .env.example .env                                              # skip if .env exists
+docker compose -f docker-compose.tiktok.yml up -d --build --wait  # data stores, migrations, seed
+docker compose -f docker-compose.tiktok.yml stop api              # free port 3001 for the host API
+
+# container IPs of the two data stores
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  "$(docker compose -f docker-compose.tiktok.yml ps -q postgres)"
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
+  "$(docker compose -f docker-compose.tiktok.yml ps -q redis)"
+```
+
+Put the two addresses in `.env`, keeping the user, password and database name of
+`TIKTOK_POSTGRES_USER`, `TIKTOK_POSTGRES_PASSWORD` and `TIKTOK_POSTGRES_DB`:
+
+```bash
+TIKTOK_DATABASE_URL=postgres://<user>:<password>@<postgres IP>:5432/<database>
+TIKTOK_REDIS_URL=redis://<redis IP>:6379        # redis://:<password>@<redis IP>:6379 with a password
+```
+
+The containers are not affected: Compose always overrides these two variables with the service
+names `postgres` and `redis`. Then start the API:
+
+```bash
+pnpm start:tiktok:dev          # loads .env itself; API on http://127.0.0.1:3001
+```
+
+A healthy start logs each connection once, with credentials replaced:
+
+```text
+LOG [TiktokDatabaseModule] TikTok PostgreSQL connecting (postgres://[REDACTED]@192.168.128.2:5432/tiktok, schema=public)...
+LOG [RedisConnectionFactory] Redis producer (redis://192.168.128.3:6379) ready
+LOG [TiktokDatabaseModule] TikTok PostgreSQL ready (postgres://[REDACTED]@192.168.128.2:5432/tiktok, schema=public, 19 ms)
+LOG [TikTokBootstrap] Redis connection ready (redis://192.168.128.3:6379, PING PONG, 1 ms)
+LOG [TikTokBootstrap] TikTok integration API listening on port 3001
+```
+
+- **Port in use.** If the Docker API is still running, either stop it as above or pick another
+  port for one run: `TIKTOK_APP_PORT=3011 pnpm start:tiktok:dev`. A variable set in the shell wins
+  over `.env`.
+- **The addresses can change** when the `postgres` or `redis` container is recreated (`down`, or
+  `up` after a Compose change); read them again and update `.env`.
+- **Only the API reloads.** The worker still runs the image: after a change that the worker uses,
+  rebuild it with `docker compose -f docker-compose.tiktok.yml up -d --build --no-deps worker`.
+- **Back to Docker:** stop the host API with Ctrl+C, then
+  `docker compose -f docker-compose.tiktok.yml start api`.
 
 ## Running without Docker
 
@@ -426,6 +492,8 @@ worker versions; it takes a database lock, so starting it from several hosts is 
 | Lead stays `pending` | Calls to Bitrix24 are paced at one per second; check `/health` for `oldestPendingSeconds` and `GET /api/v1/operations?status=retry_wait`. |
 | `PUT /api/v1/config/*` answers 428 or 409 | `If-Match` is missing, or is not the current revision: read the resource and send its `ETag`. |
 | `PUT /api/v1/config/mappings` answers 400 | A target field does not exist on the portal, or a `field_mapping` source is not one of the webhook paths listed in `assignment-config-import.ts`. |
+| Start fails with `TikTok environment is invalid` and every variable `received undefined` | `.env` was not loaded. `pnpm start:tiktok:dev` loads it; `start:tiktok:prod`, `start:tiktok:worker` and the other scripts read the shell only: `set -a; . ./.env; set +a` first. |
+| Start fails with `getaddrinfo ENOTFOUND postgres` or `redis` | The host cannot resolve Compose service names. Point `TIKTOK_DATABASE_URL` and `TIKTOK_REDIS_URL` at reachable addresses, see [Local development](#local-development-watch-mode-on-the-host). |
 | API or worker exits at start | The message names the variable. In production: a `change-me` secret, `CORS_ORIGINS=*`, or real Bitrix24 mode without `TIKTOK_BITRIX24_WEBHOOK_URL`; on any start: a database first used with another advertiser, portal or mode. |
 | `/health/ready` answers 503 | The body names the failed check (`database`, `schema`, `redis`, `worker`). `schema` means migrations have not been applied. |
 | Export answers 422 `EXPORT_REQUIRES_ASYNC` | More than 10,000 leads: use `POST /api/v1/reports/exports` and download the job. |
@@ -460,9 +528,12 @@ the failure has a stable reason.
 
 ## Improvements for a production deployment
 
-- Verify the OAuth application path of the Bitrix24 adapter on a live portal (install, token
-  refresh, event verification); only the incoming-webhook path has been, which is why production
-  requires `TIKTOK_BITRIX24_WEBHOOK_URL` for real mode.
+- Allow the OAuth application path in production. It is verified on a live portal (install,
+  token refresh, event verification), but the start-up check still requires
+  `TIKTOK_BITRIX24_WEBHOOK_URL` for real mode with `NODE_ENV=production`. Register the deal events
+  from the app after installation instead of a manual `event.bind`.
+- Verify a portal with several pipelines; write the deal probability to Bitrix24 if the portal
+  should show it.
 - Add the real TikTok adapters once a Business account is available: webhook subscription and
   signature as TikTok defines them, lead retrieval, reporting for campaign cost, and the Events
   API for conversion feedback.
@@ -475,8 +546,6 @@ the failure has a stable reason.
   `/health` and logs; alert on dead letters and on the oldest pending operation.
 - Scale workers horizontally: operations are leased and schedules take an advisory lock, but this
   has only been exercised with a few local processes.
-- Raise branch coverage from 77 % to 80 %; the gap is mostly error paths in the operator
-  resolution service and the Bitrix24 gateway.
 - A Bitrix24 chat or e-mail channel for notifications; they are in-app and in the log today.
 
 ## Limits of this delivery
@@ -484,10 +553,13 @@ the failure has a stable reason.
 - Only **mock** TikTok mode is active. The real TikTok Business API (lead retrieval, reporting,
   conversion events) is not enabled: it needs an authorised account and a verified contract. Until
   then campaign cost comes from CSV import and conversion feedback is only sent to the mock.
-- Bitrix24 **real** mode is verified through an incoming webhook on one cloud portal (Free plan,
-  one pipeline). Not verified: the OAuth application path, a portal with several pipelines, and
-  delivery of deal events by Bitrix24 itself (the callback was exercised with a request in
-  Bitrix24's format, since the test machine is not reachable from the internet).
+- Bitrix24 **real** mode is verified on two cloud portals, through an incoming webhook and through
+  an OAuth application, including deal events delivered by Bitrix24 itself. Not verified: a portal
+  with several pipelines, because the plan of both portals allows the default pipeline only
+  (`crm.category.add` is refused), and the OAuth path with `NODE_ENV=production`, which the
+  start-up check does not allow yet.
+- The probability of a Deal is kept in the app and reported by its API; it is not written to the
+  `PROBABILITY` field of the Deal in Bitrix24.
 - The Bitrix24 notification channel is a port without an adapter; notifications are in-app and in
   the operational log.
 - The demo accounts and the mock server are for local use. The seed refuses to run with
