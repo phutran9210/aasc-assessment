@@ -1,3 +1,4 @@
+import { safeErrorMessage, safeErrorStack } from '@common/logging/connection-log.js';
 import {
   appConfig,
   setupCors,
@@ -17,9 +18,21 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  const config = app.get<AppConfig>(appConfig.KEY);
   const logger = new Logger('Bootstrap');
+  logger.log('Starting application and initializing database connection...');
+
+  let app: NestExpressApplication;
+  try {
+    app = await NestFactory.create<NestExpressApplication>(AppModule);
+  } catch (error) {
+    logger.error(
+      `Application initialization failed: ${safeErrorMessage(error)}`,
+      safeErrorStack(error),
+    );
+    throw error;
+  }
+
+  const config = app.get<AppConfig>(appConfig.KEY);
 
   // No global prefix or versioning: the assessment briefs fix the routes (/install, /contacts,
   // /docs). Global pipe/filter/interceptor are registered in AppModule so e2e tests share them.
