@@ -1,3 +1,5 @@
+import { BitrixHttpError } from '@modules/bitrix/index.js';
+
 import { NotFoundException } from '@nestjs/common';
 import { LeadSyncStatusService } from '../services/lead-sync-status.service.js';
 
@@ -21,6 +23,7 @@ function service(
     reason?: string | null;
     googleFails?: boolean;
     bitrixFails?: boolean;
+    bitrixError?: unknown;
     latest?: typeof run | null;
   } = {},
 ) {
@@ -50,7 +53,7 @@ function service(
   };
   const gateway = {
     getFieldNames: options.bitrixFails
-      ? jest.fn().mockRejectedValue('bitrix offline')
+      ? jest.fn().mockRejectedValue(options.bitrixError ?? 'bitrix offline')
       : jest.fn().mockResolvedValue([]),
   };
   const config = { cron: '*/15 * * * *', timezone: 'Asia/Ho_Chi_Minh' };
@@ -96,6 +99,18 @@ describe('LeadSyncStatusService', () => {
         google: { ok: false, message: 'sheets offline' },
         bitrix: { ok: false, message: 'bitrix offline' },
       },
+    });
+    const blocked = service({
+      bitrixFails: true,
+      bitrixError: new BitrixHttpError(
+        'Feature is not available on the current plan.',
+        'FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN',
+        403,
+      ),
+    });
+    expect((await blocked.target.getStatus()).connections.bitrix).toEqual({
+      ok: false,
+      message: expect.stringContaining('Gói dịch vụ của portal Bitrix24 không cho dùng REST API'),
     });
     const missing = service({ reason: 'Google Sheet ID is missing', latest: null });
     expect(await missing.target.getStatus()).toMatchObject({

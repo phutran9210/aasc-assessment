@@ -7,6 +7,7 @@ import { SheetsClient } from '@modules/google-sheets/index.js';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 
 import type { LeadSyncRun } from '../entities/lead-sync-run.entity.js';
+import { describeError } from '../errors/describe-error.js';
 import { BitrixLeadGateway } from '../gateways/bitrix-lead.gateway.js';
 import { LEAD_SYNC_MESSAGES } from '../messages/index.js';
 import { LeadSyncRunItemRepository } from '../repositories/lead-sync-run-item.repository.js';
@@ -85,8 +86,9 @@ async function check(call: () => Promise<unknown>): Promise<ConnectionCheck> {
     await call();
     return { ok: true, message: null };
   } catch (error) {
-    // Messages of SheetsError and BitrixHttpError never carry credentials or URLs.
-    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+    // Messages of SheetsError and BitrixHttpError never carry credentials or URLs. Described
+    // like a stopped run, so a blocked plan or a refused credential reads the same in both places.
+    return { ok: false, message: describeError(error) };
   }
 }
 
