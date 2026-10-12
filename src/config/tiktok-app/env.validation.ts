@@ -30,6 +30,10 @@ const schema = z
     ),
     // Blank counts as not set, so an env file may keep these lines with no value.
     TIKTOK_BITRIX24_WEBHOOK_URL: z.preprocess(blankAsUnset, z.url().optional()),
+    // The OAuth application of the portal, used when no incoming webhook is configured.
+    BITRIX24_CLIENT_ID: z.preprocess(blankAsUnset, z.string().trim().optional()),
+    BITRIX24_CLIENT_SECRET: z.preprocess(blankAsUnset, z.string().trim().optional()),
+    BITRIX24_DOMAIN: z.preprocess(blankAsUnset, z.string().trim().optional()),
     DEFAULT_PHONE_REGION: z.string().length(2).default('VN'),
     REPORT_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
     INTEGRATION_QUEUE_PREFIX: z.string().trim().min(1).default('aasc-tiktok'),
@@ -72,19 +76,28 @@ const schema = z
         });
       }
     }
-    // The Bitrix24 gateway is verified on a live portal through an incoming webhook. The OAuth
-    // application path has only run against the mock, so production must not rely on it yet.
+    // Without an incoming webhook the gateway uses the OAuth application. Its identity must be
+    // complete in production: the install event is only checked against the application when the
+    // client ID is known, and only accepted from the portal that BITRIX24_DOMAIN names.
     if (
       env.BITRIX_INTEGRATION_MODE === 'real' &&
       env.NODE_ENV === 'production' &&
       !env.TIKTOK_BITRIX24_WEBHOOK_URL
     ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['BITRIX_INTEGRATION_MODE'],
-        message:
-          'real mode in production needs TIKTOK_BITRIX24_WEBHOOK_URL: the OAuth path is not verified on a live portal',
-      });
+      for (const key of [
+        'BITRIX24_CLIENT_ID',
+        'BITRIX24_CLIENT_SECRET',
+        'BITRIX24_DOMAIN',
+      ] as const) {
+        if (!env[key]) {
+          context.addIssue({
+            code: 'custom',
+            path: [key],
+            message:
+              'is required for real mode in production when TIKTOK_BITRIX24_WEBHOOK_URL is not set (OAuth application)',
+          });
+        }
+      }
     }
     if (
       env.BITRIX_INTEGRATION_MODE === 'real' &&

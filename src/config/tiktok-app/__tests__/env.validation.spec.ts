@@ -65,7 +65,7 @@ describe('validateTiktokEnv', () => {
     ).toThrow('TIKTOK_BITRIX24_OUTGOING_TOKEN');
   });
 
-  it('allows real Bitrix mode in production through a webhook, the only path verified live', () => {
+  it('allows real Bitrix mode in production through a webhook or a complete OAuth application', () => {
     const env = {
       NODE_ENV: 'production',
       TIKTOK_DATABASE_URL: 'postgres://test:test@localhost:5432/tiktok',
@@ -81,7 +81,20 @@ describe('validateTiktokEnv', () => {
       CORS_ORIGINS: 'https://admin.example.test',
     };
 
-    expect(() => validateTiktokEnv(env)).toThrow('BITRIX_INTEGRATION_MODE');
+    const oauth = {
+      BITRIX24_CLIENT_ID: 'local.0123456789abcd.01234567',
+      BITRIX24_CLIENT_SECRET: 'application-key',
+      BITRIX24_DOMAIN: 'portal.example.test',
+    };
+
+    expect(() => validateTiktokEnv(env)).toThrow('BITRIX24_CLIENT_ID');
+    expect(() => validateTiktokEnv({ ...env, ...oauth, BITRIX24_CLIENT_SECRET: ' ' })).toThrow(
+      'BITRIX24_CLIENT_SECRET',
+    );
+    expect(() => validateTiktokEnv({ ...env, ...oauth, BITRIX24_DOMAIN: '' })).toThrow(
+      'BITRIX24_DOMAIN',
+    );
+    expect(validateTiktokEnv({ ...env, ...oauth }).bitrixMode).toBe('real');
     expect(
       validateTiktokEnv({
         ...env,
