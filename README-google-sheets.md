@@ -302,11 +302,12 @@ Mọi endpoint cần JWT lấy từ `POST /auth/login`, trừ endpoint nhận s�
 
 - Hàng chưa có Lead ID luôn được tìm trùng trước, theo email rồi theo số điện thoại. Tìm thấy thì
   cập nhật lead đó, không thì tạo mới.
-- Số điện thoại được tìm theo ba cách viết trong cùng một lệnh: `+84901234567`, `84901234567` và
-  `0901234567`. Bitrix24 so khớp theo chuỗi đã lưu, nên lead nhập tay dạng `0901 234 567` chỉ được
-  nhận ra khi tìm đúng cách viết đó.
+- Số điện thoại được tìm theo mọi cách viết thường gặp trong cùng một lệnh: `+84901234567`,
+  `84901234567`, `0084901234567`, `0901234567` và `901234567`. Bitrix24 so khớp theo chuỗi đã
+  lưu, nên lead nhập tay dạng `0901 234 567` chỉ được nhận ra khi tìm đúng cách viết đó. Số máy
+  bàn (`028 3822 1234`) cũng được tìm ở dạng nội địa.
 - Khi cập nhật một lead trùng, số điện thoại và email lead đã có được giữ nguyên; hai số được coi
-  là một khi chín chữ số cuối giống nhau.
+  là một khi số ngắn hơn (từ bảy chữ số) là phần cuối của số dài hơn.
 - Hàng đã có Lead ID chỉ được gửi lại khi nội dung đổi. Đổi định dạng ô không tính là đổi.
 - Hai hàng trỏ tới cùng một lead: hàng trên được xử lý, hàng dưới nhận "Trùng với hàng N".
 - Batch ghi bị timeout không được gửi lại nguyên lệnh: ứng dụng tìm trùng lại trước, nên lead đã
@@ -350,6 +351,7 @@ và chạy lại trên image Docker ở chế độ production.
 | TC3: hàng trùng email với lead tạo tay | Đạt: lead có sẵn được cập nhật, không có lead mới |
 | TC3: hàng trùng số điện thoại, lead lưu dạng `+84…` | Đạt |
 | TC3: hàng trùng số điện thoại, lead lưu dạng `09…` | Đạt sau khi sửa; trước đó một lead trùng đã bị tạo |
+| TC3: số máy bàn, lead lưu dạng `028 3822 1299` | Đạt: lead có sẵn được cập nhật, số của lead giữ nguyên |
 | TC4: hàng sai dữ liệu | Đạt: 4 hàng ghi "Lỗi" kèm lý do, các hàng khác vẫn chạy |
 | Chạy lại không đổi | Đạt: mọi hàng `skipped`, số lead không đổi |
 | 150 hàng mới | Đạt: 150 lead trong 27,3 giây, không lần thử lại nào; chạy lại 4,8 giây |
@@ -490,7 +492,11 @@ Kết quả ngày 2026-10-12 cho `src/modules/lead-sync/`, `src/modules/google-s
 - Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện không được thêm vào Sheet về sau;
   kéo tay chỉ cập nhật hàng đã liên kết.
 - Tìm trùng theo số điện thoại chỉ suy ra dạng nội địa cho ba quốc gia `VN`, `US`, `SG`. Số của
-  nước khác chỉ được tìm ở dạng có và không có dấu `+`.
+  nước khác chỉ được tìm ở dạng `+…`, không có dấu `+`, và `00…`.
+- Chỉ giá trị đầu của ô email hoặc số điện thoại được dùng để tìm trùng. Lead chỉ mang giá trị thứ
+  hai của ô không được nhận ra.
+- Chiều về chuẩn hoá số điện thoại của lead theo `LEAD_SYNC_DEFAULT_COUNTRY`. Lead tạo trong
+  Bitrix24 với số nội địa của một nước khác được thêm thành hàng mới dù Sheet đã có số đó.
 - Tên trường trong mapping chỉ được đối chiếu với portal ở đầu lần chạy, không phải lúc lưu.
 - Khoá một-lần-chạy nằm trong SQLite: server và CLI phải dùng chung file dữ liệu. Nhiều container
   với volume riêng không được hỗ trợ.

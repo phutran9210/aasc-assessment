@@ -936,10 +936,10 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
 
       - Hàng chưa có Lead ID luôn được tìm trùng trước (crm.duplicate.findbycomm theo
         email, rồi số điện thoại). Tìm thấy thì cập nhật lead đó, không thì tạo mới.
-      - Số điện thoại được tìm theo ba cách viết trong cùng một lệnh: +84901234567,
-        84901234567 và 0901234567. Bitrix24 so khớp theo chuỗi đã lưu, nên lead nhập tay
-        dạng "0901 234 567" chỉ được nhận ra khi tìm đúng cách viết đó. Dạng nội địa được
-        suy ra cho VN, US và SG.
+      - Số điện thoại được tìm theo mọi cách viết thường gặp trong cùng một lệnh:
+        +84901234567, 84901234567, 0084901234567, 0901234567 và 901234567. Bitrix24 so khớp
+        theo chuỗi đã lưu, nên lead nhập tay dạng "0901 234 567" chỉ được nhận ra khi tìm
+        đúng cách viết đó. Dạng nội địa (kể cả số máy bàn) được suy ra cho VN, US và SG.
       - Hàng đã có Lead ID chỉ được gửi lại khi nội dung đổi (so Sync Hash).
       - Hai hàng trỏ tới cùng một lead: hàng trên được xử lý, hàng dưới nhận
         "Trùng với hàng N".
@@ -1093,7 +1093,7 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
         TC1-TC4            Đạt trên cả hai bản, gồm cả thao tác tay trên giao diện Google
                            Sheets, trang quản trị và Bitrix24.
         TC3 Trùng số ĐT    Lead nhập tay dạng "0966 444 333": lần đầu KHÔNG được nhận ra và
-                           một lead trùng bị tạo. Đã sửa (tìm theo ba cách viết); sau khi
+                           một lead trùng bị tạo. Đã sửa (tìm theo mọi cách viết); sau khi
                            sửa, lead nhập tay "0955 333 222" được cập nhật, không tạo mới.
         Hiệu năng          150 hàng mới: created=150 trong 27,3 giây, 0 lần thử lại. Chạy
                            lại: skipped trong 4,8 giây.

@@ -161,7 +161,7 @@ Mỗi phần tử của `fields` nối một cột với một trường lead:
 
 Ô email hoặc số điện thoại nhận nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead, không thay giá trị lead đã có.
 
-Khi tìm lead trùng, số điện thoại được tra theo ba cách viết: `+84901234567`, `84901234567` và `0901234567`. Lead nhập tay trong Bitrix24 dạng `0901 234 567` vì vậy vẫn được nhận ra và cập nhật, không bị tạo trùng.
+Khi tìm lead trùng, số điện thoại được tra theo mọi cách viết thường gặp: `+84901234567`, `84901234567`, `0084901234567`, `0901234567` và `901234567`; số máy bàn cũng vậy. Lead nhập tay trong Bitrix24 dạng `0901 234 567` vì vậy vẫn được nhận ra và cập nhật, không bị tạo trùng.
 
 Các khóa khác:
 
@@ -404,7 +404,8 @@ Kiểm thử tự động: `pnpm check` chạy lint, kiểm tra kiểu, unit tes
 - Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead.
 - Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện không được thêm vào Sheet về sau; kéo tay chỉ cập nhật hàng đã liên kết.
 - Chưa biết `crm.duplicate.findbycomm` có trả lead đã chuyển đổi hoặc đã xóa hay không.
-- Tìm trùng theo số điện thoại chỉ suy ra dạng nội địa cho `VN`, `US`, `SG`; số của nước khác chỉ được tìm ở dạng có và không có dấu `+`.
+- Tìm trùng theo số điện thoại chỉ suy ra dạng nội địa cho `VN`, `US`, `SG`; số của nước khác chỉ được tìm ở dạng `+…`, không có dấu `+`, và `00…`.
+- Chỉ giá trị đầu của ô email hoặc số điện thoại được dùng để tìm trùng.
 - Khóa một-lần-chạy nằm trong SQLite: server và CLI phải dùng chung file dữ liệu. Nhiều container với volume riêng không được hỗ trợ.
 
 ## 11. Tham khảo trong repo
