@@ -35,7 +35,7 @@ The sample documents printed in the assignment are accepted as they are:
 | NestJS, PostgreSQL + TypeORM migrations and seed, Redis, BullMQ, retries, dead letters, rate limits | see "Technical decisions" |
 | Swagger/OpenAPI | `/docs`, and the exported [`api-docs/tiktok-openapi.json`](api-docs/tiktok-openapi.json) |
 | Docker, multi-stage build, health checks | `Dockerfile.tiktok`, `docker-compose.tiktok.yml` (one file; profiles select demo, real Bitrix24 or production) |
-| Tests | 1937 tests in 225 suites across unit, integration and E2E; statements 96.7 %, lines 97.7 %, functions 93.7 %, branches 88.6 % (run of 2026-10-12) |
+| Tests | 1949 tests in 226 suites across unit, integration and E2E; statements 96.7 %, lines 97.8 %, functions 93.8 %, branches 88.6 % (run of 2026-10-12) |
 | ESLint, Prettier, Husky | `pnpm lint`, `pnpm format:check`; a pre-commit hook runs both on staged files |
 
 ## Architecture
@@ -283,7 +283,9 @@ What the portal needs, and how the app uses it:
 - **Classic CRM mode.** In simple CRM mode (without leads) Bitrix24 converts every new lead into
   a deal and a contact by itself; the conversion then adopts that deal, which has none of the
   rule's pipeline, stage or probability. `PUT /api/v1/config/mappings` and `/rules` answer 400 for
-  such a portal: switch it in CRM > Settings > CRM mode.
+  such a portal, and a lead that would be created there is quarantined with
+  `CRM_SIMPLE_MODE_UNSUPPORTED`: switch the portal in CRM > Settings > CRM mode, then retry the
+  operation.
 - **Webhook scope `crm`.** With the `user` scope as well, any active user can be an assignee;
   without it only the webhook's own user can be validated.
 - **Markers, not custom fields.** Records the app creates carry `originatorId = aasc-tiktok` and the
@@ -298,9 +300,11 @@ What the portal needs, and how the app uses it:
 - **Deal events** reach the app at `/webhooks/bitrix24/deals`; a scheduled poll catches changes
   when the app is not reachable. With an incoming webhook, create an outgoing webhook for the deal
   events; its application token is `TIKTOK_BITRIX24_OUTGOING_TOKEN`. With an OAuth application,
-  bind `ONCRMDEALADD`, `ONCRMDEALUPDATE` and `ONCRMDEALDELETE` to that URL once with `event.bind`
-  and the application's token: the app does not register them itself, and it checks each event
-  against the domain, member ID and application token of the stored installation.
+  set `TIKTOK_PUBLIC_URL` to the public base URL of the API: after each installation the app binds
+  `ONCRMDEALADD`, `ONCRMDEALUPDATE` and `ONCRMDEALDELETE` to that URL itself, and checks each
+  event against the domain, member ID and application token of the stored installation.
+- **Probability of a closed deal.** Bitrix24 keeps the probability of the last open stage on a
+  won or lost deal. When the app sees such a deal it writes 100 or 0 to the portal.
 - **Automation on the portal still runs.** Workflows that start on new leads or deals will start
   on these records too.
 
@@ -357,6 +361,11 @@ LOG [TikTokBootstrap] TikTok integration API listening on port 3001
   rebuild it with `docker compose -f docker-compose.tiktok.yml up -d --build --no-deps worker`.
 - **Back to Docker:** stop the host API with Ctrl+C, then
   `docker compose -f docker-compose.tiktok.yml start api`.
+- **One public address for both applications.** A tunnel exposes one port, while the AASC app
+  (3000) and this app (3001) both receive events from Bitrix24. `pnpm dev:proxy` listens on 8080
+  and forwards `/webhooks/*` and `/api/v1/*` to this app and everything else to the AASC app;
+  point the tunnel at 8080 (`PROXY_PORT`, `AASC_PORT` and `TIKTOK_PORT` change the ports).
+  `/install` then belongs to the AASC app, so this app has to use an incoming webhook.
 
 ## Running without Docker
 
@@ -503,6 +512,8 @@ worker versions; it takes a database lock, so starting it from several hosts is 
 | Lead stays `pending` | Calls to Bitrix24 are paced at one per second; check `/health` for `oldestPendingSeconds` and `GET /api/v1/operations?status=retry_wait`. |
 | `PUT /api/v1/config/*` answers 428 or 409 | `If-Match` is missing, or is not the current revision: read the resource and send its `ETag`. |
 | `PUT /api/v1/config/*` answers 400 `simple CRM mode` | The portal works without leads. Switch it to classic CRM mode in CRM > Settings > CRM mode. |
+| Lead stays `failed` with `CRM_SIMPLE_MODE_UNSUPPORTED` | The portal was switched to simple CRM mode. Switch it back to classic mode and retry the operation with `POST /api/v1/operations/{id}/retry`. |
+| Deal events do not arrive after an OAuth installation | `TIKTOK_PUBLIC_URL` is empty or not reachable from Bitrix24; the log says `Deal events were not registered`. Set it and install the application again. |
 | A Deal in Bitrix24 has no probability, or not the rule's stage | It was created by Bitrix24 from the lead in simple CRM mode, not by the rule. Switch the portal to classic CRM mode. |
 | `PUT /api/v1/config/mappings` answers 400 | A target field does not exist on the portal, or a `field_mapping` source is not one of the webhook paths listed in `assignment-config-import.ts`. |
 | Start fails with `TikTok environment is invalid` and every variable `received undefined` | `.env` was not loaded. `pnpm start:tiktok:dev` loads it; `start:tiktok:prod`, `start:tiktok:worker` and the other scripts read the shell only: `set -a; . ./.env; set +a` first. |
@@ -541,9 +552,9 @@ the failure has a stable reason.
 
 ## Improvements for a production deployment
 
-- Register the deal events from the app after an OAuth installation instead of a manual
-  `event.bind`, and check the CRM mode again at conversion time, not only when configuration is
-  stored.
+- Verify on a live portal the three changes made after the last live run: registration of the
+  deal events after an OAuth installation, the probability written back for a closed deal, and the
+  quarantine of a lead on a portal in simple CRM mode. They are covered by unit tests only.
 - Verify a portal with several pipelines.
 - Add the real TikTok adapters once a Business account is available: webhook subscription and
   signature as TikTok defines them, lead retrieval, reporting for campaign cost, and the Events
@@ -570,9 +581,9 @@ the failure has a stable reason.
   (`crm.category.add` is refused). The OAuth runs used `NODE_ENV=development`; in production the
   start-up check accepts the OAuth path when `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET` and
   `BITRIX24_DOMAIN` are set.
-- The portal must be in classic CRM mode. The mode is checked when configuration is stored; a
-  portal switched to simple mode afterwards is not detected, and its deals keep Bitrix24's own
-  stage and an empty probability.
+- The portal must be in classic CRM mode. The mode is checked when configuration is stored and
+  before a lead is created; classic mode is remembered for five minutes, so a lead created within
+  five minutes of a switch to simple mode is still converted by Bitrix24 itself.
 - The Bitrix24 notification channel is a port without an adapter; notifications are in-app and in
   the operational log.
 - The demo accounts and the mock server are for local use. The seed refuses to run with

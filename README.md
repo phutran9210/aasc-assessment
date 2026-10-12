@@ -87,12 +87,12 @@ Kết quả lần chạy ngày 2026-10-12:
 
 | Chỉ số     | Kết quả         |
 | ---------- | --------------- |
-| Test suite | 225 / 225 đạt   |
-| Test       | 1937 / 1937 đạt |
-| Statements | 96,73 %         |
-| Branches   | 88,61 %         |
-| Functions  | 93,70 %         |
-| Lines      | 97,74 %         |
+| Test suite | 226 / 226 đạt   |
+| Test       | 1949 / 1949 đạt |
+| Statements | 96,74 %         |
+| Branches   | 88,56 %         |
+| Functions  | 93,82 %         |
+| Lines      | 97,75 %         |
 
 Phạm vi tính coverage được khai báo trong
 [`test/tiktok/coverage-scope.mjs`](test/tiktok/coverage-scope.mjs).
