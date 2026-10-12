@@ -50,10 +50,10 @@ Dừng bằng `docker compose -f docker-compose.tiktok.yml down`; thêm `-v` đ�
 ### Chạy từ mã nguồn
 
 - Watch mode trên máy, PostgreSQL/Redis/worker vẫn ở Docker: mục
-  [Local development](README-tiktok.md#local-development-watch-mode-on-the-host).
-- Không dùng Docker: mục [Running without Docker](README-tiktok.md#running-without-docker).
+  [Phát triển trên máy](README-tiktok.md#phát-triển-trên-máy).
+- Không dùng Docker: mục [Chạy không dùng Docker](README-tiktok.md#chạy-không-dùng-docker).
 - Với portal Bitrix24 thật: mục
-  [Running against a real Bitrix24 portal](README-tiktok.md#running-against-a-real-bitrix24-portal).
+  [Chạy với portal Bitrix24 thật](README-tiktok.md#chạy-với-portal-bitrix24-thật).
 
 ### Endpoint theo đề bài
 
@@ -108,7 +108,7 @@ Phạm vi tính coverage được khai báo trong
   Lead thành Deal nên Deal không mang pipeline, stage và xác suất của rule; ứng dụng từ chối lưu
   cấu hình cho portal như vậy.
 
-Chi tiết ở mục [Limits of this delivery](README-tiktok.md#limits-of-this-delivery).
+Chi tiết ở mục [Giới hạn của bản nộp](README-tiktok.md#giới-hạn-của-bản-nộp).
 
 ## AASC assessment app
 

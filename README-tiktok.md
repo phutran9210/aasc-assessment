@@ -1,44 +1,34 @@
-# TikTok – Bitrix24 integration
+# Tích hợp TikTok – Bitrix24
 
-A second application in this repository. It receives signed TikTok lead webhooks, creates and
-updates Leads and Deals in Bitrix24, and serves analytics, reports and operations endpoints. It
-shares code with the AASC assessment app but runs on its own: port **3001**, its own PostgreSQL
-database and Redis, build output in `dist-tiktok/`. The AASC app (port 3000, SQLite) is unaffected.
+Ứng dụng nhận webhook lead có chữ ký từ TikTok, tạo và cập nhật Lead, Deal trong Bitrix24, và
+cung cấp API analytics, báo cáo, vận hành. Đây là ứng dụng thứ hai của repository: cổng **3001**,
+PostgreSQL và Redis riêng, build ra `dist-tiktok/`. Ứng dụng AASC (cổng 3000, SQLite) tách biệt.
 
-Vietnamese walkthrough: [`huong-dan/tiktok-bitrix24.md`](huong-dan/tiktok-bitrix24.md).
+Hướng dẫn từng bước: [`huong-dan/tiktok-bitrix24.md`](huong-dan/tiktok-bitrix24.md).
 
-**Providers.** No TikTok Business account is used: TikTok is represented by a signed webhook
-sender and a mock Events API, as the assignment allows. Bitrix24 runs in two ways through the same
-gateway: against the bundled mock REST server (the default, and what the tests use), or against a
-real portal (see "Running against a real Bitrix24 portal").
+TikTok được giả lập (bộ gửi webhook có chữ ký, Events API giả), đúng như đề cho phép. Bitrix24 là
+mock REST server đi kèm (mặc định, dùng cho test) hoặc một portal thật.
 
-## The assignment, as shipped
+## Đối chiếu đề bài
 
-The sample documents printed in the assignment are accepted as they are:
+`PUT /api/v1/config/mappings` nhận nguyên tài liệu cấu hình của đề
+([`samples/tiktok/assignment-config.json`](samples/tiktok/assignment-config.json)), và webhook
+nhận đúng payload của đề ([`samples/tiktok/lead-generate.json`](samples/tiktok/lead-generate.json)).
 
-- [`samples/tiktok/lead-generate.json`](samples/tiktok/lead-generate.json) is its webhook payload
-  (Unix `timestamp`, nested `campaign` and `form`, `custom_questions` identified by their text).
-- [`samples/tiktok/assignment-config.json`](samples/tiktok/assignment-config.json) is its
-  "Bitrix24 Lead Mapping Configuration". `PUT /api/v1/config/mappings` takes it unchanged:
-  `field_mapping` becomes the field mapping, and `deal_rules` replace the rule list of the rules
-  policy (`campaign.campaign_name CONTAINS 'sale'` becomes a `contains` rule; `pipeline_id: 1,
-  stage_id: NEW` becomes Bitrix24's stage code `C1:NEW`).
-
-| Assignment | Where |
+| Yêu cầu của đề | Vị trí |
 | --- | --- |
-| Webhook endpoint, `TikTok-Signature`, three event types, raw data kept | `POST /webhooks/tiktok/leads`; raw body and payload stored per event |
-| Validation, phone and email normalisation, source classification, deduplication | ingest worker; E.164 phones, identities by email and phone |
-| Leads in Bitrix24, flexible mapping, merge, timeline | lead sync worker; `/api/v1/config/mappings` |
-| Rule engine, pipeline stage and probability, assignment, notifications | conversion saga; `/api/v1/config/rules`; `/api/v1/notifications` |
-| Conversion rates, cost per lead and ROI, quality score, dashboard API | `/api/v1/analytics/*`; score in the lead DTO |
-| CSV/Excel export, conversion events back to TikTok, historical import, scheduled reports and alerts | `/api/v1/reports/*`, feedback worker, `/api/v1/leads/imports`, scheduler |
-| NestJS, PostgreSQL + TypeORM migrations and seed, Redis, BullMQ, retries, dead letters, rate limits | see "Technical decisions" |
-| Swagger/OpenAPI | `/docs`, and the exported [`api-docs/tiktok-openapi.json`](api-docs/tiktok-openapi.json) |
-| Docker, multi-stage build, health checks | `Dockerfile.tiktok`, `docker-compose.tiktok.yml` (one file; profiles select demo, real Bitrix24 or production) |
-| Tests | 1949 tests in 226 suites across unit, integration and E2E; statements 96.7 %, lines 97.8 %, functions 93.8 %, branches 88.6 % (run of 2026-10-12) |
-| ESLint, Prettier, Husky | `pnpm lint`, `pnpm format:check`; a pre-commit hook runs both on staged files |
+| Webhook, `TikTok-Signature`, ba loại sự kiện, lưu raw data | `POST /webhooks/tiktok/leads` |
+| Validate, chuẩn hoá, phân loại nguồn, chống trùng | worker ingest; số điện thoại E.164; định danh theo email và phone |
+| Lead trong Bitrix24, mapping, merge, timeline | worker đồng bộ lead; `/api/v1/config/mappings` |
+| Rule engine, stage, xác suất, gán sales, thông báo | saga chuyển đổi; `/api/v1/config/rules`; `/api/v1/notifications` |
+| Conversion rate, cost per lead, ROI, quality score | `/api/v1/analytics/*` |
+| Export, conversion event về TikTok, import, báo cáo định kỳ | `/api/v1/reports/*`, worker feedback, `/api/v1/leads/imports`, scheduler |
+| Swagger/OpenAPI | `/docs`; [`api-docs/tiktok-openapi.json`](api-docs/tiktok-openapi.json) |
+| Docker, multi-stage build, health check | `Dockerfile.tiktok`, `docker-compose.tiktok.yml` |
+| Test | 1949 test trong 226 suite; statements 96,7 %, branches 88,6 %, functions 93,8 %, lines 97,8 % (2026-10-12) |
+| ESLint, Prettier, Husky | `pnpm lint`, `pnpm format:check`; hook pre-commit chạy trên file đã stage |
 
-## Architecture
+## Kiến trúc
 
 ```mermaid
 flowchart LR
@@ -59,12 +49,18 @@ flowchart LR
   API --> FS
 ```
 
-A webhook is verified, stored with its raw body and acknowledged in one database transaction that
-also writes the operation and its outbox row. A dispatcher publishes outbox rows to BullMQ; workers
-claim an operation with a lease, do the work and record the outcome. Failures are retried with
-backoff up to five attempts and then go to a dead-letter queue with a notification.
+API xác thực webhook, rồi ghi sự kiện, một operation và một dòng outbox trong cùng một transaction
+và trả lời. Dispatcher đẩy các dòng outbox sang BullMQ. Worker nhận operation bằng lease và ghi lại
+kết quả. Lỗi được thử lại có backoff tối đa năm lần, sau đó vào dead letter kèm thông báo.
 
-### Database
+| Tiến trình | Lệnh | Vai trò |
+| --- | --- | --- |
+| API | `node dist-tiktok/apps/tiktok/main.js` | Webhook, API quản trị, health, OpenAPI |
+| Worker | `node dist-tiktok/apps/tiktok/worker.js` | Ingest, đồng bộ CRM, chuyển đổi, báo cáo, lịch |
+| Migration | `node dist-tiktok/apps/tiktok/database/migration-runner.js` | Chạy một lần; an toàn khi chạy đồng thời |
+| Mock | `node dist-tiktok/apps/tiktok/cli/mock-server.js` | Giả lập TikTok và Bitrix24, cổng 3002 |
+
+### Cơ sở dữ liệu
 
 ```mermaid
 erDiagram
@@ -150,441 +146,347 @@ erDiagram
   }
 ```
 
-Other tables: `integration_user`, `integration_audit_event`, `integration_notification`,
-`integration_campaign_daily` (cost per campaign and day), `integration_assignment_cursor`
-(round-robin), `integration_aggregate_lease`, `integration_deal_poll_checkpoint`,
-`integration_bitrix_installation`. The schema is created by migrations only; `synchronize` is off.
+Các bảng khác: `integration_user`, `integration_audit_event`, `integration_notification`,
+`integration_campaign_daily`, `integration_assignment_cursor`, `integration_aggregate_lease`,
+`integration_deal_poll_checkpoint`, `integration_bitrix_installation`. Schema do migration tạo;
+`synchronize` tắt.
 
-## What runs
-
-| Process | Command | Role |
-| --- | --- | --- |
-| API | `node dist-tiktok/apps/tiktok/main.js` | Webhooks, management API, health, OpenAPI |
-| Worker | `node dist-tiktok/apps/tiktok/worker.js` | Ingest, CRM sync, conversion, reports, imports, schedules |
-| Migrations | `node dist-tiktok/apps/tiktok/database/migration-runner.js` | One-shot, safe to run concurrently |
-| Mock providers | `node dist-tiktok/apps/tiktok/cli/mock-server.js` | Local TikTok + Bitrix24 stand-in (port 3002) |
-
-A webhook is acknowledged after it is committed to PostgreSQL. Everything else happens in the
-worker through an operation ledger and outbox, so a Redis outage delays work but does not lose it.
-
-## Quick start with Docker (mock providers)
+## Chạy nhanh bằng Docker
 
 ```bash
-cp .env.example .env          # one file for the whole repository; Part 2 is this app
+cp .env.example .env
 docker compose -f docker-compose.tiktok.yml up -d --build --wait
 docker compose -f docker-compose.tiktok.yml run --rm demo
 ```
 
-`up` starts PostgreSQL, Redis and the mock providers, applies migrations, seeds demo data, then
-starts the API and the worker. The `demo` service sends one signed webhook and follows it to a
-Lead, a Deal, a won Deal, analytics and CSV/JSON/XLSX exports; it takes about half a minute
-because calls to Bitrix24 are limited to one per second.
+`up` khởi động PostgreSQL, Redis và mock, chạy migration, seed dữ liệu demo, rồi khởi động API và
+worker. `demo` gửi một webhook có chữ ký và đi hết luồng: Lead, Deal, Deal thắng, analytics, export
+CSV/JSON/XLSX (khoảng 30 giây).
 
-- API: <http://127.0.0.1:3001> (set `TIKTOK_APP_PORT` to publish another host port)
-- OpenAPI UI: <http://127.0.0.1:3001/docs>, JSON at `/docs-json`
-- Health: `/health/live` (process), `/health/ready` and `/health` (database, schema, Redis, worker)
-- Demo accounts: `demo-admin`, `demo-operator`, `demo-analyst`, password `demo-password-change-me`
+- API: <http://127.0.0.1:3001>; OpenAPI UI tại `/docs`, JSON tại `/docs-json`
+- Health: `/health/live`, `/health/ready`, `/health`
+- Tài khoản demo: `demo-admin`, `demo-operator`, `demo-analyst`; mật khẩu `demo-password-change-me`
 
-Stop with `docker compose -f docker-compose.tiktok.yml down`; add `-v` to
-delete the demo database, queue and artifacts as well.
+Dừng bằng `docker compose -f docker-compose.tiktok.yml down`; thêm `-v` để xoá dữ liệu.
 
-## Docker files
+## Các chế độ Docker
 
-Two Dockerfiles and two Compose files, one pair per application:
+`COMPOSE_PROFILES` trong `.env` chọn chế độ. Một database chỉ phục vụ một chế độ: trước khi đổi,
+chạy `down -v` hoặc đặt `TIKTOK_COMPOSE_PROJECT` khác.
 
-| File | Purpose |
+| Chế độ | `COMPOSE_PROFILES` | Đặt thêm |
+| --- | --- | --- |
+| Demo (mặc định) | `app,mock,demo` | `BITRIX_INTEGRATION_MODE=mock` |
+| Portal Bitrix24 thật | `app,mock` | `BITRIX_INTEGRATION_MODE=real`, `BITRIX_PORTAL_KEY`, quyền truy cập portal (bên dưới) |
+| Production | `app` | `NODE_ENV=production`, secret thật, `TIKTOK_REDIS_PASSWORD`, `CORS_ORIGINS` |
+| Hạ tầng test | `--profile test` | không cần; PostgreSQL và Redis tạm trên cổng ngẫu nhiên |
+
+Container chạy bằng user không phải root, filesystem gốc chỉ đọc, không có capability, có giới hạn
+bộ nhớ, số tiến trình và log. PostgreSQL, Redis và mock nằm trong mạng nội bộ; chỉ API mở cổng, trên
+`127.0.0.1`. Image được ghim theo digest.
+
+Ở production, ứng dụng từ chối khởi động nếu còn secret `change-me` hoặc `CORS_ORIGINS=*`. Không có
+dữ liệu seed: tạo tài khoản admin, rồi tải mapping và rule lên.
+
+```bash
+docker compose -f docker-compose.tiktok.yml run --rm create-user <username> integration_admin
+```
+
+## Chạy với portal Bitrix24 thật
+
+Truy cập portal bằng một trong hai cách:
+
+- **Incoming webhook**: `TIKTOK_BITRIX24_WEBHOOK_URL`, kèm một outgoing webhook cho các sự kiện Deal
+  trỏ về `<API>/webhooks/bitrix24/deals`; application token của nó là
+  `TIKTOK_BITRIX24_OUTGOING_TOKEN`.
+- **Ứng dụng OAuth**: `BITRIX24_DOMAIN`, `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET`; hai đường
+  dẫn của ứng dụng đều là `<API>/install`, tick "Chỉ sử dụng API". Đặt `TIKTOK_PUBLIC_URL`; sau khi
+  cài, ứng dụng tự đăng ký ba sự kiện Deal.
+
+Portal cần có:
+
+- **Quyền REST API.** Xem [mục bên dưới](#tài-khoản-dùng-thử-bitrix24-và-quyền-rest).
+- **Chế độ CRM cổ điển.** Ở chế độ đơn giản, Bitrix24 tự chuyển mỗi lead mới thành deal, không theo
+  pipeline, stage hay xác suất của rule. Khi đó cấu hình bị từ chối với 400, và lead bị giữ lại với
+  mã `CRM_SIMPLE_MODE_UNSUPPORTED`.
+- **Scope `crm` và `user`.** Thiếu `user` thì chỉ user của webhook mới làm người phụ trách được.
+- **Các trường đích của mapping.** Mapping của đề cần bốn trường chuỗi của Lead: `UF_CRM_CITY`,
+  `UF_CRM_UTM_CAMPAIGN`, `UF_CRM_AD_NAME`, `UF_CRM_TTCLID`.
+- **Pipeline và stage của chính portal.** `pipeline_id: 1` của đề cần pipeline thứ hai; gói Free
+  chỉ có pipeline 0.
+
+Hành vi cần biết:
+
+- Bản ghi do ứng dụng tạo mang `originatorId = aasc-tiktok`. Lead của tích hợp khác không bao giờ
+  bị nhận lại, kể cả khi trùng phone hoặc email.
+- Deal thắng hoặc thua được ghi xác suất 100 hoặc 0 lên portal.
+- Một lịch quét định kỳ tìm thay đổi của Deal khi không có sự kiện nào tới.
+- Automation của portal vẫn chạy trên các bản ghi này.
+
+### Đã kiểm trên portal thật (2026-10-12)
+
+| Luồng | Kết quả |
 | --- | --- |
-| `Dockerfile.tiktok`, `docker-compose.tiktok.yml` | This application, in every mode |
-| `Dockerfile`, `docker-compose.yml` | The AASC assessment app (port 3000, SQLite) |
+| Cài OAuth, lưu token, làm mới token | Đạt |
+| Kiểm tra mapping và rule với portal | Đạt |
+| Webhook → Lead có bốn trường tuỳ chỉnh; gửi lại cùng người thì gộp vào Lead cũ | Đạt |
+| Rule → Deal với pipeline 0, stage `NEW`, xác suất 30 trên portal | Đạt (CRM cổ điển) |
+| Chuyển đổi thủ công | Đạt |
+| Sự kiện Deal do Bitrix24 gửi (đăng ký OAuth và outgoing webhook) → Deal thắng trong ứng dụng | Đạt |
+| Callback Deal giả mạo | Bị từ chối với 401 |
+| Analytics; export CSV, JSON, XLSX | Đạt |
+| Ứng dụng chạy trong Docker với portal thật | Đạt |
 
-`docker-compose.tiktok.yml` covers every way of running the app. Settings come from `.env`, the
-one configuration file of the repository (Part 2 of [`.env.example`](.env.example)); Compose
-reads it by default. `COMPOSE_PROFILES` in it chooses the mode:
+Chưa kiểm trên portal thật: portal nhiều pipeline, và ba thay đổi làm sau các lần chạy trên (tự
+đăng ký sự kiện sau khi cài OAuth, ghi lại xác suất khi Deal đóng, giữ lead ở chế độ CRM đơn
+giản). Ba thay đổi này mới có unit test. Lý do nằm ở mục kế tiếp.
 
-| Mode | `COMPOSE_PROFILES` | Also set | Starts |
-| --- | --- | --- | --- |
-| Demo (the default) | `app,mock,demo` | `BITRIX_INTEGRATION_MODE=mock` | PostgreSQL, Redis, migrations, API, worker, mock providers, demo seed |
-| Real Bitrix24 portal | `app,mock` | `BITRIX_INTEGRATION_MODE=real`, `TIKTOK_BITRIX24_WEBHOOK_URL`, `TIKTOK_BITRIX24_OUTGOING_TOKEN` | the same without the seed; the mock only stands in for TikTok |
-| Production | `app` | `NODE_ENV=production`, real secrets, `TIKTOK_REDIS_PASSWORD` | PostgreSQL, Redis, migrations, API, worker |
-| Test infrastructure | `--profile test` on the command line | nothing | throwaway PostgreSQL and Redis on random loopback ports |
+## Tài khoản dùng thử Bitrix24 và quyền REST
 
-One `.env` describes one mode at a time, and one database serves one mode: before switching,
-remove the stack with `down -v` or set another `TIKTOK_COMPOSE_PROJECT`.
+Tình trạng ngày 2026-10-12. Việc này chặn các lần kiểm tra tiếp trên portal thật, không ảnh hưởng
+demo bằng mock.
 
-`create-user` and `demo` are run on demand with `docker compose ... run --rm <service>`.
+**Tài liệu Bitrix24 nêu gì.** REST API có trong các gói Vibe+ và trong bản dùng thử 15 ngày của
+gói Professional Vibe+. Các gói Essentials, gồm cả Free, không có REST. Mỗi portal chỉ kích hoạt
+dùng thử được một lần. Danh sách giới hạn của bản dùng thử không nhắc tới REST, webhook hay ứng
+dụng cục bộ, và không có hạn mức request nào được công bố.
 
-Every mode runs the same way:
+**Điều đã xảy ra.**
 
-- **Images are pinned** by tag and digest (Node, PostgreSQL, Redis), and the runtime image has no
-  package manager. Set `TIKTOK_IMAGE` to run an image built elsewhere.
-- **Containers are confined**: non-root user 1000, read-only root filesystem, no Linux
-  capabilities, `no-new-privileges`, an init process, and limits on memory, processes and log size
-  (`TIKTOK_API_MEMORY`, `TIKTOK_WORKER_MEMORY`, `TIKTOK_POSTGRES_MEMORY` override the defaults of
-  512 MB, 768 MB and 1 GB).
-- **Networks are split**: PostgreSQL, Redis, migrations and the mock sit on an internal network
-  with no route outside; only the API and the worker also join the network that reaches Bitrix24,
-  and only the API publishes a port, on `127.0.0.1`.
-- **Redis** persists with an append-only file and runs with `noeviction`, so at its memory cap it
-  refuses writes instead of dropping queued jobs.
+| Portal | Quan sát |
+| --- | --- |
+| Thứ nhất (tạo đầu tháng 10) | Mọi method REST trả HTTP 403 `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN`. |
+| Thứ hai (tạo ngày 2026-10-12) | REST chạy khoảng hai giờ, sau đó mọi method, kể cả `server.time`, trả cùng lỗi 403. |
 
-## Production layout with Docker
+Trên portal thứ hai, tại thời điểm bị chặn:
 
-With `COMPOSE_PROFILES=app` and `NODE_ENV=production` in `.env` the same Compose file runs without
-the mock server and the demo seed. PostgreSQL and Redis publish no port, Redis has a password, and
-the API listens on `127.0.0.1` only, for a TLS-terminating reverse proxy.
+- Trang gói ghi bản dùng thử Vibe+ còn hiệu lực tới 2026-10-27.
+- Incoming webhook, hai outgoing webhook và ứng dụng cục bộ vẫn còn trong danh sách tích hợp.
+- Thống kê của portal ghi khoảng 575 request REST trong ngày.
+- Kích hoạt lại dùng thử thì nhận "Vibe+ feature trial has already been used".
+- Mã lỗi này không có trong danh sách mã lỗi Bitrix24 công bố.
 
-```bash
-# in .env: COMPOSE_PROFILES=app, NODE_ENV=production, CORS_ORIGINS=<allowed origins>,
-# TIKTOK_REDIS_PASSWORD, and every change-me value of Part 2 replaced
-docker compose -f docker-compose.tiktok.yml up -d --build --wait
-docker compose -f docker-compose.tiktok.yml \
-  run --rm create-user <username> integration_admin   # the password is prompted
-```
+**Nguyên nhân.** Chưa xác định. Dấu hiệu rõ nhất là một khoá tạm do lượng lệnh gọi: ngày
+2026-10-08, portal thứ nhất trả đúng mã lỗi này cho mọi method sau khoảng 900 lệnh gọi trong vài
+giây, rồi tự hoạt động lại sau khoảng 20 phút (ghi trong `Readme.txt`, mục 15). Lần này khoá kéo
+dài hơn một giờ và chưa mở lại tại thời điểm viết. Khả năng khác, chưa có bằng chứng: hạn chế với
+tài khoản tạo nhiều portal dùng thử.
 
-In production the app refuses to start with a `change-me` placeholder secret or with
-`CORS_ORIGINS=*`, and real Bitrix24 mode needs either `TIKTOK_BITRIX24_WEBHOOK_URL` or the OAuth
-application (`BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET`, `BITRIX24_DOMAIN`). The first admin
-then uploads the mapping and rules through `PUT /api/v1/config/mappings` and
-`PUT /api/v1/config/rules`; nothing is seeded.
+**Ảnh hưởng.** Các lần chạy thật trước khi bị chặn nằm trong bảng ở trên. Sau thời điểm đó không
+chạy được gì trên portal thật.
 
-## Running against a real Bitrix24 portal
+**Hướng xử lý.**
 
-With `COMPOSE_PROFILES=app,mock` and `BITRIX_INTEGRATION_MODE=real` the stack keeps TikTok mocked
-and sends every CRM call to a real portal.
-It was verified on a Bitrix24 cloud portal through an incoming webhook: lead create with phone,
-email and custom fields, update of the same lead on a repeated contact, deal create linked to the
-lead, lead completion, timeline comments, the deal callback and a won deal.
+- Chờ và gọi lại `server.time`; nếu là khoá tạm thì REST tự mở lại.
+- Hỏi hỗ trợ Bitrix24 vì sao REST bị từ chối khi bản dùng thử còn hiệu lực.
+- Xin NFR key với tư cách technology partner; tài liệu Bitrix24 nêu đây là cách có portal test có
+  REST.
+- Mua một gói Vibe+.
 
-The OAuth application path was verified on 2026-10-12 on a second cloud portal, with the API
-reachable through a public tunnel: Bitrix24 delivered `ONAPPINSTALL` to `POST /install` and the
-tokens were stored (scopes `crm`, `user`); mapping and rules were validated against the portal; a
-signed webhook became a Lead with its four custom fields, then a Deal; an access token marked as
-expired was replaced, together with its refresh token, on the next call; and Bitrix24 itself
-delivered `ONCRMDEALADD` and `ONCRMDEALUPDATE` to `/webhooks/bitrix24/deals`, after which the app
-recorded the Deal as won. A callback with a wrong application token was answered with 401.
+## Phát triển trên máy
 
-The same day the portal was switched to classic CRM mode and the flow was repeated through an
-incoming webhook with an outgoing webhook for the deal events: the three event types, a repeated
-contact merged into its Lead, a Deal created by the rule with pipeline 0, stage `NEW` and
-probability 30 stored in Bitrix24, a manual conversion, a Deal moved to won on the portal and
-reported back by Bitrix24, analytics, and the CSV, JSON and XLSX exports.
-
-```bash
-# in .env: COMPOSE_PROFILES=app,mock, BITRIX_INTEGRATION_MODE=real, BITRIX_PORTAL_KEY,
-# TIKTOK_BITRIX24_WEBHOOK_URL (may be the BITRIX24_WEBHOOK_URL of Part 1) and
-# TIKTOK_BITRIX24_OUTGOING_TOKEN
-docker compose -f docker-compose.tiktok.yml up -d --build --wait
-docker compose -f docker-compose.tiktok.yml \
-  run --rm create-user <username> integration_admin
-```
-
-What the portal needs, and how the app uses it:
-
-- **Classic CRM mode.** In simple CRM mode (without leads) Bitrix24 converts every new lead into
-  a deal and a contact by itself; the conversion then adopts that deal, which has none of the
-  rule's pipeline, stage or probability. `PUT /api/v1/config/mappings` and `/rules` answer 400 for
-  such a portal, and a lead that would be created there is quarantined with
-  `CRM_SIMPLE_MODE_UNSUPPORTED`: switch the portal in CRM > Settings > CRM mode, then retry the
-  operation.
-- **Webhook scope `crm`.** With the `user` scope as well, any active user can be an assignee;
-  without it only the webhook's own user can be validated.
-- **Markers, not custom fields.** Records the app creates carry `originatorId = aasc-tiktok` and the
-  local ID in `originId`. A lead that carries another integration's origin (for example the Google
-  Sheets sync of this repository) is never adopted, even when its phone or email matches.
-- **Mapping targets must exist.** The assignment's mapping writes `UF_CRM_CITY`,
-  `UF_CRM_UTM_CAMPAIGN`, `UF_CRM_AD_NAME` and `UF_CRM_TTCLID`; create them as lead string fields
-  first, or `PUT /api/v1/config/mappings` answers 400.
-- **Pipelines and stages come from the portal.** Rules name a real pipeline ID and stage code;
-  the assignment's `pipeline_id: 1` only works where a second pipeline exists (a Free plan has the
-  default pipeline 0 only). A lead is completed with the stage `CONVERTED`.
-- **Deal events** reach the app at `/webhooks/bitrix24/deals`; a scheduled poll catches changes
-  when the app is not reachable. With an incoming webhook, create an outgoing webhook for the deal
-  events; its application token is `TIKTOK_BITRIX24_OUTGOING_TOKEN`. With an OAuth application,
-  set `TIKTOK_PUBLIC_URL` to the public base URL of the API: after each installation the app binds
-  `ONCRMDEALADD`, `ONCRMDEALUPDATE` and `ONCRMDEALDELETE` to that URL itself, and checks each
-  event against the domain, member ID and application token of the stored installation.
-- **Probability of a closed deal.** Bitrix24 keeps the probability of the last open stage on a
-  won or lost deal. When the app sees such a deal it writes 100 or 0 to the portal.
-- **Automation on the portal still runs.** Workflows that start on new leads or deals will start
-  on these records too.
-
-## Local development (watch mode on the host)
-
-Runs the API from source with reload on save, while PostgreSQL, Redis and the worker stay in
-Docker. Needs Node 24.9+, pnpm 11 and a Linux host: the data stores publish no port, so the host
-reaches them by container IP, which Docker Desktop on macOS or Windows does not route.
+API chạy từ mã nguồn, tự nạp lại khi lưu file; PostgreSQL, Redis và worker vẫn ở Docker. Cần
+Node 24.9+, pnpm 11 và Linux, vì máy host truy cập kho dữ liệu qua IP của container.
 
 ```bash
 pnpm install
-cp .env.example .env                                              # skip if .env exists
-docker compose -f docker-compose.tiktok.yml up -d --build --wait  # data stores, migrations, seed
-docker compose -f docker-compose.tiktok.yml stop api              # free port 3001 for the host API
+docker compose -f docker-compose.tiktok.yml up -d --build --wait
+docker compose -f docker-compose.tiktok.yml stop api       # giải phóng cổng 3001
 
-# container IPs of the two data stores
 docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
   "$(docker compose -f docker-compose.tiktok.yml ps -q postgres)"
 docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' \
   "$(docker compose -f docker-compose.tiktok.yml ps -q redis)"
 ```
 
-Put the two addresses in `.env`, keeping the user, password and database name of
-`TIKTOK_POSTGRES_USER`, `TIKTOK_POSTGRES_PASSWORD` and `TIKTOK_POSTGRES_DB`:
+Điền hai địa chỉ vào `.env` (Compose tự ghi đè hai biến này nên container không bị ảnh hưởng):
 
 ```bash
-TIKTOK_DATABASE_URL=postgres://<user>:<password>@<postgres IP>:5432/<database>
-TIKTOK_REDIS_URL=redis://<redis IP>:6379        # redis://:<password>@<redis IP>:6379 with a password
+TIKTOK_DATABASE_URL=postgres://<user>:<password>@<IP postgres>:5432/<database>
+TIKTOK_REDIS_URL=redis://<IP redis>:6379
 ```
-
-The containers are not affected: Compose always overrides these two variables with the service
-names `postgres` and `redis`. Then start the API:
 
 ```bash
-pnpm start:tiktok:dev          # loads .env itself; API on http://127.0.0.1:3001
+pnpm start:tiktok:dev      # tự nạp .env; API tại http://127.0.0.1:3001
 ```
 
-A healthy start logs each connection once, with credentials replaced:
+- Biến đặt trong shell được ưu tiên hơn `.env`, ví dụ `TIKTOK_APP_PORT=3011`.
+- Địa chỉ đổi khi container kho dữ liệu được tạo lại.
+- Worker chạy bằng image; build lại sau thay đổi mà worker dùng:
+  `docker compose -f docker-compose.tiktok.yml up -d --build --no-deps worker`.
+- `pnpm dev:proxy` nghe cổng 8080, chuyển `/webhooks/*` và `/api/v1/*` sang ứng dụng này, còn lại
+  sang ứng dụng AASC, nên một tunnel phục vụ được cả hai. Khi đó `/install` thuộc ứng dụng AASC,
+  nên ứng dụng này phải dùng incoming webhook.
 
-```text
-LOG [TiktokDatabaseModule] TikTok PostgreSQL connecting (postgres://[REDACTED]@192.168.128.2:5432/tiktok, schema=public)...
-LOG [RedisConnectionFactory] Redis producer (redis://192.168.128.3:6379) ready
-LOG [TiktokDatabaseModule] TikTok PostgreSQL ready (postgres://[REDACTED]@192.168.128.2:5432/tiktok, schema=public, 19 ms)
-LOG [TikTokBootstrap] Redis connection ready (redis://192.168.128.3:6379, PING PONG, 1 ms)
-LOG [TikTokBootstrap] TikTok integration API listening on port 3001
-```
+## Chạy không dùng Docker
 
-- **Port in use.** If the Docker API is still running, either stop it as above or pick another
-  port for one run: `TIKTOK_APP_PORT=3011 pnpm start:tiktok:dev`. A variable set in the shell wins
-  over `.env`.
-- **The addresses can change** when the `postgres` or `redis` container is recreated (`down`, or
-  `up` after a Compose change); read them again and update `.env`.
-- **Only the API reloads.** The worker still runs the image: after a change that the worker uses,
-  rebuild it with `docker compose -f docker-compose.tiktok.yml up -d --build --no-deps worker`.
-- **Back to Docker:** stop the host API with Ctrl+C, then
-  `docker compose -f docker-compose.tiktok.yml start api`.
-- **One public address for both applications.** A tunnel exposes one port, while the AASC app
-  (3000) and this app (3001) both receive events from Bitrix24. `pnpm dev:proxy` listens on 8080
-  and forwards `/webhooks/*` and `/api/v1/*` to this app and everything else to the AASC app;
-  point the tunnel at 8080 (`PROXY_PORT`, `AASC_PORT` and `TIKTOK_PORT` change the ports).
-  `/install` then belongs to the AASC app, so this app has to use an incoming webhook.
-
-## Running without Docker
-
-Needs Node 24.9+, pnpm 11, a PostgreSQL 16 database and Redis 7.
+Cần Node 24.9+, pnpm 11, PostgreSQL 16 và Redis 7.
 
 ```bash
 pnpm install
-cp .env.example .env                         # then export it: set -a; . ./.env; set +a
-# the file names the mock by its Compose service name; without Docker point at the host instead:
+cp .env.example .env && set -a && . ./.env && set +a
 export TIKTOK_BITRIX24_WEBHOOK_URL=http://127.0.0.1:3002/rest/1/mock/ TIKTOK_MOCK_BASE_URL=http://127.0.0.1:3002/tiktok
-pnpm db:tiktok:migrate                       # build + apply migrations
-pnpm tiktok:mock                             # terminal 1: mock TikTok/Bitrix24 on :3002
-pnpm db:tiktok:seed                          # demo identity, accounts, rules, 30 days of cost
-pnpm start:tiktok:prod                       # terminal 2: API on :3001
-pnpm start:tiktok:worker                     # terminal 3: worker
-pnpm tiktok:demo                             # end-to-end walk-through
+pnpm db:tiktok:migrate
+pnpm tiktok:mock             # terminal 1
+pnpm db:tiktok:seed
+pnpm start:tiktok:prod       # terminal 2
+pnpm start:tiktok:worker     # terminal 3
+pnpm tiktok:demo
 ```
 
-| Command | Purpose |
+| Lệnh | Mục đích |
 | --- | --- |
-| `pnpm build:tiktok` | Compile to `dist-tiktok/` |
-| `pnpm db:tiktok:migrate` | Apply migrations |
-| `pnpm db:tiktok:seed` | Idempotent demo data; refuses production and non-mock modes |
-| `pnpm tiktok:user:create <username> <role[,role]>` | Create an account; the password is prompted, never an argument |
-| `pnpm tiktok:webhook` | Send one signed webhook (`TIKTOK_DEMO_SAMPLE=samples/tiktok/lead-generate.json` to use a file) |
-| `pnpm tiktok:demo` | Full demo flow; mock mode only |
-| `pnpm tiktok:load-probe` | Webhook latency probe: `TIKTOK_PROBE_COUNT`/`TIKTOK_PROBE_CONCURRENCY`, or a fixed rate with `TIKTOK_PROBE_RATE` and `TIKTOK_PROBE_SECONDS` (raise `TIKTOK_INGRESS_IP_LIMIT` and `TIKTOK_WEBHOOK_ADVERTISER_LIMIT` on the API first) |
-| `pnpm tiktok:openapi` | Write the OpenAPI document from the running code; `TIKTOK_OPENAPI_OUTPUT=api-docs/tiktok-openapi.json` refreshes the committed copy |
-| `pnpm test:tiktok:unit` / `:integration` / `:e2e` | Test suites (integration and E2E need the test containers below) |
-| `pnpm test:tiktok:cov` | All three suites in one run with the coverage thresholds |
+| `pnpm build:tiktok` | Biên dịch ra `dist-tiktok/` |
+| `pnpm db:tiktok:migrate` / `db:tiktok:seed` | Migration; dữ liệu demo (chỉ chế độ mock) |
+| `pnpm tiktok:user:create <username> <role[,role]>` | Tạo tài khoản; mật khẩu được hỏi khi chạy |
+| `pnpm tiktok:webhook` | Gửi một webhook có chữ ký |
+| `pnpm tiktok:demo` | Toàn bộ luồng demo, chỉ chế độ mock |
+| `pnpm tiktok:load-probe` | Đo độ trễ webhook |
+| `pnpm tiktok:openapi` | Xuất tài liệu OpenAPI |
+| `pnpm test:tiktok:unit` / `:integration` / `:e2e` / `:cov` | Các bộ test; `:cov` chạy cả ba kèm ngưỡng coverage |
 
-Tests use their own containers and never the demo or a real database:
+Test integration và E2E dùng container riêng:
 
 ```bash
 docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml --profile test up -d --wait
-export TIKTOK_TEST_DATABASE_URL=postgres://tiktok_test:tiktok_test_only@127.0.0.1:<postgres port>/tiktok_test
-export TIKTOK_TEST_REDIS_URL=redis://127.0.0.1:<redis port>
-pnpm test:tiktok:integration && pnpm test:tiktok:e2e
+docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml port test-postgres 5432
+docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml port test-redis 6379
+export TIKTOK_TEST_DATABASE_URL=postgres://tiktok_test:tiktok_test_only@127.0.0.1:<cổng postgres>/tiktok_test
+export TIKTOK_TEST_REDIS_URL=redis://127.0.0.1:<cổng redis>
+pnpm test:tiktok:cov
 ```
 
-The published ports are random; read them with
-`docker compose -p aasc-tiktok-tests -f docker-compose.tiktok.yml port test-postgres 5432`.
+## Cấu hình
 
-## Configuration
+Mọi biến được mô tả trong Part 2 của [`.env.example`](.env.example).
 
-Every setting is documented in Part 2 of [`.env.example`](.env.example); `.env` holds the same
-variables in the same order. The TikTok app has its own `TIKTOK_BITRIX24_WEBHOOK_URL` and
-`TIKTOK_BITRIX24_OUTGOING_TOKEN`, separate from the `BITRIX24_*` pair of the AASC app, so a demo
-against the mock cannot reach the real portal by accident. The important ones:
+- **Định danh triển khai**: `TIKTOK_ADVERTISER_ID`, `BITRIX_PORTAL_KEY`, `TIKTOK_MODE`,
+  `BITRIX_INTEGRATION_MODE`. Lần khởi động đầu lưu các giá trị này; ứng dụng từ chối một database
+  đã khởi tạo với giá trị khác.
+- **Secret**: `TIKTOK_JWT_SECRET` (từ 32 ký tự), `TIKTOK_WEBHOOK_SECRET`,
+  `BITRIX_MOCK_EVENT_SECRET` hoặc `TIKTOK_BITRIX24_OUTGOING_TOKEN`.
+- **Worker**: `INTEGRATION_WORKER_ENABLED=true` trên API để readiness chờ heartbeat của worker;
+  `INTEGRATION_SCHEDULER_ENABLED=true` trên các worker chạy lịch.
+- **Proxy**: `TIKTOK_TRUSTED_PROXIES`; nếu không đặt, `X-Forwarded-For` bị bỏ qua.
 
-- **Deployment identity** – `TIKTOK_ADVERTISER_ID`, `BITRIX_PORTAL_KEY`, `TIKTOK_MODE`,
-  `BITRIX_INTEGRATION_MODE`. The first start stores them; the API and worker refuse to start on a
-  database that was initialised with different values. Mock and real data never share a database.
-- **Secrets** – `TIKTOK_JWT_SECRET` (32+ characters), `TIKTOK_WEBHOOK_SECRET`,
-  `BITRIX_MOCK_EVENT_SECRET` (mock) or `TIKTOK_BITRIX24_OUTGOING_TOKEN` (real).
-- **Workers** – set `INTEGRATION_WORKER_ENABLED=true` on the API so readiness waits for a worker
-  heartbeat, and `INTEGRATION_SCHEDULER_ENABLED=true` on the workers that run schedules.
-- **Proxies** – list reverse proxy addresses in `TIKTOK_TRUSTED_PROXIES`; otherwise
-  `X-Forwarded-For` is ignored and rate limits apply to the connecting address.
+Mapping và rule là cấu hình có phiên bản: `GET/PUT /api/v1/config/mappings` và
+`/api/v1/config/rules`, chỉ admin, kèm `If-Match` là revision hiện tại (`"0"` cho lần đầu). Body
+của `PUT` là `{ "value": <tài liệu> }` theo định dạng gốc
+([`mapping.json`](samples/tiktok/mapping.json), [`rules.json`](samples/tiktok/rules.json)) hoặc tài
+liệu của đề. `deal_rules` của đề bổ sung vào một rules policy có sẵn, nên phải lưu policy trước.
 
-Field mapping and rules are versioned configuration, not environment:
-`GET/PUT /api/v1/config/mappings` and `/api/v1/config/rules` (admin, `If-Match` with the current
-revision; `"0"` creates the first one). Until a mapping is stored, `GET` shows the built-in one
-(name, email, phone) as revision 0. A `PUT` body is either `{ "value": <document> }` in the native
-format ([`samples/tiktok/mapping.json`](samples/tiktok/mapping.json),
-[`samples/tiktok/rules.json`](samples/tiktok/rules.json)) or the assignment's document itself
-([`samples/tiktok/assignment-config.json`](samples/tiktok/assignment-config.json)). Deal rules in
-the assignment's format extend an existing rules policy, so store the policy first.
+Quality score (0–100): email 15, phone 15, hoàn tất form 20, tối đa bốn tương tác trong 30 ngày,
+mỗi tương tác 5, và 15 cho mỗi câu trả lời về ngân sách và thời gian nằm trong rules policy.
 
-Lead quality score (0–100): email 15, phone 15, completed form 20, up to four interactions in 30
-days at 5 each, and 15 each when the answers to the budget and timeline questions are among
-`quality_scoring.budget_values` and `timeline_values`.
+## Tổng quan API
 
-## API overview
-
-| Area | Endpoints |
+| Nhóm | Endpoint |
 | --- | --- |
-| Webhooks | `POST /webhooks/tiktok/leads`, `POST /webhooks/bitrix24/deals` |
-| Auth | `POST /api/v1/auth/login`, `POST /api/v1/auth/logout` |
-| Leads and deals | `GET /api/v1/leads`, `GET /api/v1/deals`, `POST /api/v1/leads/:id/convert-to-deal` |
+| Webhook | `POST /webhooks/tiktok/leads`, `POST /webhooks/bitrix24/deals` |
+| Xác thực | `POST /api/v1/auth/login`, `POST /api/v1/auth/logout` |
+| Lead và Deal | `GET /api/v1/leads`, `GET /api/v1/deals`, `POST /api/v1/leads/:id/convert-to-deal` |
 | Analytics | `GET /api/v1/analytics/conversion-rates`, `GET /api/v1/analytics/campaign-performance` |
-| Reports | `GET /api/v1/reports/export`, `POST /api/v1/reports/exports`, `GET /api/v1/reports/jobs/:id[/download]` |
-| Imports | `POST /api/v1/leads/imports`, `POST /api/v1/analytics/campaign-costs/imports` |
-| Operations | `GET /api/v1/operations[/:id]`, `POST /api/v1/operations/:id/retry`, `POST /api/v1/operations/:id/resolve` |
-| Notifications | `GET /api/v1/notifications` |
+| Báo cáo | `GET /api/v1/reports/export`, `POST /api/v1/reports/exports`, `GET /api/v1/reports/jobs/:id[/download]` |
+| Import | `POST /api/v1/leads/imports`, `POST /api/v1/analytics/campaign-costs/imports` |
+| Operation | `GET /api/v1/operations[/:id]`, `POST /api/v1/operations/:id/retry`, `POST /api/v1/operations/:id/resolve` |
+| Thông báo | `GET /api/v1/notifications` |
 | Health | `GET /health/live`, `GET /health/ready`, `GET /health` |
 
-Roles: `integration_admin` (everything, configuration, resolve), `integration_operator` (leads,
-deals, conversion, imports, retry, scheduled reports), `integration_analyst` (read, analytics,
-exports). Limits: 600 requests/minute per address on public endpoints, 120 webhooks/minute per
-advertiser, 120 reads and 30 changes per minute per user; a 429 carries `Retry-After`.
+Vai trò: `integration_admin` (mọi thứ), `integration_operator` (lead, deal, chuyển đổi, import,
+retry), `integration_analyst` (đọc, analytics, export). Giới hạn mỗi phút: 600 request cho mỗi địa
+chỉ trên endpoint công khai, 120 webhook cho mỗi advertiser, 120 lần đọc và 30 lần ghi cho mỗi
+user.
 
-Sample import files: [`samples/tiktok/historical-leads.csv`](samples/tiktok/historical-leads.csv),
-[`samples/tiktok/campaign-costs.csv`](samples/tiktok/campaign-costs.csv). Lead imports default to
-a dry run with rules and conversion feedback off.
+Campaign performance mặc định lấy 30 ngày trọn gần nhất và không tính hôm nay; truyền `from` và
+`to` để lấy cả hôm nay.
 
-## Operations runbook
+## Vận hành
 
-**Something is stuck.** `GET /api/v1/operations?status=dead_letter` (also `retry_wait`,
-`reconcile_required`, `quarantined`). `POST /api/v1/operations/:id/retry` re-queues an operation
-that failed for a transient reason. `reconcile_required` means a create call may or may not have
-reached Bitrix24: the worker looks the record up by its marker instead of creating it again, and
-an admin can settle it with `POST /api/v1/operations/:id/resolve`. Operators also receive in-app
-notifications (`GET /api/v1/notifications`) and structured log lines for dead letters, a backlog
-older than five minutes, upstream authentication failures and a failure rate above 5 %.
+- **Việc bị kẹt**: `GET /api/v1/operations?status=dead_letter` (hoặc `retry_wait`,
+  `reconcile_required`, `quarantined`). `retry` đưa operation vào hàng đợi lại.
+  `reconcile_required` nghĩa là lệnh tạo có thể đã tới Bitrix24; worker tra bản ghi theo marker, và
+  admin chốt bằng `resolve`.
+- **Redis ngừng**: webhook vẫn được lưu và trả lời, rồi xử lý khi Redis chạy lại. Đăng nhập và API
+  quản trị trả 503.
+- **Token Bitrix24 bị thu hồi**: operation chuyển sang `retry_wait`. Cài lại ứng dụng hoặc gọi
+  `GET /install/authorize` bằng tài khoản admin, rồi retry.
+- **Sao lưu**: PostgreSQL là nguồn dữ liệu gốc duy nhất.
 
-**Redis is down.** Webhooks are still acknowledged after the database commit and processed when
-Redis returns. Sign-in and the management API answer 503. `/health/ready` reports `redis: down`.
+  ```bash
+  docker compose -f docker-compose.tiktok.yml exec -T postgres \
+    pg_dump -U tiktok -d tiktok --format=custom > tiktok.dump
+  docker compose -f docker-compose.tiktok.yml exec -T postgres \
+    pg_restore -U tiktok -d tiktok --clean --if-exists < tiktok.dump   # dừng API và worker trước
+  ```
 
-**Bitrix24 token revoked or expired.** Operations move to `retry_wait` and an `upstream_auth`
-alert is raised. Reinstall or re-authorise the application (`GET /install/authorize` as admin),
-then retry the affected operations.
+  Sau khi khôi phục, khởi động worker trước.
+- **Lưu giữ**: raw body của webhook 30 ngày, file export 24 giờ, file import 30 ngày, audit và
+  operation đã xong 180 ngày. Việc chưa xong không bao giờ bị xoá.
+- **Nâng cấp**: chạy migration trước khi khởi động API và worker bản mới.
 
-**Backup and restore.** PostgreSQL is the only source of truth; Redis and the artifact directory
-can be rebuilt.
+## Xử lý sự cố
 
-```bash
-docker compose -f docker-compose.tiktok.yml exec -T postgres \
-  pg_dump -U tiktok -d tiktok --format=custom > tiktok-$(date +%F).dump
-# restore into an empty database, with API and worker stopped:
-docker compose -f docker-compose.tiktok.yml exec -T postgres \
-  pg_restore -U tiktok -d tiktok --clean --if-exists < tiktok-2026-10-09.dump
-```
-
-After a restore, start the worker first: it re-publishes every operation that was pending.
-
-**Retention** (daily, on scheduler workers): raw webhook bodies and payloads are removed after 30
-days while the event key and hash stay for deduplication; export files expire after 24 hours and
-finished import uploads after 30 days; audit records, sent notifications and completed operations
-are deleted after 180 days. Pending, quarantined, dead-letter and reconcile-required work is never
-purged.
-
-**Upgrades.** Run the migration command (or the `migrate` service) before starting new API and
-worker versions; it takes a database lock, so starting it from several hosts is safe.
-
-## Troubleshooting
-
-| Symptom | Cause and fix |
+| Hiện tượng | Nguyên nhân và cách xử lý |
 | --- | --- |
-| Webhook answers 401 | Wrong `TIKTOK_WEBHOOK_SECRET`, a `TikTok-Signature` older than five minutes, or a body changed after signing. The signature is `t=<unix>,s=<hex HMAC-SHA256 of "<t>.<raw body>">`; `pnpm tiktok:webhook` sends a valid one. |
-| Webhook answers 400 `Invalid TikTok webhook envelope` | `event_id`, `event`, `advertiser_id` or `timestamp` is missing, or a `lead.generate` has no campaign ID, form ID or `lead_data`. |
-| Webhook answers 403 | `advertiser_id` is not `TIKTOK_ADVERTISER_ID`. |
-| Webhook is accepted but no lead appears | The worker is not running, or the event was quarantined (no name, or neither a valid email nor phone). Check `GET /api/v1/operations?status=quarantined`. |
-| Lead stays `pending` | Calls to Bitrix24 are paced at one per second; check `/health` for `oldestPendingSeconds` and `GET /api/v1/operations?status=retry_wait`. |
-| `PUT /api/v1/config/*` answers 428 or 409 | `If-Match` is missing, or is not the current revision: read the resource and send its `ETag`. |
-| `PUT /api/v1/config/*` answers 400 `simple CRM mode` | The portal works without leads. Switch it to classic CRM mode in CRM > Settings > CRM mode. |
-| Lead stays `failed` with `CRM_SIMPLE_MODE_UNSUPPORTED` | The portal was switched to simple CRM mode. Switch it back to classic mode and retry the operation with `POST /api/v1/operations/{id}/retry`. |
-| Deal events do not arrive after an OAuth installation | `TIKTOK_PUBLIC_URL` is empty or not reachable from Bitrix24; the log says `Deal events were not registered`. Set it and install the application again. |
-| A Deal in Bitrix24 has no probability, or not the rule's stage | It was created by Bitrix24 from the lead in simple CRM mode, not by the rule. Switch the portal to classic CRM mode. |
-| `PUT /api/v1/config/mappings` answers 400 | A target field does not exist on the portal, or a `field_mapping` source is not one of the webhook paths listed in `assignment-config-import.ts`. |
-| Start fails with `TikTok environment is invalid` and every variable `received undefined` | `.env` was not loaded. `pnpm start:tiktok:dev` loads it; `start:tiktok:prod`, `start:tiktok:worker` and the other scripts read the shell only: `set -a; . ./.env; set +a` first. |
-| Start fails with `getaddrinfo ENOTFOUND postgres` or `redis` | The host cannot resolve Compose service names. Point `TIKTOK_DATABASE_URL` and `TIKTOK_REDIS_URL` at reachable addresses, see [Local development](#local-development-watch-mode-on-the-host). |
-| API or worker exits at start | The message names the variable. In production: a `change-me` secret, `CORS_ORIGINS=*`, or real Bitrix24 mode with neither `TIKTOK_BITRIX24_WEBHOOK_URL` nor a complete OAuth application; on any start: a database first used with another advertiser, portal or mode. |
-| `/health/ready` answers 503 | The body names the failed check (`database`, `schema`, `redis`, `worker`). `schema` means migrations have not been applied. |
-| Export answers 422 `EXPORT_REQUIRES_ASYNC` | More than 10,000 leads: use `POST /api/v1/reports/exports` and download the job. |
+| Webhook trả 401 | Sai `TIKTOK_WEBHOOK_SECRET`, chữ ký cũ hơn năm phút, hoặc body bị đổi. Định dạng: `t=<unix>,s=<hex HMAC-SHA256 của "<t>.<raw body>">`. |
+| Webhook trả 400 | Thiếu `event_id`, `event`, `advertiser_id` hoặc `timestamp`, hoặc `lead.generate` thiếu campaign ID, form ID hay `lead_data`. |
+| Webhook trả 403 | `advertiser_id` khác `TIKTOK_ADVERTISER_ID`. |
+| Webhook được nhận nhưng không có lead | Worker không chạy, hoặc sự kiện bị giữ lại: `GET /api/v1/operations?status=quarantined`. |
+| Lead đứng ở `pending` | Lệnh gọi Bitrix24 được giãn một request mỗi giây; xem `/health` và `?status=retry_wait`. |
+| Mọi lệnh gọi Bitrix24 lỗi 403 `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` | Portal không có quyền REST. Xem [Tài khoản dùng thử Bitrix24](#tài-khoản-dùng-thử-bitrix24-và-quyền-rest). |
+| `PUT /api/v1/config/*` trả 428 hoặc 409 | Thiếu `If-Match` hoặc revision cũ: đọc lại tài nguyên và gửi `ETag` của nó. |
+| `PUT /api/v1/config/*` trả 400 `simple CRM mode`, hoặc lead lỗi `CRM_SIMPLE_MODE_UNSUPPORTED` | Chuyển portal sang CRM cổ điển (CRM > Cài đặt > Chế độ CRM), rồi retry operation. |
+| `PUT /api/v1/config/mappings` trả 400 | Trường đích không tồn tại trên portal, hoặc đường dẫn nguồn không được hỗ trợ. |
+| Không nhận được sự kiện Deal sau khi cài OAuth | `TIKTOK_PUBLIC_URL` trống hoặc Bitrix24 không gọi tới được. Đặt lại rồi cài lại ứng dụng. |
+| Deal không có xác suất hoặc sai stage của rule | Bitrix24 tự tạo Deal đó ở chế độ CRM đơn giản. |
+| Khởi động lỗi, mọi biến `received undefined` | Chưa nạp `.env`. Chỉ `pnpm start:tiktok:dev` tự nạp; lệnh khác cần `set -a; . ./.env; set +a`. |
+| Khởi động lỗi `ENOTFOUND postgres` hoặc `redis` | Máy host không phân giải được tên service của Compose. Xem [Phát triển trên máy](#phát-triển-trên-máy). |
+| API hoặc worker thoát khi khởi động | Thông báo nêu tên biến; hoặc database đã dùng với advertiser, portal hay chế độ khác. |
+| `/health/ready` trả 503 | Body nêu tên kiểm tra bị lỗi. `schema` nghĩa là chưa chạy migration. |
+| Export trả 422 `EXPORT_REQUIRES_ASYNC` | Hơn 10.000 lead: dùng `POST /api/v1/reports/exports`. |
 
-Every error has the same shape: `{ statusCode, error, message, path, timestamp }`, plus `code` when
-the failure has a stable reason.
+Mọi lỗi có cùng dạng: `{ statusCode, error, message, path, timestamp }`, thêm `code` khi nguyên
+nhân có mã ổn định.
 
-## Technical decisions
+## Quyết định kỹ thuật
 
-- **Acknowledge after commit, work later.** The webhook handler only verifies, stores and returns.
-  The event, its operation and an outbox row are written in one transaction, so a crash or a Redis
-  outage can delay a lead but cannot lose or duplicate it.
-- **PostgreSQL is the source of truth, BullMQ is transport.** A job carries only an operation ID.
-  The operation row holds status, attempt and lease; a sweeper re-dispatches work whose job was
-  lost and recovers operations whose worker died.
-- **Idempotency at every boundary.** Events are deduplicated by event key and content hash, leads
-  by normalized email and phone, remote records by a marker written to Bitrix24. A create that
-  timed out is looked up by its marker and never repeated without an operator's confirmation.
-- **One retry budget.** Five attempts with exponential backoff and jitter for thrown and reported
-  failures alike, then a dead letter and a notification. Waiting for a busy lead does not count.
-- **Conversion as a saga.** Bitrix24 has no single "convert lead" call, so the steps (claim,
-  create deal, complete lead, feedback) are stored one by one and resumed where they stopped.
-- **Versioned configuration.** Mapping and rules are documents with revisions and `If-Match`; an
-  operation keeps the revisions it started with, so a retry behaves like the first attempt.
-- **Rules are data.** A small JSON DSL over an allow-list of fields; the assignment's condition
-  string is parsed by a fixed grammar and never evaluated.
-- **Money and time.** Decimal arithmetic, half-open intervals, the advertiser's time zone; a
-  missing cost day makes cost per lead and ROI `null` rather than wrong.
-- **Rate limits** in Redis for callers, and a cross-process pacer for calls to Bitrix24.
-- **TypeORM with migrations** rather than `synchronize`, and a separate PostgreSQL database from
-  the AASC app's SQLite, so neither app can affect the other.
+- **Trả lời sau khi commit.** Sự kiện, operation và dòng outbox được ghi trong một transaction, nên
+  crash hay Redis ngừng chỉ làm lead chậm, không làm mất hay trùng.
+- **PostgreSQL là nguồn dữ liệu gốc; BullMQ chỉ vận chuyển.** Job chỉ mang ID của operation. Một
+  sweeper đẩy lại job bị mất và khôi phục operation có worker đã chết.
+- **Idempotent ở mọi ranh giới.** Sự kiện theo key và hash nội dung, lead theo email và phone đã
+  chuẩn hoá, bản ghi từ xa theo marker. Lệnh tạo bị timeout được tra lại, không gửi lại.
+- **Một ngân sách retry.** Năm lần với backoff luỹ thừa và jitter, sau đó vào dead letter.
+- **Chuyển đổi là một saga.** Bitrix24 không có lệnh "convert lead" duy nhất, nên từng bước được
+  lưu và chạy tiếp từ chỗ dừng.
+- **Cấu hình có phiên bản.** Operation giữ revision của mapping và rule từ lúc bắt đầu.
+- **Rule là dữ liệu.** Một DSL JSON trên danh sách trường cho phép; chuỗi điều kiện của đề được
+  phân tích bằng ngữ pháp cố định, không bao giờ được thực thi.
+- **Tiền và thời gian.** Số thập phân, khoảng nửa mở, múi giờ của advertiser. Thiếu chi phí một
+  ngày thì cost per lead và ROI là `null`.
+- **Rate limit** trong Redis cho phía gọi, và một bộ giãn nhịp dùng chung giữa các tiến trình cho
+  lệnh gọi Bitrix24.
+- **Database riêng.** PostgreSQL với migration, tách khỏi SQLite của ứng dụng AASC.
 
-## Improvements for a production deployment
+## Cải tiến cho môi trường production
 
-- Verify on a live portal the three changes made after the last live run: registration of the
-  deal events after an OAuth installation, the probability written back for a closed deal, and the
-  quarantine of a lead on a portal in simple CRM mode. They are covered by unit tests only.
-- Verify a portal with several pipelines.
-- Add the real TikTok adapters once a Business account is available: webhook subscription and
-  signature as TikTok defines them, lead retrieval, reporting for campaign cost, and the Events
-  API for conversion feedback.
-- Terminate TLS at a reverse proxy, keep secrets in a secret manager instead of an env file, scan
-  the image in CI, and let a bot keep the pinned image digests current. Tune the memory limits to
-  the real load; CPU limits are not set.
-- Run PostgreSQL and Redis as managed services with backups and point-in-time recovery; today the
-  runbook covers `pg_dump` only.
-- Export metrics (queue depth, operation age, failure rate) and traces instead of relying on
-  `/health` and logs; alert on dead letters and on the oldest pending operation.
-- Scale workers horizontally: operations are leased and schedules take an advisory lock, but this
-  has only been exercised with a few local processes.
-- A Bitrix24 chat or e-mail channel for notifications; they are in-app and in the log today.
+- Chạy ba thay đổi chưa kiểm và một portal nhiều pipeline trên portal thật khi có quyền REST.
+- Thêm adapter TikTok thật: chữ ký webhook theo định nghĩa của TikTok, lấy lead, báo cáo chi phí
+  campaign, Events API.
+- Kết thúc TLS ở reverse proxy, giữ secret trong secret manager, quét image trong CI.
+- Dùng PostgreSQL và Redis dạng managed có point-in-time recovery; runbook hiện chỉ có `pg_dump`.
+- Xuất metric và trace; cảnh báo theo dead letter và operation chờ lâu nhất.
+- Thử mở rộng worker theo chiều ngang ngoài vài tiến trình trên một máy.
+- Thêm kênh thông báo qua chat Bitrix24 hoặc email.
 
-## Limits of this delivery
+## Giới hạn của bản nộp
 
-- Only **mock** TikTok mode is active. The real TikTok Business API (lead retrieval, reporting,
-  conversion events) is not enabled: it needs an authorised account and a verified contract. Until
-  then campaign cost comes from CSV import and conversion feedback is only sent to the mock.
-- Bitrix24 **real** mode is verified on two cloud portals, through an incoming webhook and through
-  an OAuth application, including deal events delivered by Bitrix24 itself. Not verified: a portal
-  with several pipelines, because the plan of both portals allows the default pipeline only
-  (`crm.category.add` is refused). The OAuth runs used `NODE_ENV=development`; in production the
-  start-up check accepts the OAuth path when `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET` and
-  `BITRIX24_DOMAIN` are set.
-- The portal must be in classic CRM mode. The mode is checked when configuration is stored and
-  before a lead is created; classic mode is remembered for five minutes, so a lead created within
-  five minutes of a switch to simple mode is still converted by Bitrix24 itself.
-- The Bitrix24 notification channel is a port without an adapter; notifications are in-app and in
-  the operational log.
-- The demo accounts and the mock server are for local use. The seed refuses to run with
-  `NODE_ENV=production` or outside mock mode; never expose port 3002.
+- TikTok chỉ có mock. Chi phí campaign lấy từ import CSV; conversion feedback gửi tới mock.
+- Việc kiểm tra trên Bitrix24 thật dừng lại khi các portal dùng thử mất quyền REST; xem
+  [Tài khoản dùng thử Bitrix24](#tài-khoản-dùng-thử-bitrix24-và-quyền-rest) để biết phần đã và
+  chưa kiểm.
+- Các lần chạy OAuth dùng `NODE_ENV=development`. Ở production, kiểm tra lúc khởi động chấp nhận
+  OAuth khi có đủ `BITRIX24_CLIENT_ID`, `BITRIX24_CLIENT_SECRET` và `BITRIX24_DOMAIN`.
+- Chế độ CRM được kiểm khi lưu cấu hình và trước khi tạo lead. Chế độ cổ điển được nhớ năm phút.
+- Thông báo chỉ có trong ứng dụng và trong log.
+- Tài khoản demo và mock server chỉ dùng trên máy; không bao giờ mở cổng 3002 ra ngoài.
