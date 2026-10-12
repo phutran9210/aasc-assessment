@@ -6,7 +6,7 @@ nhưng chạy riêng: mỗi ứng dụng có cổng, cơ sở dữ liệu, Docke
 | Ứng dụng                          | Đề bài                                                                                    | Cổng | Lưu trữ                    | Tài liệu chi tiết                                                                                                            |
 | --------------------------------- | ----------------------------------------------------------------------------------------- | ---- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | **TikTok – Bitrix24 integration** | Tích hợp TikTok Lead Generation với Bitrix24 CRM                                          | 3001 | PostgreSQL, Redis (BullMQ) | [`README-tiktok.md`](README-tiktok.md), [`huong-dan/tiktok-bitrix24.md`](huong-dan/tiktok-bitrix24.md)                       |
-| **AASC assessment app**           | Tư duy lập trình, API cơ bản (OAuth Bitrix24, Contact), Jotform, Google Sheets → Bitrix24 | 3000 | SQLite                     | [`Readme.txt`](Readme.txt), [`huong-dan/huong-dan-tich-hop-google-sheets.md`](huong-dan/huong-dan-tich-hop-google-sheets.md) |
+| **AASC assessment app**           | Tư duy lập trình, API cơ bản (OAuth Bitrix24, Contact), Jotform, Google Sheets → Bitrix24 | 3000 | SQLite                     | [`Readme.txt`](Readme.txt), [`README-google-sheets.md`](README-google-sheets.md), [`huong-dan/huong-dan-tich-hop-google-sheets.md`](huong-dan/huong-dan-tich-hop-google-sheets.md) |
 
 File này là trang vào của repository. Hướng dẫn đầy đủ (kiến trúc, cấu hình, vận hành, xử lý sự
 cố) nằm trong các tài liệu ở cột cuối.
@@ -123,6 +123,9 @@ pnpm start:dev              # http://localhost:3000, Swagger tại /docs
 
 Hoặc bằng Docker: `make docker-up`. Hướng dẫn cài đặt, cấu hình ngrok/Bitrix24/Jotform và kết quả
 test nằm trong [`Readme.txt`](Readme.txt).
+
+Phần đồng bộ lead Google Sheets – Bitrix24 (kiến trúc, cấu hình, hai chiều, kết quả chạy trên hệ
+thống thật) có tài liệu riêng: [`README-google-sheets.md`](README-google-sheets.md).
 
 ## Kiểm tra mã nguồn
 
