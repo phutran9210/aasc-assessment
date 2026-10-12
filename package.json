@@ -27,6 +27,7 @@
     "start:tiktok:dev": "nest start --config nest-cli.tiktok.json --watch --env-file .env",
     "start:tiktok:prod": "node dist-tiktok/apps/tiktok/main.js",
     "start:tiktok:worker": "node dist-tiktok/apps/tiktok/worker.js",
+    "dev:proxy": "node scripts/dev-proxy/proxy.js",
     "db:seed": "nest build && node dist/core/database/seed/index.js",
     "sync:leads": "nest build && node dist/cli/lead-sync.js",
     "seed:leads": "nest build && node dist/cli/lead-sheet-seed.js",
