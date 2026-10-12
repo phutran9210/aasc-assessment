@@ -88,11 +88,11 @@ Kết quả lần chạy ngày 2026-10-12:
 | Chỉ số     | Kết quả         |
 | ---------- | --------------- |
 | Test suite | 225 / 225 đạt   |
-| Test       | 1935 / 1935 đạt |
-| Statements | 96,72 %         |
-| Branches   | 88,60 %         |
-| Functions  | 93,69 %         |
-| Lines      | 97,73 %         |
+| Test       | 1937 / 1937 đạt |
+| Statements | 96,73 %         |
+| Branches   | 88,61 %         |
+| Functions  | 93,70 %         |
+| Lines      | 97,74 %         |
 
 Phạm vi tính coverage được khai báo trong
 [`test/tiktok/coverage-scope.mjs`](test/tiktok/coverage-scope.mjs).
@@ -104,6 +104,9 @@ Phạm vi tính coverage được khai báo trong
 - Bitrix24 thật đã được kiểm qua incoming webhook và qua ứng dụng OAuth (cài đặt, làm mới token,
   sự kiện Deal do portal tự gửi; lần chạy ngày 2026-10-12). Chưa kiểm được portal nhiều pipeline
   vì gói của portal thử chỉ cho một pipeline.
+- Portal Bitrix24 phải ở chế độ CRM cổ điển (có Lead). Ở chế độ CRM đơn giản, Bitrix24 tự chuyển
+  Lead thành Deal nên Deal không mang pipeline, stage và xác suất của rule; ứng dụng từ chối lưu
+  cấu hình cho portal như vậy.
 
 Chi tiết ở mục [Limits of this delivery](README-tiktok.md#limits-of-this-delivery).
 
