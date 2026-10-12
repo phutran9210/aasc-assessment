@@ -44,6 +44,7 @@ function setup() {
   };
   const gateway = {
     getDeal: jest.fn().mockResolvedValue(remote),
+    updateDeal: jest.fn().mockResolvedValue(remote),
     metadata: jest.fn().mockResolvedValue({
       stages: [
         { id: 'C1:NEW', categoryId: 1, semantic: null },
@@ -192,6 +193,50 @@ describe('DealRefreshService', () => {
       probability: 0,
     });
     expect(lost.feedback.schedule).not.toHaveBeenCalled();
+  });
+
+  it('corrects the probability on the portal when a closed deal still shows another value', async () => {
+    const won = setup();
+    won.remote.fields.stageId = 'C1:WON';
+    won.remote.fields.probability = 30;
+    await expect(won.service.refresh('42', won.context as never)).resolves.toMatchObject({
+      outcome: 'succeeded',
+    });
+    expect(won.gateway.updateDeal).toHaveBeenCalledWith('42', { probability: 100 });
+
+    const lost = setup();
+    lost.remote.fields.stageId = 'C1:LOST';
+    lost.remote.fields.probability = 30;
+    await lost.service.refresh('42', lost.context as never);
+    expect(lost.gateway.updateDeal).toHaveBeenCalledWith('42', { probability: 0 });
+  });
+
+  it('leaves the portal alone when the probability is already right or the deal is open', async () => {
+    const corrected = setup();
+    corrected.remote.fields.stageId = 'C1:WON';
+    corrected.remote.fields.probability = 100;
+    await corrected.service.refresh('42', corrected.context as never);
+    expect(corrected.gateway.updateDeal).not.toHaveBeenCalled();
+
+    const open = setup();
+    await open.service.refresh('42', open.context as never);
+    expect(open.gateway.updateDeal).not.toHaveBeenCalled();
+  });
+
+  it('keeps the same snapshot hash for a closed deal before and after the correction', async () => {
+    const before = setup();
+    before.remote.fields.stageId = 'C1:WON';
+    before.remote.fields.probability = 30;
+    await before.service.refresh('42', before.context as never);
+
+    const after = setup();
+    after.remote.fields.stageId = 'C1:WON';
+    after.remote.fields.probability = 100;
+    await after.service.refresh('42', after.context as never);
+
+    const hashOf = (run: ReturnType<typeof setup>) =>
+      (run.deals.update.mock.calls[0]?.[1] as { currentSnapshotHash: string }).currentSnapshotHash;
+    expect(hashOf(before)).toBe(hashOf(after));
   });
 
   it('refreshes a won deal when no feedback scheduler is installed', async () => {

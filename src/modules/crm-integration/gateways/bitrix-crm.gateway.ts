@@ -241,6 +241,16 @@ export class BitrixCrmGateway implements CrmGateway {
     return deal;
   }
 
+  async updateDeal(id: ExternalId, fields: Record<string, unknown>): Promise<RemoteDeal> {
+    const response = await this.call('crm.item.update', {
+      entityTypeId: DEAL_TYPE_ID,
+      id,
+      fields,
+      ...ORIGINAL_NAMES,
+    });
+    return this.parseDeal(this.record(response).item ?? response);
+  }
+
   async completeLead(id: ExternalId, stage: string): Promise<RemoteLead> {
     // In `crm.item` the lead status is the item's stage.
     return this.updateLead(id, { stageId: stage });

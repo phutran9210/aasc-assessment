@@ -160,6 +160,16 @@ export class DealRefreshService {
         if (event) await this.webhookEvents.updateStatus(event.id, 'processed', manager);
         return true;
       });
+      // Bitrix24 keeps the probability of the last open stage on a closed deal. Correct it there,
+      // so the portal and this app report the same value; the update comes back as an event whose
+      // snapshot equals the stored one.
+      if (
+        snapshot.stageSemantics !== 'open' &&
+        snapshot.remoteProbability !== snapshot.probability
+      ) {
+        await context.assertOwnership();
+        await this.gateway.updateDeal(remote.id, { probability: snapshot.probability });
+      }
       return { outcome: 'succeeded', remoteId: changed ? remote.id : remoteId };
     } catch {
       return {
@@ -204,9 +214,11 @@ export class DealRefreshService {
     const amount = decimal(fields.opportunity ?? fields.OPPORTUNITY);
     const currency = text(fields.currencyId ?? fields.CURRENCY_ID);
     const assignedTo = text(fields.assignedById ?? fields.ASSIGNED_BY_ID) ?? null;
+    const remoteProbability = integer(fields.probability ?? fields.PROBABILITY, 0, 100);
+    // A closed stage fixes the probability, whatever the portal still shows; this also keeps the
+    // hash stable when the portal's value is corrected afterwards.
     const probability =
-      integer(fields.probability ?? fields.PROBABILITY, 0, 100) ??
-      (stageSemantics === 'won' ? 100 : stageSemantics === 'lost' ? 0 : 0);
+      stageSemantics === 'won' ? 100 : stageSemantics === 'lost' ? 0 : (remoteProbability ?? 0);
     const content = {
       remoteId: remote.id,
       title: remote.title,
@@ -228,6 +240,7 @@ export class DealRefreshService {
       currency,
       assignedTo,
       probability,
+      remoteProbability,
       hash,
     };
   }
