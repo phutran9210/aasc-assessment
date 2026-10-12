@@ -6,7 +6,7 @@ Bitrix24 được ghi ngược về Sheet. Đây là một module của ứng d�
 ra `dist/`. Ứng dụng TikTok (cổng 3001) tách biệt.
 
 Hướng dẫn từng bước: [`huong-dan/huong-dan-tich-hop-google-sheets.md`](huong-dan/huong-dan-tich-hop-google-sheets.md).
-Video demo (3 phút 14 giây): [`huong-dan/huong-dan-lead-sync.mp4`](huong-dan/huong-dan-lead-sync.mp4).
+Video demo (3 phút 13 giây): [`huong-dan/huong-dan-lead-sync.mp4`](huong-dan/huong-dan-lead-sync.mp4).
 
 Google Sheets và Bitrix24 đều là hệ thống thật; không có mock ngoài các test tự động.
 

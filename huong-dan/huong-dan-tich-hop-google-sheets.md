@@ -2,19 +2,18 @@
 
 Tài liệu dành cho người cài đặt và vận hành. Các mục 2 đến 8 đi theo thứ tự công việc: thiết lập Google, thiết lập Bitrix24, cấu hình, chạy, đồng bộ hai chiều, xử lý sự cố, giám sát.
 
-Video đi kèm: [`huong-dan-lead-sync.mp4`](huong-dan-lead-sync.mp4) (3 phút 14 giây, có phụ đề từng bước). Video quay trang quản trị; thao tác trên Google Sheet và Bitrix24 được thực hiện ngoài khung hình và nêu trong phụ đề.
+Video đi kèm: [`huong-dan-lead-sync.mp4`](huong-dan-lead-sync.mp4) (3 phút 13 giây, có phụ đề từng bước), quay ngày 12/10/2026 trên một Google Sheet thật và một portal Bitrix24 dùng thử. Video ghi trang quản trị, xen ảnh chụp Google Sheets và Bitrix24 ở từng bước; thao tác trên Sheet được thực hiện ngoài khung hình.
 
-| Bước  | Nội dung trong video                                         |
-| ----- | ------------------------------------------------------------ |
-| 1–2   | Đăng nhập và mở trang quản trị                               |
-| 3     | Trang Tổng quan: kết nối, lịch, bộ đếm của lần chạy gần nhất |
-| 4     | Chạy thử                                                     |
-| 5     | Sửa một ô trong Sheet rồi chạy đồng bộ                       |
-| 6–7   | Lịch sử đồng bộ, chi tiết một lần chạy, phân trang           |
-| 8     | Lần chạy 500 hàng                                            |
-| 9     | Hai chiều: đổi giai đoạn trong Bitrix24, Sheet đổi theo      |
-| 10    | Lead tạo trong Bitrix24 thành hàng mới                       |
-| 11–12 | Xem mapping, sửa mapping, mapping sai bị từ chối             |
+| Bước  | Nội dung trong video                                                                 |
+| ----- | ------------------------------------------------------------------------------------ |
+| 1–2   | Đăng nhập và mở trang quản trị: kết nối, lịch, bộ đếm của lần chạy gần nhất          |
+| 3     | Hai hàng mới trong Sheet; một lead nhập tay trong Bitrix24 lưu số dạng `09…`         |
+| 4–5   | Chạy thử, rồi chạy đồng bộ: 1 lead tạo mới, 1 lead trùng số điện thoại được cập nhật |
+| 6     | Kết quả trên Bitrix24 và trong Sheet (trạng thái, Lead ID, hàng lỗi)                 |
+| 7–8   | Sửa một ô trong Sheet rồi chạy lại; chạy lần nữa khi không có gì đổi                 |
+| 9     | Lịch sử đồng bộ và chi tiết một lần chạy                                             |
+| 10–12 | Hai chiều: đổi giai đoạn trong Bitrix24, lần chạy do sự kiện, Sheet đổi theo         |
+| 13    | Xem mapping, sửa mapping, mapping sai bị từ chối                                     |
 
 ## 1. Tổng quan
 
