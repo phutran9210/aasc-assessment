@@ -18,10 +18,14 @@ import {
   Roles,
 } from '@modules/integration-auth/index.js';
 import { IngressRateLimitGuard } from '@core/queue/guards/ingress-rate-limit.guard.js';
+import { BitrixDealEventRegistrar } from '../services/bitrix-deal-event-registrar.service.js';
 
 @Controller('install')
 export class TiktokBitrixInstallController {
-  constructor(private readonly oauthService: BitrixOAuthService) {}
+  constructor(
+    private readonly oauthService: BitrixOAuthService,
+    private readonly dealEvents: BitrixDealEventRegistrar,
+  ) {}
 
   @Get('authorize')
   @UseGuards(IntegrationJwtGuard, IntegrationRolesGuard)
@@ -37,6 +41,7 @@ export class TiktokBitrixInstallController {
     @Query('state') state?: string,
   ): Promise<{ status: string }> {
     await this.oauthService.completeAuthorization(code, state);
+    await this.dealEvents.register();
     return { status: 'ok' };
   }
 
@@ -45,6 +50,7 @@ export class TiktokBitrixInstallController {
   @UseGuards(IngressRateLimitGuard)
   async install(@Body() body: Record<string, unknown>): Promise<{ status: string }> {
     await this.oauthService.install(body);
+    await this.dealEvents.register();
     return { status: 'ok' };
   }
 }

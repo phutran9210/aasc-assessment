@@ -16,6 +16,7 @@ import { BITRIX_OAUTH_STATE_STORE } from '@modules/bitrix/ports/bitrix-oauth-sta
 import { BITRIX_REQUEST_LIMITER } from '@modules/bitrix/ports/bitrix-request-limiter.port.js';
 import { BitrixInstallationEntity } from './entities/bitrix-installation.entity.js';
 import { TiktokBitrixInstallController } from './controllers/bitrix-install.controller.js';
+import { BitrixDealEventRegistrar } from './services/bitrix-deal-event-registrar.service.js';
 import {
   RedisBitrixLimiter,
   type RedisBitrixLimiterOptions,
@@ -82,7 +83,10 @@ export class BitrixAdapterModule {
         }),
       ],
       controllers: [TiktokBitrixInstallController],
-      providers: [{ provide: BITRIX_ADAPTER_CONFIG, useValue: config.bitrix }],
+      providers: [
+        { provide: BITRIX_ADAPTER_CONFIG, useValue: config.bitrix },
+        BitrixDealEventRegistrar,
+      ],
       exports: [BitrixCoreModule],
     };
   }

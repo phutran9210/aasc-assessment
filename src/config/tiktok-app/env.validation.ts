@@ -34,6 +34,8 @@ const schema = z
     BITRIX24_CLIENT_ID: z.preprocess(blankAsUnset, z.string().trim().optional()),
     BITRIX24_CLIENT_SECRET: z.preprocess(blankAsUnset, z.string().trim().optional()),
     BITRIX24_DOMAIN: z.preprocess(blankAsUnset, z.string().trim().optional()),
+    // Public base URL of this API, where Bitrix24 delivers the deal events of the OAuth application.
+    TIKTOK_PUBLIC_URL: z.preprocess(blankAsUnset, z.url().optional()),
     DEFAULT_PHONE_REGION: z.string().length(2).default('VN'),
     REPORT_TIMEZONE: z.string().default('Asia/Ho_Chi_Minh'),
     INTEGRATION_QUEUE_PREFIX: z.string().trim().min(1).default('aasc-tiktok'),
@@ -130,6 +132,7 @@ export type TiktokAppConfig = {
   bitrixMockEventSecret: string;
   bitrixOutgoingEventToken?: string;
   bitrixWebhookUrl?: string;
+  publicUrl?: string;
   defaultPhoneRegion: string;
   reportTimezone: string;
   queuePrefix: string;
@@ -172,6 +175,7 @@ export function validateTiktokEnv(raw: Record<string, unknown>): TiktokAppConfig
     bitrixMockEventSecret: env.BITRIX_MOCK_EVENT_SECRET,
     bitrixOutgoingEventToken: env.TIKTOK_BITRIX24_OUTGOING_TOKEN,
     bitrixWebhookUrl: env.TIKTOK_BITRIX24_WEBHOOK_URL,
+    publicUrl: env.TIKTOK_PUBLIC_URL,
     defaultPhoneRegion: env.DEFAULT_PHONE_REGION,
     reportTimezone: env.REPORT_TIMEZONE,
     queuePrefix: env.INTEGRATION_QUEUE_PREFIX,
