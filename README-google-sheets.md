@@ -491,5 +491,3 @@ Kết quả ngày 2026-10-12 cho `src/modules/lead-sync/`, `src/modules/google-s
 - Khoá một-lần-chạy nằm trong SQLite: server và CLI phải dùng chung file dữ liệu. Nhiều container
   với volume riêng không được hỗ trợ.
 - Trong Docker, `./config` chỉ đọc nên trang quản trị không lưu được mapping.
-- Ô "Kết nối Bitrix24" của trang quản trị hiện nguyên văn thông báo lỗi tiếng Anh của Bitrix24;
-  lý do dừng của lần chạy thì đã được dịch.

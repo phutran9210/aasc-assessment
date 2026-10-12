@@ -161,6 +161,8 @@ Mỗi phần tử của `fields` nối một cột với một trường lead:
 
 Ô email hoặc số điện thoại nhận nhiều giá trị, ngăn bằng dấu phẩy, chấm phẩy hoặc xuống dòng. Giá trị đầu là khóa chống trùng; các giá trị sau được thêm vào lead, không thay giá trị lead đã có.
 
+Khi tìm lead trùng, số điện thoại được tra theo ba cách viết: `+84901234567`, `84901234567` và `0901234567`. Lead nhập tay trong Bitrix24 dạng `0901 234 567` vì vậy vẫn được nhận ra và cập nhật, không bị tạo trùng.
+
 Các khóa khác:
 
 - `titleTemplate`: mẫu tiêu đề lead, ví dụ `{Tên khách hàng} - {Công ty}`.
@@ -380,6 +382,21 @@ Không gặp rate limit trong các lần chạy trên. Việc thử lại khi g�
 
 Quan sát về Bitrix24: sau khoảng 900 lời gọi trong vài giây, portal trả `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` cho mọi lời gọi trong khoảng 20 phút rồi tự hoạt động lại. Tài liệu của Bitrix24 không mô tả cơ chế này.
 
+### Đợt chạy ngày 12/10/2026
+
+Chạy lại trên một portal dùng thử mới (ứng dụng cài qua OAuth, quyền `crm` và `user`) với Google OAuth, từ mã nguồn và trên image Docker với `NODE_ENV=production`.
+
+| Kịch bản                    | Kết quả                                                                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| TC1 đến TC4, chạy lại       | Đạt trên cả hai bản, gồm thao tác tay trên giao diện Google Sheets, trang quản trị và Bitrix24                                                 |
+| Trùng số điện thoại         | Lead nhập tay dạng `0966 444 333` lần đầu không được nhận ra và một lead trùng bị tạo. Sau khi sửa, lead nhập tay `0955 333 222` được cập nhật |
+| Hiệu năng 150 hàng          | 150 lead trong 27,3 giây, không lần thử lại nào. Chạy lại: 4,8 giây                                                                            |
+| Hai chiều                   | Hàng đổi giai đoạn sau khoảng 2 giây; lead tạo trong Bitrix24 thành hàng mới; 125 sự kiện do lần chạy 150 hàng sinh ra không gây ghi nào       |
+| Docker production           | Container user 1000, filesystem chỉ đọc, healthcheck đạt; lệnh seed bị từ chối                                                                 |
+| Portal khóa REST giữa chừng | Mọi lời gọi nhận `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` trong khoảng 20 phút; lần chạy dừng với lý do tiếng Việt, không ghi gì vào Sheet      |
+
+Chi tiết: [`README-google-sheets.md`](../README-google-sheets.md).
+
 Kiểm thử tự động: `pnpm check` chạy lint, kiểm tra kiểu, unit test và e2e. `pnpm test:cov` áp ngưỡng 70% cho `lead-sync` và `google-sheets`.
 
 ## 10. Giới hạn
@@ -387,6 +404,7 @@ Kiểm thử tự động: `pnpm check` chạy lint, kiểm tra kiểu, unit tes
 - Chiều về không gồm email, số điện thoại, ngày tháng và tiêu đề lead.
 - Lead tạo trong Bitrix24 lúc ứng dụng không nhận được sự kiện không được thêm vào Sheet về sau; kéo tay chỉ cập nhật hàng đã liên kết.
 - Chưa biết `crm.duplicate.findbycomm` có trả lead đã chuyển đổi hoặc đã xóa hay không.
+- Tìm trùng theo số điện thoại chỉ suy ra dạng nội địa cho `VN`, `US`, `SG`; số của nước khác chỉ được tìm ở dạng có và không có dấu `+`.
 - Khóa một-lần-chạy nằm trong SQLite: server và CLI phải dùng chung file dữ liệu. Nhiều container với volume riêng không được hỗ trợ.
 
 ## 11. Tham khảo trong repo
@@ -401,3 +419,4 @@ Kiểm thử tự động: `pnpm check` chạy lint, kiểm tra kiểu, unit tes
 | Mapping mặc định                                 | `config/mapping.json`                                                         |
 | Dữ liệu mẫu                                      | `samples/leads-template.csv`, `samples/leads-150.csv`                         |
 | Bản rút gọn                                      | `Readme.txt`, mục 15                                                          |
+| Tổng quan, đối chiếu đề bài                      | `README-google-sheets.md`                                                     |

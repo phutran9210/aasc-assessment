@@ -936,6 +936,10 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
 
       - Hàng chưa có Lead ID luôn được tìm trùng trước (crm.duplicate.findbycomm theo
         email, rồi số điện thoại). Tìm thấy thì cập nhật lead đó, không thì tạo mới.
+      - Số điện thoại được tìm theo ba cách viết trong cùng một lệnh: +84901234567,
+        84901234567 và 0901234567. Bitrix24 so khớp theo chuỗi đã lưu, nên lead nhập tay
+        dạng "0901 234 567" chỉ được nhận ra khi tìm đúng cách viết đó. Dạng nội địa được
+        suy ra cho VN, US và SG.
       - Hàng đã có Lead ID chỉ được gửi lại khi nội dung đổi (so Sync Hash).
       - Hai hàng trỏ tới cùng một lead: hàng trên được xử lý, hàng dưới nhận
         "Trùng với hàng N".
@@ -1082,6 +1086,29 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       khoảng 20 phút rồi tự hoạt động lại. Lỗi này vì vậy có thể là khóa tạm thời, không
       nhất thiết do gói dịch vụ.
 
+      Đợt chạy ngày 12/10/2026, trên một portal dùng thử mới (ứng dụng cài qua OAuth, quyền
+      crm và user) và Google OAuth, chạy từ mã nguồn rồi chạy lại trên image Docker với
+      NODE_ENV=production:
+
+        TC1-TC4            Đạt trên cả hai bản, gồm cả thao tác tay trên giao diện Google
+                           Sheets, trang quản trị và Bitrix24.
+        TC3 Trùng số ĐT    Lead nhập tay dạng "0966 444 333": lần đầu KHÔNG được nhận ra và
+                           một lead trùng bị tạo. Đã sửa (tìm theo ba cách viết); sau khi
+                           sửa, lead nhập tay "0955 333 222" được cập nhật, không tạo mới.
+        Hiệu năng          150 hàng mới: created=150 trong 27,3 giây, 0 lần thử lại. Chạy
+                           lại: skipped trong 4,8 giây.
+        Hai chiều          Đổi giai đoạn trong Bitrix24: hàng đổi theo sau khoảng 2 giây.
+                           Lead tạo trong Bitrix24 thành hàng mới. 125 sự kiện do lần chạy
+                           150 hàng sinh ra đều bị bỏ qua, không dội ngược.
+        Docker production  Container user 1000, filesystem chỉ đọc, healthcheck đạt; seed bị
+                           từ chối đúng thiết kế.
+        Khóa REST          Sau vài trăm lệnh trong một giờ, portal trả
+                           FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN khoảng 20 phút, tới khi bản
+                           dùng thử được kích hoạt lại. Lần chạy dừng với lý do tiếng Việt,
+                           không ghi gì vào Sheet.
+
+      Chi tiết đợt chạy này: README-google-sheets.md.
+
       Hai điều rút ra khi chạy thật:
         - Portal Bitrix24 mới mặc định ở chế độ CRM đơn giản (không dùng Lead): lead vừa tạo
           bị tự chuyển thành Deal và Contact, mất giai đoạn. Ứng dụng kiểm tra chế độ này
@@ -1092,3 +1119,4 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       Video demo (3 phút 14 giây, có phụ đề từng bước): huong-dan/huong-dan-lead-sync.mp4
       https://github.com/phutran9210/aasc-assessment/blob/main/huong-dan/huong-dan-lead-sync.mp4
       Tài liệu hướng dẫn chi tiết: huong-dan/huong-dan-tich-hop-google-sheets.md
+      Tổng quan kiến trúc và đối chiếu đề bài: README-google-sheets.md
