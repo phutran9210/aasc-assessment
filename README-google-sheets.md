@@ -377,7 +377,7 @@ Container trong đợt này dùng chung file SQLite với bản chạy từ mã 
 của portal. Với volume riêng của `docker-compose.yml`, cần cài lại ứng dụng hoặc dùng incoming
 webhook.
 
-Kết thúc đợt chạy: 182 lead trên portal, 178 hàng mang Lead ID, không ID nào trùng nhau. Bốn lead
+Cuối đợt chạy, trước khi dọn: 182 lead trên portal, 178 hàng mang Lead ID, không ID nào trùng nhau. Bốn lead
 chênh lệch là các lead tạo tay để thử trùng lặp.
 
 Trong đợt chạy, portal trả `FEATURE_NOT_AVAILABLE_ON_CURRENT_PLAN` cho mọi method trong khoảng 20
@@ -385,9 +385,13 @@ phút, sau vài trăm lời gọi trong một giờ, và hoạt động lại sa
 lại. Các lần chạy trong lúc đó dừng với lý do nêu trên; các hàng chưa xử lý được đồng bộ ở lần
 chạy kế tiếp.
 
-Chưa kiểm trên hệ thống thật: thử lại khi gặp rate limit hoặc timeout (không lần chạy nào gặp),
-và `pnpm seed:leads --clear`. Hai nhánh này có test tự động. Kết quả các đợt chạy trước (500 hàng,
-service account, incoming webhook, custom field) nằm ở mục 9 của hướng dẫn.
+Sau đợt chạy, `pnpm seed:leads --clear` xoá đúng 150 hàng thử và 150 lead tương ứng; các hàng và
+lead thử còn lại được xoá tay. Sheet và portal trở về 9 hàng mẫu với 8 lead, và một lần chạy thử
+cho mọi hàng `skipped`.
+
+Chưa kiểm trên hệ thống thật: thử lại khi gặp rate limit hoặc timeout (không lần chạy nào gặp).
+Nhánh này có test tự động. Kết quả các đợt chạy trước (500 hàng, service account, incoming
+webhook, custom field) nằm ở mục 9 của hướng dẫn.
 
 ## Kiểm thử
 
