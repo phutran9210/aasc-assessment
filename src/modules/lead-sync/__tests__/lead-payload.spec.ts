@@ -68,6 +68,42 @@ describe('buildUpdateFields', () => {
     expect(fields).not.toHaveProperty('fm');
   });
 
+  it('should recognise a phone the lead holds in its national form, whatever its length', () => {
+    const lead = {
+      id: 345,
+      fm: [
+        { id: 21, typeId: 'PHONE', valueType: 'WORK', value: '+6590001111' },
+        { id: 22, typeId: 'PHONE', valueType: 'WORK', value: '8123 4567' },
+      ],
+    };
+
+    expect(
+      buildUpdateFields(row({ phone: '+6581234567', email: undefined }), lead),
+    ).not.toHaveProperty('fm');
+    expect(
+      buildUpdateFields(row({ phone: '+842838221234', email: undefined }), {
+        id: 346,
+        fm: [{ id: 31, typeId: 'PHONE', valueType: 'WORK', value: '028 3822 1234' }],
+      }),
+    ).not.toHaveProperty('fm');
+  });
+
+  it('should replace an empty phone entry instead of matching it', () => {
+    const lead = { id: 345, fm: [{ id: 21, typeId: 'PHONE', valueType: 'WORK', value: '' }] };
+
+    expect(buildUpdateFields(row({ email: undefined }), lead).fm).toEqual({
+      21: { typeId: 'PHONE', valueType: 'WORK', value: '+84901234567' },
+    });
+  });
+
+  it('should not take two different numbers for one because they end alike', () => {
+    const lead = { id: 345, fm: [{ id: 21, typeId: 'PHONE', valueType: 'WORK', value: '1900' }] };
+
+    expect(buildUpdateFields(row({ phone: '+84901231900', email: undefined }), lead).fm).toEqual({
+      21: { typeId: 'PHONE', valueType: 'WORK', value: '+84901231900' },
+    });
+  });
+
   it('should add a value with an n-key when the lead has none of that type', () => {
     expect(buildUpdateFields(row(), { id: 345 }).fm).toEqual({
       n0: { typeId: 'PHONE', valueType: 'WORK', value: '+84901234567' },

@@ -259,13 +259,13 @@ describe('buildDuplicateQueries / toMatches', () => {
         key: 'r12p',
         type: 'PHONE',
         value: '+84900000012',
-        variants: ['84900000012', '0900000012'],
+        variants: ['84900000012', '0084900000012', '0900000012', '900000012'],
       },
       {
         key: 'r13p',
         type: 'PHONE',
         value: '+84900000013',
-        variants: ['84900000013', '0900000013'],
+        variants: ['84900000013', '0084900000013', '0900000013', '900000013'],
       },
       { key: 'r14e', type: 'EMAIL', value: 'khach14@example.com' },
     ]);

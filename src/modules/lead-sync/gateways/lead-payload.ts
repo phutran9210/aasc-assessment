@@ -2,8 +2,8 @@ import { LEAD_ORIGINATOR_FIELD, LEAD_ORIGINATOR_ID } from '../constants/index.js
 import type { BitrixLeadItem, BitrixMultifield, ValidRow } from '../types/index.js';
 
 const DEFAULT_VALUE_TYPE = 'WORK';
-/** Digits compared when deciding whether two phone numbers are the same subscriber. */
-const PHONE_COMPARE_DIGITS = 9;
+/** Fewest digits two phone numbers must share at the end to be the same subscriber. */
+const PHONE_COMPARE_MIN_DIGITS = 7;
 
 /** `fields` of `crm.item.add` for a new lead. */
 export function buildCreateFields(row: ValidRow): Record<string, unknown> {
@@ -76,9 +76,17 @@ function multifields(item: BitrixLeadItem | undefined, typeId: string): BitrixMu
   return (fm as BitrixMultifield[]).filter((entry) => entry.typeId === typeId);
 }
 
+/**
+ * One number may be stored with its calling code and the other in its national form
+ * (`+6581234567` and `8123 4567`), so the shorter one has to end the longer one. Leading zeros
+ * (trunk prefix, `00`) are not part of the subscriber number.
+ */
 function samePhone(a: string, b: string): boolean {
-  const tail = (value: string): string => value.replace(/\D/g, '').slice(-PHONE_COMPARE_DIGITS);
-  return tail(a) !== '' && tail(a) === tail(b);
+  const digits = (value: string): string => value.replace(/\D/g, '').replace(/^0+/, '');
+  const [shorter, longer] = [digits(a), digits(b)].sort((x, y) => x.length - y.length);
+  if (!shorter) return false;
+  if (shorter === longer) return true;
+  return shorter.length >= PHONE_COMPARE_MIN_DIGITS && longer.endsWith(shorter);
 }
 
 function sameEmail(a: string, b: string): boolean {

@@ -34,19 +34,27 @@ export function normalizePhone(cell: CellValue, country: LeadSyncCountry): Norma
   return { ok: true, value: `+${digits}` };
 }
 
+/** A national number shorter than this is not searched on its own: it would match too widely. */
+const MIN_NATIONAL_DIGITS = 7;
+
 /**
  * Other spellings of an E.164 number that a lead typed by hand may carry: without the plus
- * (`84901234567`) and the national form (`0901234567`). Bitrix24 compares the digits as stored,
- * so a search for `+84901234567` alone misses a lead saved as `0901 234 567` and a duplicate
- * would be created.
+ * (`84901234567`), with the `00` prefix, and the national form with and without the trunk prefix
+ * (`0901234567`, `901234567`). Bitrix24 compares the digits as stored, so a search for
+ * `+84901234567` alone misses a lead saved as `0901 234 567` and a duplicate would be created.
+ *
+ * Calling codes are prefix-free, so a number that starts with a known code belongs to that
+ * country whatever its length: a landline (`+842838221234`) gets its national form too.
  */
 export function phoneSearchVariants(e164: string): string[] {
   const digits = e164.replace(/\D/g, '');
-  const variants = new Set([digits]);
-  for (const { code, nationalLength, trunk } of Object.values(COUNTRY_PHONE_RULES)) {
-    if (digits.startsWith(code) && digits.length === code.length + nationalLength) {
-      variants.add(trunk + digits.slice(code.length));
-    }
+  const variants = new Set([digits, `00${digits}`]);
+  for (const { code, trunk } of Object.values(COUNTRY_PHONE_RULES)) {
+    if (!digits.startsWith(code)) continue;
+    const national = digits.slice(code.length);
+    if (national.length < MIN_NATIONAL_DIGITS) continue;
+    variants.add(trunk + national);
+    variants.add(national);
   }
   variants.delete(e164);
   return [...variants];
