@@ -341,6 +341,19 @@ describe('SyncRunner', () => {
       expect(gateway.leads.get(existing)?.fields.name).toBe('Khách 1');
     });
 
+    it('should match a lead whose phone was typed by hand in the national form', async () => {
+      const row = lead(1);
+      row[1] = '';
+      const { run, sheet, gateway } = harness([row]);
+      const existing = gateway.seed({ phone: phoneOf(1).replace('+84', '0') });
+
+      const result = await run();
+
+      expect(counters(result)).toMatchObject({ created: 0, updated: 1 });
+      expect(gateway.leads.size).toBe(1);
+      expect(sheet.cell(2, 'Lead ID Bitrix24')).toBe(String(existing));
+    });
+
     it('should create one lead for two new rows with the same email and fail the lower row', async () => {
       const copy = lead(2);
       copy[1] = emailOf(1);

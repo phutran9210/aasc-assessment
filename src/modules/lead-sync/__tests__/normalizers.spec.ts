@@ -5,6 +5,7 @@ import {
   normalizeDateTime,
   normalizeNumber,
   normalizePhone,
+  phoneSearchVariants,
   normalizeText,
 } from '../domain/normalizers/index.js';
 import type { CellValue, MappingField } from '../types/index.js';
@@ -65,6 +66,15 @@ describe('normalizePhone', () => {
   it('should use the calling code of the default country', () => {
     expect(normalizePhone(cell('2025550123'), 'US')).toEqual({ ok: true, value: '+12025550123' });
     expect(normalizePhone(cell('81234567'), 'SG')).toEqual({ ok: true, value: '+6581234567' });
+  });
+
+  it.each([
+    ['+84901234567', ['84901234567', '0901234567']],
+    ['+12025550123', ['12025550123', '2025550123']],
+    ['+6581234567', ['6581234567', '81234567']],
+    ['+442071234567', ['442071234567']],
+  ])('should list the hand-typed spellings of %j to search duplicates by', (e164, expected) => {
+    expect(phoneSearchVariants(e164)).toEqual(expected);
   });
 
   it.each(['abc', '09012x4567', '123', '+1234567890123456', '#N/A'])(

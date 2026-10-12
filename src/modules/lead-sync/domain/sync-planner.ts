@@ -9,6 +9,7 @@ import type {
   RowState,
   TransformedRow,
 } from '../types/index.js';
+import { phoneSearchVariants } from './normalizers/index.js';
 import { formatHashCell, parseHashCell } from './sync-hash.js';
 
 export type Classification = {
@@ -109,7 +110,10 @@ export function classifyRows(
   return result;
 }
 
-/** One `findbycomm` command per value of every row that is not linked to a lead yet. */
+/**
+ * One `findbycomm` command per value of every row that is not linked to a lead yet. A phone is
+ * searched in every spelling a lead typed by hand may have.
+ */
 export function buildDuplicateQueries(pending: PendingRow[]): DuplicateQuery[] {
   const queries: DuplicateQuery[] = [];
   for (const { row, leadId } of pending) {
@@ -118,7 +122,12 @@ export function buildDuplicateQueries(pending: PendingRow[]): DuplicateQuery[] {
       queries.push({ key: `r${row.rowNumber}e`, type: 'EMAIL', value: row.email });
     }
     if (row.phone !== undefined) {
-      queries.push({ key: `r${row.rowNumber}p`, type: 'PHONE', value: row.phone });
+      queries.push({
+        key: `r${row.rowNumber}p`,
+        type: 'PHONE',
+        value: row.phone,
+        variants: phoneSearchVariants(row.phone),
+      });
     }
   }
   return queries;

@@ -143,6 +143,38 @@ describe('BitrixLeadGateway', () => {
       );
     });
 
+    it('should search the other spellings of a value in the same command', async () => {
+      batch.execute.mockResolvedValue({
+        results: new Map<string, unknown>([['r12p', { LEAD: [32, 30] }]]),
+        errors: new Map(),
+      });
+
+      await expect(
+        gateway.findDuplicates([
+          {
+            key: 'r12p',
+            type: 'PHONE',
+            value: '+84901234567',
+            variants: ['84901234567', '0901234567'],
+          },
+        ]),
+      ).resolves.toEqual(new Map([['r12p', [30, 32]]]));
+      expect(batch.execute).toHaveBeenCalledWith(
+        [
+          {
+            key: 'r12p',
+            method: 'crm.duplicate.findbycomm',
+            params: {
+              entity_type: 'LEAD',
+              type: 'PHONE',
+              values: ['+84901234567', '84901234567', '0901234567'],
+            },
+          },
+        ],
+        READ,
+      );
+    });
+
     it('should fail the whole search when one command fails: guessing "no duplicate" creates one', async () => {
       batch.execute.mockResolvedValue({
         results: new Map(),

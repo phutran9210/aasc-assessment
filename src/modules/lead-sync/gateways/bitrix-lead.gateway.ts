@@ -110,10 +110,10 @@ export class BitrixLeadGateway {
   }
 
   /**
-   * Looks up leads by email or phone. One command carries one value: with several values in one
-   * command the answer would not say which ID matched which value. Returns lead IDs per query
-   * key, ascending. Any failed command fails the search, because treating it as "no duplicate"
-   * would create one.
+   * Looks up leads by email or phone. One command carries one value and its other spellings:
+   * with values of several rows in one command the answer would not say which ID matched which
+   * row. Returns lead IDs per query key, ascending. Any failed command fails the search, because
+   * treating it as "no duplicate" would create one.
    */
   async findDuplicates(queries: DuplicateQuery[]): Promise<Map<string, number[]>> {
     const found = new Map<string, number[]>();
@@ -122,7 +122,11 @@ export class BitrixLeadGateway {
         group.map((query) => ({
           key: query.key,
           method: 'crm.duplicate.findbycomm',
-          params: { entity_type: 'LEAD', type: query.type, values: [query.value] },
+          params: {
+            entity_type: 'LEAD',
+            type: query.type,
+            values: [query.value, ...(query.variants ?? [])],
+          },
         })),
         this.readOptions,
       );

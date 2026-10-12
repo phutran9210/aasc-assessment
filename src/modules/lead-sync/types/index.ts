@@ -89,8 +89,16 @@ export type RowFailure = {
 /** A valid row that has to be sent; `leadId` is the lead it is already linked to, if any. */
 export type PendingRow = { row: ValidRow; leadId?: number };
 
-/** One `crm.duplicate.findbycomm` command: exactly one value, so the key identifies the row. */
-export type DuplicateQuery = { key: string; type: 'EMAIL' | 'PHONE'; value: string };
+/**
+ * One `crm.duplicate.findbycomm` command: one value of one row, so the key identifies the row.
+ * `variants` are other spellings of that same value, searched in the same command.
+ */
+export type DuplicateQuery = {
+  key: string;
+  type: 'EMAIL' | 'PHONE';
+  value: string;
+  variants?: string[];
+};
 
 /** Lead IDs found for one row, ascending. */
 export type DuplicateMatches = { byEmail: number[]; byPhone: number[] };

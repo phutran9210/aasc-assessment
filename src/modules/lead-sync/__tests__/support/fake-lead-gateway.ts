@@ -92,8 +92,9 @@ export class FakeLeadGateway {
     if (this.findError) return Promise.reject(this.findError);
 
     for (const query of queries) {
+      const values = [query.value, ...(query.variants ?? [])];
       const ids = [...this.leads.values()]
-        .filter((lead) => (query.type === 'EMAIL' ? lead.email : lead.phone) === query.value)
+        .filter((lead) => values.includes((query.type === 'EMAIL' ? lead.email : lead.phone) ?? ''))
         .map((lead) => lead.id);
       found.set(query.key, ids);
     }

@@ -255,8 +255,18 @@ describe('buildDuplicateQueries / toMatches', () => {
 
     expect(buildDuplicateQueries(pending)).toEqual([
       { key: 'r12e', type: 'EMAIL', value: 'khach12@example.com' },
-      { key: 'r12p', type: 'PHONE', value: '+84900000012' },
-      { key: 'r13p', type: 'PHONE', value: '+84900000013' },
+      {
+        key: 'r12p',
+        type: 'PHONE',
+        value: '+84900000012',
+        variants: ['84900000012', '0900000012'],
+      },
+      {
+        key: 'r13p',
+        type: 'PHONE',
+        value: '+84900000013',
+        variants: ['84900000013', '0900000013'],
+      },
       { key: 'r14e', type: 'EMAIL', value: 'khach14@example.com' },
     ]);
   });

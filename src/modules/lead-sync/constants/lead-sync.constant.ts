@@ -67,14 +67,17 @@ export const SHEET_ERROR_VALUES: readonly string[] = [
   '#ERROR!',
 ];
 
-/** Calling code and length of the national number (without the leading 0) per country. */
+/**
+ * Calling code, length of the national number (without the trunk prefix) and the trunk prefix
+ * people dial inside the country, per country.
+ */
 export const COUNTRY_PHONE_RULES: Record<
   LeadSyncCountry,
-  { code: string; nationalLength: number }
+  { code: string; nationalLength: number; trunk: string }
 > = {
-  VN: { code: '84', nationalLength: 9 },
-  US: { code: '1', nationalLength: 10 },
-  SG: { code: '65', nationalLength: 8 },
+  VN: { code: '84', nationalLength: 9, trunk: '0' },
+  US: { code: '1', nationalLength: 10, trunk: '' },
+  SG: { code: '65', nationalLength: 8, trunk: '' },
 };
 
 /** `v1:<hash>` = synced with this content; `invalid:<hash>` = rejected with this content. */

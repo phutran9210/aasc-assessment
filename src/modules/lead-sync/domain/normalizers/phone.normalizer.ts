@@ -33,3 +33,21 @@ export function normalizePhone(cell: CellValue, country: LeadSyncCountry): Norma
   }
   return { ok: true, value: `+${digits}` };
 }
+
+/**
+ * Other spellings of an E.164 number that a lead typed by hand may carry: without the plus
+ * (`84901234567`) and the national form (`0901234567`). Bitrix24 compares the digits as stored,
+ * so a search for `+84901234567` alone misses a lead saved as `0901 234 567` and a duplicate
+ * would be created.
+ */
+export function phoneSearchVariants(e164: string): string[] {
+  const digits = e164.replace(/\D/g, '');
+  const variants = new Set([digits]);
+  for (const { code, nationalLength, trunk } of Object.values(COUNTRY_PHONE_RULES)) {
+    if (digits.startsWith(code) && digits.length === code.length + nationalLength) {
+      variants.add(trunk + digits.slice(code.length));
+    }
+  }
+  variants.delete(e164);
+  return [...variants];
+}
