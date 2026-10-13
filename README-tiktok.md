@@ -490,3 +490,24 @@ nhân có mã ổn định.
 - Chế độ CRM được kiểm khi lưu cấu hình và trước khi tạo lead. Chế độ cổ điển được nhớ năm phút.
 - Thông báo chỉ có trong ứng dụng và trong log.
 - Tài khoản demo và mock server chỉ dùng trên máy; không bao giờ mở cổng 3002 ra ngoài.
+
+### Phần nhận webhook
+
+Đây là bài kiểm tra phỏng vấn chạy với mock, không nhằm triển khai production. Các điểm dưới đây
+được ghi lại từ lần rà soát mã ngày 2026-10-13 và chưa sửa:
+
+- `POST /webhooks/tiktok/leads` chỉ xác thực được chữ ký HMAC của mock (`tiktok-signature:
+  t=…,s=…`). Với `TIKTOK_MODE=business-api` endpoint trả 503 cho mọi request.
+- Khi không lưu được webhook TikTok, API trả 503 nhưng log không giữ lỗi gốc. Một lỗi cố định trong
+  mã cũng thành 503, nên bên gửi sẽ gửi lại mãi.
+- `NODE_ENV=production` vẫn chấp nhận `TIKTOK_MODE=mock` và `BITRIX_INTEGRATION_MODE=mock`; chỉ
+  secret mẫu bị từ chối.
+- Mỗi loại webhook có một secret, không có khoảng chuyển tiếp khi đổi secret.
+- `TIKTOK_TRUSTED_PROXIES` so khớp từng IP, không nhận CIDR. Nếu IP của reverse proxy không được
+  khai đúng, mọi client dùng chung một hạn mức 600 request/phút.
+- Sự kiện Deal của Bitrix24 đến từ ít địa chỉ IP, nên một đợt cập nhật hàng loạt có thể vượt hạn
+  mức theo IP và nhận 429. Khóa chống trùng của sự kiện tính theo giây, nên hai lần cập nhật cùng
+  một Deal trong một giây được coi là một. Cả hai trường hợp do lịch poll Deal bù lại, có trễ.
+- Body được parse (tối đa 256 KB) trước khi tới rate limit.
+- Khi Redis mất kết nối lâu, các client Redis đã đóng không được gỡ khỏi danh sách, bộ nhớ tăng
+  chậm cho tới khi khởi động lại.

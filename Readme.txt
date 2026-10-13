@@ -792,6 +792,23 @@ Báo cáo chi tiết của Bài A nằm trong thư mục docs/tu-duy-lap-trinh/:
       không tới được Jotform, webhook trả 502 và submission được lưu ở trạng thái FAILED để
       POST /jotform/sync xử lý lại sau.
 
+  14.10. Giới hạn của phần webhook
+
+      Đây là bài kiểm tra phỏng vấn, không nhằm triển khai production. Các điểm dưới đây được
+      ghi lại từ lần rà soát mã ngày 2026-10-13 và chưa sửa:
+
+      - Webhook xử lý đồng bộ: gọi Jotform API rồi tạo Contact ngay trong request, không qua
+        hàng đợi. Bitrix24 chậm thì Jotform chờ theo.
+      - Không có lịch chạy bù. Bản FAILED nằm yên cho tới khi Jotform gửi lại webhook hoặc có
+        người gọi POST /jotform/sync.
+      - Nếu tiến trình dừng sau khi tạo Contact nhưng trước khi ghi SYNCED, lần xử lý lại có
+        thể tạo Contact trùng: bước tạo Contact không tìm bản đã có. Chưa tái hiện tình huống
+        này.
+      - Ứng dụng không giới hạn tốc độ cho /jotform/webhook; request sai secret bị từ chối
+        trước khi đọc body.
+      - Secret nằm trên query string vì Jotform không ký webhook. Ứng dụng không log query,
+        nhưng access log của reverse proxy đặt phía trước sẽ ghi lại.
+
 
 15. BÀI D - ĐỒNG BỘ LEAD TỪ GOOGLE SHEETS SANG BITRIX24
 -------------------------------------------------------
