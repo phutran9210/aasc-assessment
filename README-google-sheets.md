@@ -34,7 +34,7 @@ Google Sheets và Bitrix24 đều là hệ thống thật; không có mock ngoà
 | Điểm cộng: giao diện quản trị | `http://localhost:3000/lead-sync.html` |
 | File mẫu | `config/mapping.json`, `.env.example`, [`samples/leads-template.csv`](samples/leads-template.csv), [`samples/leads-150.csv`](samples/leads-150.csv) |
 | Docker | `Dockerfile`, `docker-compose.yml` |
-| Test, coverage từ 70 % | 409 test trong 33 suite; statements 97,2 %, branches 86,8 %, functions 95,1 %, lines 97,8 % (2026-10-12) |
+| Test, coverage từ 70 % | 414 test trong 33 suite; statements 97,3 %, branches 87,0 %, functions 95,4 %, lines 97,9 % (2026-10-13) |
 
 ## Kiến trúc
 
@@ -407,16 +407,16 @@ pnpm check        # lint + typecheck + unit + E2E + bài Fibonacci
 Test không gọi Google hay Bitrix24: hai phía được thay bằng bản giả trong
 `src/modules/lead-sync/__tests__/support/`.
 
-Kết quả ngày 2026-10-12 cho `src/modules/lead-sync/`, `src/modules/google-sheets/` và hai lệnh CLI:
+Kết quả ngày 2026-10-13 cho `src/modules/lead-sync/`, `src/modules/google-sheets/` và hai lệnh CLI:
 
 | Chỉ số | Kết quả |
 | --- | --- |
 | Test suite | 33 / 33 đạt |
-| Test | 409 / 409 đạt |
-| Statements | 97,24 % |
-| Branches | 86,77 % |
-| Functions | 95,07 % |
-| Lines | 97,79 % |
+| Test | 414 / 414 đạt |
+| Statements | 97,26 % |
+| Branches | 86,97 % |
+| Functions | 95,39 % |
+| Lines | 97,90 % |
 
 ## Vận hành
 

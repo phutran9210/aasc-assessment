@@ -25,7 +25,7 @@ nhận đúng payload của đề ([`samples/tiktok/lead-generate.json`](samples
 | Export, conversion event về TikTok, import, báo cáo định kỳ | `/api/v1/reports/*`, worker feedback, `/api/v1/leads/imports`, scheduler |
 | Swagger/OpenAPI | `/docs`; [`api-docs/tiktok-openapi.json`](api-docs/tiktok-openapi.json) |
 | Docker, multi-stage build, health check | `Dockerfile.tiktok`, `docker-compose.tiktok.yml` |
-| Test | 1949 test trong 226 suite; statements 96,7 %, branches 88,6 %, functions 93,8 %, lines 97,8 % (2026-10-12) |
+| Test | 1960 test trong 226 suite; statements 96,7 %, branches 88,6 %, functions 93,8 %, lines 97,8 % (2026-10-13) |
 | ESLint, Prettier, Husky | `pnpm lint`, `pnpm format:check`; hook pre-commit chạy trên file đã stage |
 
 ## Kiến trúc

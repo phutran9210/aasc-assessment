@@ -83,12 +83,12 @@ pnpm test:tiktok:cov        # unit + integration + E2E, kèm ngưỡng coverage 
 Chạy riêng từng bộ: `pnpm test:tiktok:unit`, `pnpm test:tiktok:integration`,
 `pnpm test:tiktok:e2e`.
 
-Kết quả lần chạy ngày 2026-10-12:
+Kết quả lần chạy ngày 2026-10-13:
 
 | Chỉ số     | Kết quả         |
 | ---------- | --------------- |
 | Test suite | 226 / 226 đạt   |
-| Test       | 1949 / 1949 đạt |
+| Test       | 1960 / 1960 đạt |
 | Statements | 96,74 %         |
 | Branches   | 88,56 %         |
 | Functions  | 93,82 %         |
